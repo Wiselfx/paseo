@@ -10,6 +10,24 @@ import {
 const noFiles = () => false;
 describe("source-preserving prose", () => {
   it.each([
+    [
+      "https://example.com/?tags[]=a",
+      "[https://example.com/?tags[]=a](<https://example.com/?tags%5B%5D=a>)",
+    ],
+    ["`src/[...]/file.ts`", "`src/[...]/file.ts`"],
+    ["[text []](https://example.com)", "[text []](https://example.com)"],
+    ["https://example.com/a*b*c", "[https://example.com/a](<https://example.com/a>)*b*c"],
+  ])("uses parser-owned link ranges: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+  });
+  it.each([
+    ["Use ~", "Use "],
+    ["Use ~/", "Use \\~/"],
+    ["Use ~/.config", "Use \\~/.config"],
+  ])("keeps provisional tilde escapes attached: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles, true)).toBe(expected);
+  });
+  it.each([
     ["Paths ~/.config and ~/.local are used.", "Paths \\~/.config and \\~/.local are used."],
     ["~/a ~/b", "\\~/a \\~/b"],
     ["~~gone~~", "~~gone~~"],

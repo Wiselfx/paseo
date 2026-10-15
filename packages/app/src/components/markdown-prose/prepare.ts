@@ -276,7 +276,11 @@ function prepareSpan(context: InlinePreparation, span: InlineSpan) {
     preserveLinkScope(context, span, raw, link);
   } else if (code && raw.startsWith("`")) {
     prepareCode(context, span, raw, code);
-  } else if (context.streaming && (raw.startsWith("[") || raw.startsWith("!["))) {
+  } else if (
+    context.streaming &&
+    !contains(context.referenceRanges, span.start) &&
+    (raw.startsWith("[") || raw.startsWith("!["))
+  ) {
     prepareUnfinishedLink(context, span, raw);
   } else if (
     context.streaming &&
@@ -284,6 +288,7 @@ function prepareSpan(context: InlinePreparation, span: InlineSpan) {
     /^(?:\*{1,3}|_{1,3}|~{1,2}|`+)$/.test(raw)
   ) {
     context.edits.push({ start: span.start, end: span.end, text: "" });
+    protect(context.protectedRanges, span);
   }
 }
 function preserveUnresolvedReferences(context: InlinePreparation) {
@@ -352,26 +357,51 @@ function prepareLinkifiedLinks(context: InlinePreparation) {
   if (!links.length) return;
   const destinations = new Map(links.map((link) => [link.attrGet("href"), link]));
   const { decoded, positions } = linkifySource(context);
-  for (const match of context.parser.linkify.match(decoded) ?? []) {
-    const start = positions[match.index]!;
-    const end = positions[match.lastIndex]!;
-    if (contains(context.referenceRanges, start)) continue;
-    const link = destinations.get(context.parser.normalizeLink(match.url));
-    if (!link) continue;
-    const destination = link.attrGet("href")!;
-    const payload: AssistantFileLinkSource = {
-      href: destination,
-      text: match.text,
-      markup: "linkify",
-      sourceInfo: "auto",
-    };
-    const href = context.canResolveCode(match.text)
-      ? FILE_LINK_SCHEME + encodeURIComponent(JSON.stringify(payload))
-      : destination;
-    insert(context, start, "[");
-    insert(context, end, `](<${href}>)`);
+  let cursor = 0;
+  for (const text of context.trace.linkifyTexts) {
+    if (!text) continue;
+    let offset = decoded.indexOf(text, cursor);
+    while (
+      offset >= 0 &&
+      contains(context.referenceRanges, positions[offset]!, positions[offset + text.length]!)
+    )
+      offset = decoded.indexOf(text, offset + 1);
+    if (offset < 0) continue;
+    cursor = offset + text.length;
+    for (const match of context.parser.linkify.match(text) ?? []) {
+      const link = destinations.get(context.parser.normalizeLink(match.url));
+      if (!link) continue;
+      wrapLinkifiedMatch(
+        context,
+        positions[offset + match.index]!,
+        positions[offset + match.lastIndex]!,
+        link.attrGet("href")!,
+        match.text,
+      );
+    }
   }
 }
+function wrapLinkifiedMatch(
+  context: InlinePreparation,
+  start: number,
+  end: number,
+  destination: string,
+  text: string,
+) {
+  const payload: AssistantFileLinkSource = {
+    href: destination,
+    text,
+    markup: "linkify",
+    sourceInfo: "auto",
+  };
+  const href = context.canResolveCode(text)
+    ? FILE_LINK_SCHEME + encodeURIComponent(JSON.stringify(payload))
+    : destination;
+  protect(context.referenceRanges, { start, end });
+  insert(context, start, "[");
+  insert(context, end, `](<${href}>)`);
+}
+
 function sourcePositions(
   token: Token,
   heading: Token | undefined,
@@ -448,16 +478,20 @@ function compileBlock(
       task: tokens[index - 2]?.type === "list_item_open",
       edits: [],
     };
+    // Link/code ownership is established before either references or provisional
+    // brackets can be rewritten. Linkify uses the parser's emphasis-split text tokens.
+    for (const span of trace.spans)
+      if (span.tokens.some((child) => ["link_open", "code_inline", "image"].includes(child.type)))
+        protect(context.referenceRanges, span);
+    prepareLinkifiedLinks(context);
     for (const span of trace.spans) prepareSpan(context, span);
+    if (trace.trim) {
+      const tail = { start: token.content.length - trace.trim, end: token.content.length };
+      context.edits.push({ ...tail, text: "" });
+      protect(context.protectedRanges, tail);
+    }
     preserveUnresolvedReferences(context);
     prepareText(context);
-    prepareLinkifiedLinks(context);
-    if (trace.trim)
-      context.edits.push({
-        start: token.content.length - trace.trim,
-        end: token.content.length,
-        text: "",
-      });
     if (trace.suffix) insert(context, token.content.length, trace.suffix);
     const positions = sourcePositions(token, heading, lines, lineOffsets);
     for (const edit of context.edits)

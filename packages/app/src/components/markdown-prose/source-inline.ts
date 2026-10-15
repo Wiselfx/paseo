@@ -9,6 +9,7 @@ export interface InlineSpan {
 }
 export interface InlineTrace {
   spans: InlineSpan[];
+  linkifyTexts: string[];
   suffix: string;
   trim: number;
 }
@@ -21,7 +22,7 @@ export function createSourceParser(streaming: boolean) {
   const inlineTraces = new WeakMap<Token[], InlineTrace>();
   const parseInline = parser.inline.parse.bind(parser.inline);
   parser.inline.parse = (source, md, env, output) => {
-    const trace: InlineTrace = { spans: [], suffix: "", trim: 0 };
+    const trace: InlineTrace = { spans: [], linkifyTexts: [], suffix: "", trim: 0 };
     parseInline(source, md, { ...env, [TRACE]: trace }, output);
     inlineTraces.set(output, trace);
   };
@@ -70,8 +71,15 @@ export function createSourceParser(streaming: boolean) {
   }
   parser.core.ruler.after("inline", "prose_inline_traces", (state) => {
     for (const token of state.tokens) {
-      if (token.type === "inline" && token.children)
-        traces.set(token, inlineTraces.get(token.children)!);
+      if (token.type !== "inline" || !token.children) continue;
+      const trace = inlineTraces.get(token.children)!;
+      let linkDepth = 0;
+      for (const child of token.children) {
+        if (child.type === "link_open") linkDepth++;
+        if (child.type === "link_close") linkDepth--;
+        if (child.type === "text" && linkDepth === 0) trace.linkifyTexts.push(child.content);
+      }
+      traces.set(token, trace);
     }
   });
   return { parser, traces };

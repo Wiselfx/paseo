@@ -81,7 +81,7 @@ function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: T
   );
 }
 
-export const YouTubeInlinePlayer = withUnistyles(YouTubeInlinePlayerBase);
+export const YouTubeInlinePlayer = withUnistyles(YouTubeInlinePlayerBase, (theme) => ({ theme }));
 
 /** ```youtube fence: code is a watch URL or bare video ID. */
 export function YouTubeFence({ code }: MarkdownFenceRendererProps) {

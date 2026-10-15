@@ -36,3 +36,30 @@ it("preserves named and numeric entities as literal rendered text", () => {
     "AT\\&T 😀 \\# heading and `&amp;`",
   );
 });
+
+it("preserves empty table cells while escaping spoilers in cell text", () => {
+  const source = "| A || B |\n| --- | --- | --- |\n| x || z |";
+  expect(prepareMarkdownSource(source).render()).toBe(
+    "| A | | B |\n| --- | --- | --- |\n| x | | z |",
+  );
+});
+
+it.each([
+  "src/components/message.tsx",
+  "C:\\repo\\file.ts",
+  "docs/说明.md",
+  "src/file.ts:10-20",
+  "src/file.ts(10,2)",
+])("recognizes inline paths through the file resolver: %s", (path) => {
+  const prepared = prepareMarkdownSource(`Open \`${path}\`.`, "/workspace");
+  expect(prepared.linkRecognition.inlineCode?.test(path)).toBe(true);
+  expect(prepared.linkSource(path)).toEqual({ href: path, text: path, sourceType: "inline-code" });
+});
+
+it("recognizes bare Unicode filenames and preserves inline-code URLs", () => {
+  const prepared = prepareMarkdownSource("Read 说明.md, or `https://example.com`.", "/workspace");
+  expect([..."说明.md,".matchAll(prepared.linkRecognition.text)].map(([text]) => text)).toEqual([
+    "说明.md",
+  ]);
+  expect(prepared.linkRecognition.inlineCode?.test("https://example.com")).toBe(true);
+});

@@ -1,6 +1,6 @@
 import { View } from "react-native";
 import { markdownCopyImageSourcesDataSet } from "@/assistant-selection-copy/markup";
-import { memo, useMemo, useState } from "react";
+import { memo, useState } from "react";
 import {
   EnrichedMarkdownText,
   type MarkdownStyle,
@@ -20,12 +20,6 @@ import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
-const FILE_PATTERN =
-  /(?:https?:\/\/[^\s<>]+|(?:\.{0,2}\/|~\/)?[\w@.-]+(?:\/[\w@.-]+)+(?::\d+(?::\d+)?)?|[\w@-]+\.[a-zA-Z][\w-]*(?::\d+(?::\d+)?)?)/g;
-const LINK_RECOGNITION = {
-  text: FILE_PATTERN,
-  inlineCode: new RegExp(`^(?:${FILE_PATTERN.source})$`),
-};
 
 function markdownStyle(theme: Theme, compact = false): { markdownStyle: MarkdownStyle } {
   const fontSize = compact ? theme.fontSize.base : theme.fontSize.content;
@@ -140,15 +134,16 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     (environment.client?.readFile
       ? { readFile: environment.client.readFile.bind(environment.client) }
       : undefined);
-  const { markdown, imageSources } = useMarkdownSource(text, {
-    workspaceRoot: environment.workspaceRoot,
-    serverId: environment.serverId,
-    ...imageContext,
-    client,
-  });
+  const { markdown, imageSources, linkRecognition, linkPillContent, linkSource } =
+    useMarkdownSource(text, {
+      workspaceRoot: environment.workspaceRoot,
+      serverId: environment.serverId,
+      ...imageContext,
+      client,
+    });
   const [image, setImage] = useState<ImageLightboxSource | null>(null);
   const pressLink = useStableEvent(({ url }: { url: string }) => {
-    const source = { href: url, text: url };
+    const source = linkSource(url);
     if (onLinkPress && !actions.canResolveFile(source)) onLinkPress(url);
     else actions.open(source, "preferred");
   });
@@ -156,15 +151,6 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     setImage({ type: "uri", uri: url }),
   );
   const closeImage = useStableEvent(() => setImage(null));
-  const pills = useMemo(
-    () =>
-      Object.fromEntries(
-        [...markdown.matchAll(FILE_PATTERN)]
-          .filter(([url]) => !/^https?:/i.test(url))
-          .map(([url]) => [url, { label: url }]),
-      ),
-    [markdown],
-  );
   const content = (
     <>
       <ThemedMarkdown
@@ -174,8 +160,8 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
         flavor="github"
         selectable
         md4cFlags={MD4C_FLAGS}
-        linkRecognition={LINK_RECOGNITION}
-        linkPillContent={pills}
+        linkRecognition={linkRecognition}
+        linkPillContent={linkPillContent}
         enableTaskListItemToggle={false}
         enableLinkPreview={false}
         enableBlockContextMenu={false}

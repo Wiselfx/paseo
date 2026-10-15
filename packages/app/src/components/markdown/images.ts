@@ -1,4 +1,4 @@
-import { useMemo, useEffect } from "react";
+import { useMemo, useEffect, useId } from "react";
 import { useFetchQueries } from "@/data/query";
 import { createAssistantImageFileAcquisition } from "@/assistant-image/file-acquisition";
 import {
@@ -33,7 +33,11 @@ export interface MarkdownImageContext {
 }
 
 export function useMarkdownSource(text: string, context: MarkdownImageContext) {
-  const prepared = useMemo(() => prepareMarkdownSource(text), [text]);
+  const occurrenceKey = useId();
+  const prepared = useMemo(
+    () => prepareMarkdownSource(text, context.workspaceRoot),
+    [text, context.workspaceRoot],
+  );
   const sources = [...new Set(prepared.images.map((image) => image.source))];
   const acquisitions = sources.map((source) => {
     const resolved = context.filePath
@@ -54,7 +58,7 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
         ? resolveAssistantImageSource({ source: resolved, workspaceRoot: context.workspaceRoot })
         : null,
       serverId: context.serverId,
-      occurrenceKey: context.filePath ?? context.workspaceRoot ?? "markdown",
+      occurrenceKey,
       unavailableMessage: "Image unavailable",
     });
   });
@@ -90,6 +94,9 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   });
   return {
     markdown: prepared.render(resolved),
+    linkRecognition: prepared.linkRecognition,
+    linkPillContent: prepared.linkPillContent,
+    linkSource: prepared.linkSource,
     imageSources: Object.fromEntries([...resolved].map(([source, url]) => [url, source])),
   };
 }

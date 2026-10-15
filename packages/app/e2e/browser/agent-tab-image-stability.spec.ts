@@ -252,9 +252,12 @@ test("reloading a timeline reserves image height without a load-time scroll jump
     scrollTop: number;
   }>;
   const loadedIndex = geometryEvents.findIndex((event) => event.complete && event.height > 0);
-  expect(loadedIndex, JSON.stringify(events)).toBeGreaterThan(0);
-  const beforeLoad = geometryEvents[loadedIndex - 1]!;
+  expect(loadedIndex, JSON.stringify(events)).toBeGreaterThanOrEqual(0);
+  const beforeLoad = geometryEvents[Math.max(0, loadedIndex - 1)]!;
   const loaded = geometryEvents[loadedIndex]!;
+  expect(
+    new Set(geometryEvents.filter((event) => event.height > 0).map((event) => event.height)).size,
+  ).toBe(1);
   expect(loaded.height).toBe(beforeLoad.height);
   expect(loaded.scrollTop).toBe(beforeLoad.scrollTop);
 });
@@ -296,4 +299,27 @@ test("a near-10 MiB real assistant PNG renders and the app remains responsive", 
     prompt: "confirm responsiveness: emit 1 coalesced agent stream updates",
     response: "stress-update-0",
   });
+});
+
+test("a later reply reads new bytes at the same workspace image path", async ({
+  imageWorkspace: workspace,
+  page,
+}) => {
+  const agent = await createSettledMockAgent(workspace, "Screenshot revisions");
+  const first = await createSmallAssistantPng(workspace, {
+    alt: "Earlier screenshot",
+    fileName: "screenshot.png",
+  });
+  await emitSettledAssistantImage(workspace.client, agent, first);
+  await openAssistantImageTimeline(page, agent);
+  await expectAssistantImageRendered(page, first);
+  const second = await createSmallAssistantPng(workspace, {
+    alt: "Updated screenshot",
+    fileName: "screenshot.png",
+    width: 2,
+    height: 3,
+  });
+  await emitSettledAssistantImage(workspace.client, agent, second);
+  await expectAssistantImageRendered(page, second);
+  await expectAssistantImageRendered(page, first);
 });

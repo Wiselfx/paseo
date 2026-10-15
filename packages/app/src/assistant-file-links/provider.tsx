@@ -10,7 +10,7 @@ import {
 import React from "react";
 import type { ToastApi } from "@/components/toast-host";
 import type { OpenFileDisposition } from "@/workspace/file-open";
-import type { InlinePathTarget } from "./parse";
+import type { InlinePathTarget } from "./paths";
 import type { AssistantFileLinkContext, GetDirectorySuggestions } from "./resolver";
 
 export interface AssistantFileLinkDaemonClient {

@@ -33,9 +33,9 @@ test.describe("Plan card markdown", () => {
 test("chat and file preview share the library renderer and resolve file links", async ({
   page,
 }, testInfo) => {
-  const { writeFile } = await import("node:fs/promises");
+  const { writeFile, mkdir } = await import("node:fs/promises");
   const source =
-    "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst answer = 42;\n```\n\n> A quote\n\n| Key | Value |\n| --- | --- |\n| Answer | 42 |\n\nOpen `README.md`.";
+    "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst answer = 42;\n```\n\n> A quote\n\n| Key || Value |\n| --- | --- | --- |\n| Answer || 42 |\n\nOpen `README.md` or `src/说明.md:2-3`.";
   const session = await seedMockAgentWorkspace({
     repoPrefix: "shared-markdown-",
     title: "Shared Markdown",
@@ -44,6 +44,11 @@ test("chat and file preview share the library renderer and resolve file links", 
   });
   try {
     await writeFile(`${session.cwd}/README.md`, source);
+    await mkdir(`${session.cwd}/packages/app/src`, { recursive: true });
+    await writeFile(
+      `${session.cwd}/packages/app/src/说明.md`,
+      "# Nested file\n\nUnicode suffix lookup succeeded.",
+    );
     await session.client.waitForFinish(session.agentId, 30_000);
     await openAgentRoute(page, session);
     const message = page.getByTestId("assistant-message");
@@ -52,10 +57,16 @@ test("chat and file preview share the library renderer and resolve file links", 
     await expect(message.locator(".enrm-text > p").nth(1)).toContainText("Second paragraph.");
     await expect(message.locator("blockquote")).toContainText("A quote");
     await expect(message.getByRole("table")).toContainText("42");
+    await expect(message.getByRole("cell").nth(0)).toHaveText("Answer");
+    await expect(message.getByRole("cell").nth(1)).toHaveText("");
+    await expect(message.getByRole("cell").nth(2)).toHaveText("42");
     await message.getByRole("link", { name: "README.md" }).click();
     const preview = page.getByTestId("markdown-preview-frame");
     await expect(preview.locator(".enrm-text")).toContainText("Second paragraph.");
     await expect(preview.getByRole("table")).toContainText("42");
+    await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
+    await message.getByRole("link", { name: "src/说明.md:2-3" }).click();
+    await expect(page.getByText("Unicode suffix lookup succeeded.", { exact: true })).toBeVisible();
     await testInfo.attach("shared-renderer", {
       body: await page.screenshot(),
       contentType: "image/png",

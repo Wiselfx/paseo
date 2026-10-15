@@ -6,15 +6,15 @@ Native selection belongs to the library's text view. Keep an assistant message i
 
 ## Links and images
 
-Workspace file links use the shared file-link resolver. The workspace supplies its client, root and open-file action once; chat can supply the agent's more specific context. URLs use the same link press path. Recognized inline-code paths stay tappable.
+Workspace file links use the shared file-link resolver. The workspace supplies its client, root and open-file action once; chat can supply the agent's more specific context. URLs use the same link press path. Recognized inline-code paths stay tappable. The library emits a URL without syntax context, so the renderer recovers inline-code context from source when tapped to preserve suffix lookup and literal percent characters. Keep this parsing off reveal frames.
 
-Resolve workspace image paths over the existing session RPC, then give the library a cached native file URL or web blob URL. HTTP(S) images pass through unchanged. This preserves relay, SSH and local socket connections, which do not expose a daemon HTTP endpoint. Image taps open the attachment lightbox. File previews resolve relative images against the Markdown file's directory.
+Resolve workspace image paths over the existing session RPC, then give the library a cached native file URL or web blob URL. HTTP(S) images pass through unchanged. This preserves relay, SSH and local socket connections, which do not expose a daemon HTTP endpoint. Each mounted renderer owns its image acquisition identity, so a later reply reads a rewritten path again while the earlier mounted reply retains its snapshot. Image taps open the attachment lightbox. File previews resolve relative images against the Markdown file's directory.
 
 ## Engine constraints
 
 The pinned nightly has the same React Native package and core source trees as upstream commit `73ac5085eb1fdc743973b3473d4dba65abad5261`. Compatibility was checked with React Native 0.81.5. Native dependencies must be rebuilt when changing the highlighting configuration; JavaScript refresh cannot enable compiled grammars.
 
-Math and video are disabled. Task lists and admonitions are enabled; task checkboxes are read-only. Source adaptation escapes spoiler delimiters and decodes entity text before the engine can discard it. Code spans and fences keep their literal source. Mermaid renders as a code block. HTML and details collapsibles have no custom renderer.
+Math and video are disabled. Task lists and admonitions are enabled; task checkboxes are read-only. Source adaptation spaces adjacent empty GFM table delimiters before escaping prose spoiler delimiters and decodes entity text before the engine can discard it. Code spans and fences keep their literal source. Mermaid renders as a code block. HTML and details collapsibles have no custom renderer.
 
 Native code blocks use the library's copy control and compiled grammars. Web code blocks use `HighlightedCodeBlock` through the library's `renderers.codeBlock` override. The patch also preserves web list numbering and link titles, and marks pending parses with `aria-busy` so Find waits for rendered text. The package patch is tracked by [upstream PR #997](https://github.com/software-mansion/enriched-markdown/pull/997); remove the patch when the pinned release includes it.
 

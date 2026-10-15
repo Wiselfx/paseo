@@ -26,16 +26,13 @@ export interface AssistantImageFixture {
 
 export async function createSmallAssistantPng(
   workspace: SeededWorkspace,
-  input: { alt: string; fileName: string },
+  input: { alt: string; fileName: string; width?: number; height?: number },
 ): Promise<AssistantImageFixture> {
-  await writeFile(path.join(workspace.repoPath, input.fileName), SMALL_PNG);
-  return {
-    alt: input.alt,
-    height: 1,
-    relativePath: input.fileName,
-    size: SMALL_PNG.byteLength,
-    width: 1,
-  };
+  const width = input.width ?? 1;
+  const height = input.height ?? 1;
+  const bytes = width === 1 && height === 1 ? SMALL_PNG : encodeDeterministicPng(width, height);
+  await writeFile(path.join(workspace.repoPath, input.fileName), bytes);
+  return { alt: input.alt, height, relativePath: input.fileName, size: bytes.byteLength, width };
 }
 
 export async function createNearTenMegabyteAssistantPng(

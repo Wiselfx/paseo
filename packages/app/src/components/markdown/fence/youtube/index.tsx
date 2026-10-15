@@ -1,8 +1,9 @@
 import { useCallback, useMemo } from "react";
-import { Pressable, Text, View } from "react-native";
-import { useUnistyles } from "react-native-unistyles";
+import { Pressable, Text, View, type TextStyle, type ViewStyle } from "react-native";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { WebView } from "react-native-webview";
 import { Play } from "lucide-react-native";
+import type { Theme } from "@/styles/theme";
 import { openExternalUrl } from "@/utils/open-external-url";
 import type { MarkdownFenceRendererProps } from "../types";
 
@@ -29,39 +30,37 @@ export function youtubeWatchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
 
-export function YouTubeInlinePlayer({ videoId }: { videoId: string }) {
-  const { theme } = useUnistyles();
+const styles = StyleSheet.create((theme: Theme) => ({
+  card: { gap: 6 },
+  screen: {
+    width: "100%",
+    aspectRatio: 16 / 9,
+    borderRadius: 8,
+    overflow: "hidden",
+    backgroundColor: theme.colors.surface2,
+  },
+  player: { width: "100%", height: "100%" },
+  metaRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+  },
+  host: { color: theme.colors.foregroundMuted, fontSize: 12 },
+}));
+
+function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: Theme }) {
   const embedUrl = useMemo(() => youtubeEmbedUrl(videoId), [videoId]);
   const watchUrl = useMemo(() => youtubeWatchUrl(videoId), [videoId]);
+  const source = useMemo(() => ({ uri: embedUrl }), [embedUrl]);
   const handleOpen = useCallback(() => {
     void openExternalUrl(watchUrl);
   }, [watchUrl]);
-  const styles = useMemo(
-    () => ({
-      card: { gap: 6 },
-      screen: {
-        width: "100%",
-        aspectRatio: 16 / 9,
-        borderRadius: 8,
-        overflow: "hidden" as const,
-        backgroundColor: theme.colors.surface2,
-      },
-      player: { width: "100%", height: "100%" },
-      metaRow: {
-        flexDirection: "row" as const,
-        alignItems: "center" as const,
-        gap: 6,
-      },
-      host: { color: theme.colors.foregroundMuted, fontSize: 12 },
-    }),
-    [theme],
-  );
 
   return (
     <View style={styles.card}>
       <View style={styles.screen}>
         <WebView
-          source={{ uri: embedUrl }}
+          source={source}
           style={styles.player}
           javaScriptEnabled
           allowsInlineMediaPlayback
@@ -73,14 +72,16 @@ export function YouTubeInlinePlayer({ videoId }: { videoId: string }) {
         accessibilityRole="link"
         accessibilityLabel={`Open YouTube video ${videoId}`}
         onPress={handleOpen}
-        style={styles.metaRow}
+        style={styles.metaRow as ViewStyle}
       >
         <Play size={12} color={theme.colors.foregroundMuted} />
-        <Text style={styles.host}>youtube.com · {videoId}</Text>
+        <Text style={styles.host as TextStyle}>youtube.com · {videoId}</Text>
       </Pressable>
     </View>
   );
 }
+
+export const YouTubeInlinePlayer = withUnistyles(YouTubeInlinePlayerBase);
 
 /** ```youtube fence: code is a watch URL or bare video ID. */
 export function YouTubeFence({ code }: MarkdownFenceRendererProps) {

@@ -1,4 +1,4 @@
-import { View, type TextStyle } from "react-native";
+import { View } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ChevronRight } from "lucide-react-native";
 import { SPACING, type Theme } from "@/styles/theme";
@@ -21,10 +21,7 @@ const SUPPRESS_TOUCH_CALLOUT =
   typeof window.matchMedia === "function" &&
   window.matchMedia("(pointer: coarse)").matches;
 
-const TOUCH_CALLOUT_SUPPRESSION = {
-  userSelect: "none",
-  WebkitTouchCallout: "none",
-} as unknown as TextStyle;
+const TOUCH_CALLOUT_SUPPRESSION = SUPPRESS_TOUCH_CALLOUT ? { userSelect: "none" as const } : {};
 /**
  * Trailing glyph rail shared with the explorer X and Changes options chevron.
  * The extra 2px is optical: text ink ends inside its layout box, while the
@@ -65,6 +62,8 @@ export const workspaceTreeRowStyles = StyleSheet.create((theme: Theme) => ({
     paddingRight: WORKSPACE_PANE_TRAILING_GLYPH_RAIL,
     // Touch web (iOS Safari): stop the OS hijacking long-press with its own
     // callout/magnifier so the gesture reaches the context menu trigger.
+    // (If Safari ever needs the stronger `-webkit-touch-callout: none`, it
+    // has no RN type — add it here via a CSS escape hatch, not this object.)
     // Desktop keeps text selection; copy remains via the menu everywhere.
     ...(SUPPRESS_TOUCH_CALLOUT ? TOUCH_CALLOUT_SUPPRESSION : {}),
   },

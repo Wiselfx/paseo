@@ -90,7 +90,7 @@ export function prepareMarkdownSource(
       options.supportsSvg === false &&
       /(?:\.svg(?:[?#]|$)|^data:image\/svg\+xml)/i.test(target.url)
     ) {
-      edits.push({ start, end, text: node.alt ?? "" });
+      edits.push({ start, end, text: escapeMarkdownText(node.alt ?? "") });
       return;
     }
     if (target)
@@ -153,7 +153,7 @@ export function prepareMarkdownSource(
           end: image.end,
           text: url
             ? `![${image.alt.replace(/[[\]\\]/g, "\\$&")}](<${url}>${image.title ? ` ${JSON.stringify(image.title)}` : ""})`
-            : image.alt,
+            : escapeMarkdownText(image.alt),
         });
       }
       let result = source;
@@ -163,4 +163,8 @@ export function prepareMarkdownSource(
       return result;
     },
   };
+}
+
+function escapeMarkdownText(text: string): string {
+  return text.replace(/[!-/:-@[-`{-~]/g, "\\$&");
 }

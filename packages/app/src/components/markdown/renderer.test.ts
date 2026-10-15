@@ -335,3 +335,16 @@ it("normalizes images following HTML code in the same HTML block", () => {
   expect(prepared.render(new Map([["shot.png", "blob:shot"]]))).toContain("![](<blob:shot>)");
   expect(prepared.render()).toContain("`\nx\n`");
 });
+
+it("preserves literal Markdown punctuation in unsupported and failed image labels", () => {
+  const label = String.raw`\*literal\* \[label\]`;
+  expect(
+    prepareMarkdownSource(`![${label}](badge.svg)`, undefined, { supportsSvg: false }).render(),
+  ).toBe(label);
+  expect(
+    prepareMarkdownSource(`![${label}](https://example.com/badge.png)`).render(
+      new Map(),
+      new Set(["https://example.com/badge.png"]),
+    ),
+  ).toBe(label);
+});

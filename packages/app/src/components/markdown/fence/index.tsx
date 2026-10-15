@@ -2,6 +2,7 @@ import type { ComponentType } from "react";
 import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import { getMarkdownFenceLanguage } from "./language";
 import { MermaidFence } from "./mermaid";
+import { YouTubeFence } from "./youtube";
 import type { MarkdownFenceRendererProps } from "./types";
 
 export interface MarkdownFenceBlockProps extends MarkdownFenceRendererProps {
@@ -10,6 +11,7 @@ export interface MarkdownFenceBlockProps extends MarkdownFenceRendererProps {
 
 const diagramFences: Partial<Record<string, ComponentType<MarkdownFenceRendererProps>>> = {
   mermaid: MermaidFence,
+  youtube: YouTubeFence,
 };
 
 export function MarkdownFenceBlock({

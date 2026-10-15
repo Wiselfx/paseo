@@ -10,8 +10,10 @@ Web UI only. No native builds.
    `javaScriptEnabled` and `allowsInlineMediaPlayback`.
 2. `packages/app/src/components/markdown/fence/index.tsx`. Registers
    `youtube` in the fence map.
-3. `packages/app/src/components/markdown/renderer.tsx`. Bare YouTube
-   URLs route to the player in `SharedMarkdownLink`.
+3. `packages/app/src/components/markdown/renderer.tsx` plus
+   `packages/app/src/assistant-file-links/link.tsx`. Bare YouTube
+   URLs route to the player in `SharedMarkdownLink` (file preview)
+   and `AssistantMarkdownLink` (assistant chat bubbles).
 4. `packages/app/src/components/ui/context-menu.tsx`. Long-press
    opens the menu on touch web. `coerceEventPoint` reads
    `changedTouches[0]`; without a point the menu opens unanchored.

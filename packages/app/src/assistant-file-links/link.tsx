@@ -4,6 +4,7 @@ import { StyleSheet } from "react-native-unistyles";
 import { isNative, isWeb } from "@/constants/platform";
 import { MarkdownTextSpan } from "@/components/markdown-text";
 import { MarkdownLinkText } from "@/components/markdown/link-text";
+import { YouTubeInlinePlayer, youtubeIdForUrl } from "@/components/markdown/fence/youtube";
 import { AssistantLinkPressProvider, type AssistantLinkPress } from "./link-press-context";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
@@ -43,6 +44,10 @@ export function AssistantMarkdownLink({
     [onPress],
   );
   const unwrapForMarkdownCopy = source.sourceType === "inline-code" || source.markup === "linkify";
+  const youTubeId = youtubeIdForUrl(source.href);
+  if (youTubeId) {
+    return <YouTubeInlinePlayer videoId={youTubeId} />;
+  }
 
   if (isNative) {
     // Must be a MarkdownTextSpan, not a plain <Text>: on iOS the link renders

@@ -215,20 +215,3 @@ describe("source-preserving prose", () => {
     expect(opened).toEqual([source]);
   });
 });
-
-describe("surface parser policy", () => {
-  it("leaves plan URLs literal while preserving explicit links", () => {
-    const prepare = createProsePreparer(noFiles, { linkify: false, allowFileLinks: false });
-    expect(
-      prepare([
-        "example.com and https://example.com and `example.com` and [site](https://example.com)",
-      ]),
-    ).toBe(
-      "example\\.com and https\\://example\\.com and `example.com` and [site](https://example.com)",
-    );
-  });
-  it("does not promote file URLs outside the assistant parser", () => {
-    const prepare = createProsePreparer(noFiles, { linkify: true, allowFileLinks: false });
-    expect(prepare(["[source](file:///tmp/source.ts)"])).toBe("\\[source](file:///tmp/source.ts)");
-  });
-});

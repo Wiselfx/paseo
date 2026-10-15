@@ -31,8 +31,7 @@ So arrival sets a _target_ and the reveal rate is derived from the backlog inste
 - **The store holds the full text; only the rendered slice is paced.** Copy, selection, the chat outline, and scroll geometry all read the same string the user can see. Pacing the store instead would leave the bottom anchor chasing a content height that is ahead of the reveal.
 - **Markdown rows belong to presentation, and every assistant message is a block group.**
   `agent-stream/presentation.ts` keeps the source message whole for plugins, then splits it for
-  display. Native uses the shared Markdown renderer’s pure `parts` grouper for completed prose runs; web retains individual blocks.
-  Presentation owns row ids and reuse; the Markdown module owns classification and rendering.
+  display. Native groups completed adjacent prose into selectable runs; web retains individual blocks.
   The growing last source block stays on the existing block renderer and streaming parser.
   It joins the preceding run when the next block starts or the turn ends.
   Code, tables, images, HTML-like content and blockquotes end a native run. See

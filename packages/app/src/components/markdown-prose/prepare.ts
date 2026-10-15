@@ -1,12 +1,6 @@
 import type { AssistantFileLinkSource } from "@/assistant-file-links";
-import type { MarkdownReferences } from "../parts";
 import type Token from "markdown-it/lib/token.mjs";
-import {
-  type InlineSpan,
-  type InlineTrace,
-  createSourceParser,
-  type ProseParserOptions,
-} from "./source-inline";
+import { type InlineSpan, type InlineTrace, createSourceParser } from "./source-inline";
 
 const settled = createSourceParser();
 const INLINE_CODE_SCHEME = "paseo-inline-code:";
@@ -73,11 +67,7 @@ export function prepareProse(
 }
 
 /** One cache per prose row; joining a completed block does not reparse earlier blocks. */
-export function createProsePreparer(
-  canResolveCode: (text: string) => boolean,
-  options?: ProseParserOptions,
-) {
-  const sourceParser = options ? createSourceParser(options) : settled;
+export function createProsePreparer(canResolveCode: (text: string) => boolean) {
   let cache = new Map<string, string>();
   return (blocks: readonly string[], visibleLength = Infinity): string => {
     const retained = new Map<string, string>();
@@ -86,9 +76,7 @@ export function createProsePreparer(
     for (const block of blocks) {
       if (remaining < 0) break;
       const source = block.slice(0, remaining);
-      const prepared =
-        cache.get(source) ??
-        prepareBlock(source, canResolveCode, sourceParser, options?.references);
+      const prepared = cache.get(source) ?? prepareBlock(source, canResolveCode);
       retained.set(source, prepared);
       result.push(prepared);
       remaining -= block.length + 2;
@@ -123,7 +111,6 @@ function protect(ranges: Uint8Array, span: { start: number; end: number }) {
 }
 function codeUrl(context: InlinePreparation, content: string): string | null {
   if (context.canResolveCode(content)) return INLINE_CODE_SCHEME + encodeURIComponent(content);
-  if (!context.parser.options.linkify) return null;
   const matches = context.parser.linkify.match(content);
   const match = matches?.length === 1 ? matches[0] : undefined;
   return match?.index === 0 && match.lastIndex === content.length ? match.url : null;
@@ -264,7 +251,6 @@ function prepareText(context: InlinePreparation) {
     if (contains(context.protectedRanges, i)) continue;
     const char = context.source[i]!;
     if (
-      (!context.parser.options.linkify && /[:.@]/.test(char)) ||
       char === "|" ||
       (char === "~" && context.source[i - 1] !== "~" && context.source[i + 1] !== "~")
     )
@@ -297,7 +283,6 @@ function linkifySource(context: InlinePreparation) {
   return { decoded, positions };
 }
 function prepareLinkifiedLinks(context: InlinePreparation) {
-  if (!context.parser.options.linkify) return;
   const links =
     context.token.children?.filter(
       (child) => child.type === "link_open" && child.markup === "linkify",
@@ -392,12 +377,7 @@ function sourcePositions(
   }
   return positions;
 }
-function prepareBlock(
-  text: string,
-  canResolveCode: (text: string) => boolean,
-  sourceParser: ReturnType<typeof createSourceParser>,
-  references?: MarkdownReferences,
-): string {
+function prepareBlock(text: string, canResolveCode: (text: string) => boolean): string {
   text = text.replace(/\r\n?/g, "\n").replaceAll("\0", "\ufffd");
   text = text.replace(/^[ \t>]*/gm, (prefix) => {
     let expanded = "";
@@ -405,8 +385,8 @@ function prepareBlock(
       expanded += char === "\t" ? " ".repeat(4 - (expanded.length % 4)) : char;
     return expanded;
   });
-  const { parser, traces } = sourceParser;
-  const env = { references };
+  const { parser, traces } = settled;
+  const env = {};
   const tokens = parser.parse(text, env);
   const lines = text.split("\n");
   const lineOffsets: number[] = [];

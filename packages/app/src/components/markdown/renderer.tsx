@@ -33,18 +33,19 @@ import { createCompactMarkdownStyles, createMarkdownStyles } from "@/styles/mark
 import type { Theme } from "@/styles/theme";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isNative } from "@/constants/platform";
-import { type MarkdownDisplayPart, type MarkdownInlineImagePart } from "./html-ish";
+import {
+  splitHtmlishMarkdown,
+  type MarkdownDisplayPart,
+  type MarkdownInlineImagePart,
+} from "./html-ish";
 import { resolveInlineImageSize, type InlineImageDimensions } from "./inline-image-size";
 import {
   getAssistantImageMetadata,
   setAssistantImageMetadata,
 } from "@/utils/assistant-image-metadata";
-import { groupMarkdownParts, prepareMarkdownGroups, type MarkdownPartGroup } from "./part-groups";
+import { groupMarkdownParts, type MarkdownPartGroup } from "./part-groups";
 import { colorMarkdownLinkChildren } from "./link-children";
 import { MarkdownLinkText } from "./link-text";
-import { MarkdownProse } from "./prose/renderer";
-import { splitMarkdownProse, type MarkdownProsePart } from "./parts";
-import type { AssistantFileLinkActions } from "@/assistant-file-links";
 
 export type MarkdownStyles = Record<string, TextStyle & ViewStyle & { [key: string]: unknown }>;
 
@@ -83,83 +84,9 @@ export interface MarkdownRendererProps {
   allowedImageHandlers?: readonly string[];
   topLevelMaxExceededItem?: ReactNode;
   enableHtmlish?: boolean;
-  /** A virtualized caller supplies an already grouped part, including the live block. */
-  part?: Pick<MarkdownProsePart, "markdownKind" | "markdownProseBlocks">;
-  blockSpacing?: number;
-  fileLinks?: AssistantFileLinkActions;
 }
 
-export function MarkdownRenderer(props: MarkdownRendererProps) {
-  if (isNative && props.part) return <MarkdownRuns {...props} />;
-  return <MarkdownBlockRenderer {...props} />;
-}
-
-const BLOCK_PART = { markdownKind: "block" as const };
-
-function MarkdownRuns(props: MarkdownRendererProps) {
-  const parts = useMemo<MarkdownProsePart[]>(() => {
-    if (props.part) return [{ ...props.part, text: props.text, id: "part" }];
-    return splitMarkdownProse(props.text);
-  }, [props.part, props.text]);
-  const parser = props.markdownit ?? defaultMarkdownParser;
-  return (
-    <>
-      {parts.map((part) => (
-        <MarkdownProse
-          key={part.id}
-          text={part.text}
-          sourceBlocks={part.markdownProseBlocks ?? [part.text]}
-          kind={part.markdownKind}
-          compact={props.compact}
-          blockSpacing={props.blockSpacing}
-          fileLinks={props.fileLinks}
-          references={part.references}
-          linkify={parser.options.linkify}
-          allowFileLinks={parser.validateLink("file:///file")}
-          onLinkPress={props.onLinkPress ?? openMarkdownLink}
-        >
-          <MarkdownScopedBlock
-            {...props}
-            part={BLOCK_PART}
-            text={part.text}
-            references={part.references}
-          />
-        </MarkdownProse>
-      ))}
-    </>
-  );
-}
-
-function MarkdownScopedBlock({
-  references,
-  ...props
-}: MarkdownRendererProps & Pick<MarkdownProsePart, "references">) {
-  const parser = props.markdownit ?? defaultMarkdownParser;
-  // markdown-display supplies its own environment. Preserve the document's reference
-  // scope while still using the caller's parser rules for each retained block.
-  const scopedParser = useMemo(
-    () =>
-      references
-        ? new Proxy(parser, {
-            get(target, key, receiver) {
-              if (key === "parse")
-                return (source: string, env: object) =>
-                  target.parse(source, { ...env, references });
-              return Reflect.get(target, key, receiver);
-            },
-          })
-        : parser,
-    [parser, references],
-  );
-  return <MarkdownBlockRenderer {...props} markdownit={scopedParser} />;
-}
-
-function openMarkdownLink(url: string): boolean {
-  void openExternalUrl(url);
-  return false;
-}
-
-function MarkdownBlockRenderer({
+export function MarkdownRenderer({
   text,
   compact = false,
   rules,
@@ -168,11 +95,10 @@ function MarkdownBlockRenderer({
   allowedImageHandlers,
   topLevelMaxExceededItem,
   enableHtmlish = true,
-  part,
 }: MarkdownRendererProps) {
   const markdownRules = useMemo(() => rules ?? createSharedMarkdownRules(), [rules]);
-  const groups = useMemo(
-    () => prepareMarkdownGroups({ text, enableHtmlish }),
+  const parts = useMemo(
+    () => (enableHtmlish ? splitHtmlishMarkdown(text) : [{ kind: "markdown" as const, text }]),
     [enableHtmlish, text],
   );
   const rendererProps = useMemo(
@@ -183,7 +109,6 @@ function MarkdownBlockRenderer({
       onLinkPress,
       allowedImageHandlers,
       topLevelMaxExceededItem,
-      part,
     }),
     [
       allowedImageHandlers,
@@ -192,25 +117,24 @@ function MarkdownBlockRenderer({
       markdownit,
       onLinkPress,
       topLevelMaxExceededItem,
-      part,
     ],
   );
 
-  return <MarkdownGroupList groups={groups} rendererProps={rendererProps} />;
+  return <MarkdownPartList parts={parts} rendererProps={rendererProps} />;
 }
 
 type MarkdownPartRendererProps = Omit<MarkdownRendererProps, "text" | "enableHtmlish"> & {
   rules: RenderRules;
 };
 
-function MarkdownGroupList({
-  groups,
+function MarkdownPartList({
+  parts,
   rendererProps,
 }: {
-  groups: MarkdownPartGroup[];
+  parts: MarkdownDisplayPart[];
   rendererProps: MarkdownPartRendererProps;
 }) {
-  const keyedGroups = useMemo(() => keyMarkdownGroups(groups), [groups]);
+  const keyedGroups = useMemo(() => keyMarkdownGroups(groupMarkdownParts(parts)), [parts]);
   return (
     <>
       {keyedGroups.map(({ key, group }) =>
@@ -252,12 +176,7 @@ function MarkdownPart({
   return <MarkdownFragment text={part.text} {...rendererProps} />;
 }
 
-function MarkdownFragment(props: MarkdownRendererProps & { rules: RenderRules }) {
-  if (isNative && !props.part) return <MarkdownRuns {...props} enableHtmlish={false} />;
-  return <MarkdownBlockFragment {...props} />;
-}
-
-function MarkdownBlockFragment({
+function MarkdownFragment({
   text,
   compact,
   rules,
@@ -457,8 +376,8 @@ function MarkdownDetails({
 }) {
   const [open, setOpen] = useState(false);
   const toggle = useCallback(() => setOpen((current) => !current), []);
-  const bodyGroups = useMemo(
-    () => groupMarkdownParts(part.bodyParts ?? [{ kind: "markdown" as const, text: part.body }]),
+  const bodyParts = useMemo(
+    () => part.bodyParts ?? [{ kind: "markdown" as const, text: part.body }],
     [part.body, part.bodyParts],
   );
   return (
@@ -473,7 +392,7 @@ function MarkdownDetails({
       </Pressable>
       {open ? (
         <View style={detailsStyles.body}>
-          <MarkdownGroupList groups={bodyGroups} rendererProps={rendererProps} />
+          <MarkdownPartList parts={bodyParts} rendererProps={rendererProps} />
         </View>
       ) : null}
     </View>

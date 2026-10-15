@@ -9,7 +9,7 @@ import {
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
 
-import { createMarkdownProseGrouper } from "@/components/markdown/parts";
+import { groupMarkdownProse } from "@/components/markdown-prose";
 
 interface PresentationInput {
   tail: StreamItem[];
@@ -58,8 +58,6 @@ function isReusableBlock(block: AssistantMessageItem, source: AssistantMessageIt
 export function createStreamPresentation({
   markdown = "blocks",
 }: { markdown?: "blocks" | "prose-runs" } = {}) {
-  const groupMarkdownProse = createMarkdownProseGrouper<AssistantMessageItem>();
-  const rowsByPart = new WeakMap<AssistantMessageItem, AssistantMessageItem>();
   const runsBySource = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>();
   const growingRunsBySource = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>();
   const userMessageCache = new WeakMap<UserMessageItem, UserMessageItem>();
@@ -148,17 +146,6 @@ export function createStreamPresentation({
     return blocks;
   }
 
-  function presentMarkdownPart(part: AssistantMessageItem): AssistantMessageItem {
-    const retained = rowsByPart.get(part);
-    if (retained) return retained;
-    const row = {
-      ...part,
-      id: part.markdownKind === "prose" ? part.id.replace(":block:", ":run:") : part.id,
-    };
-    rowsByPart.set(part, row);
-    return row;
-  }
-
   function presentRows(item: StreamItem, growing = false): StreamItem[] {
     const blocks = nativeBlocks(item);
     if (markdown === "blocks" || item.kind !== "assistant_message") return blocks;
@@ -168,9 +155,7 @@ export function createStreamPresentation({
     const previousSource = liveSources.get(item.id);
     const previousBlocks = previousSource && blocksBySource.get(previousSource);
     // nativeBlocks emits only assistant blocks for an assistant source.
-    const runs = groupMarkdownProse(blocks as AssistantMessageItem[], previousBlocks, growing).map(
-      presentMarkdownPart,
-    );
+    const runs = groupMarkdownProse(blocks as AssistantMessageItem[], previousBlocks, growing);
     cache.set(item, runs);
     return runs;
   }

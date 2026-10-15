@@ -1,24 +1,8 @@
-import {
-  splitHtmlishMarkdown,
-  type MarkdownDisplayPart,
-  type MarkdownInlineImagePart,
-} from "./html-ish";
+import type { MarkdownDisplayPart, MarkdownInlineImagePart } from "./html-ish";
 
 export type MarkdownPartGroup =
   | { kind: "part"; part: MarkdownDisplayPart }
   | { kind: "imageText"; images: MarkdownInlineImagePart[]; lead: string; rest: string };
-
-/** Parse containers before splitting their Markdown text into selectable runs. */
-export function prepareMarkdownGroups({
-  text,
-  enableHtmlish,
-}: {
-  text: string;
-  enableHtmlish: boolean;
-}): MarkdownPartGroup[] {
-  const parts = enableHtmlish ? splitHtmlishMarkdown(text) : [{ kind: "markdown" as const, text }];
-  return groupMarkdownParts(parts);
-}
 
 /**
  * Pairs a run of inline images that flow with text (small status images at the

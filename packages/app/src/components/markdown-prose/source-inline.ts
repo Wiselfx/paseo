@@ -1,5 +1,4 @@
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
-import { createMarkdownParser } from "@/utils/markdown-parser";
 import type Token from "markdown-it/lib/token.mjs";
 
 export interface InlineSpan {
@@ -15,20 +14,8 @@ export interface InlineTrace {
 const TRACE = Symbol("prose source positions");
 
 /** Observe the actual inline rules, including nested labels, without reprinting tokens. */
-import type { MarkdownReferences } from "../parts";
-
-export interface ProseParserOptions {
-  references?: MarkdownReferences;
-  linkify: boolean;
-  allowFileLinks: boolean;
-}
-export function createSourceParser(
-  options: ProseParserOptions = { linkify: true, allowFileLinks: true },
-) {
-  const parser = options.allowFileLinks
-    ? createAssistantMarkdownParser()
-    : createMarkdownParser({ linkify: options.linkify });
-  parser.set({ linkify: options.linkify });
+export function createSourceParser() {
+  const parser = createAssistantMarkdownParser();
   const traces = new WeakMap<Token, InlineTrace>();
   const inlineTraces = new WeakMap<Token[], InlineTrace>();
   const parseInline = parser.inline.parse.bind(parser.inline);

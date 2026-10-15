@@ -14,4 +14,4 @@ export {
   type AssistantFileLinkResolverProviderProps,
 } from "./provider";
 export type { AssistantFileLinkSource } from "./resolver";
-export { useAssistantFileLinkActions, type AssistantFileLinkActions } from "./use-file-link";
+export { useAssistantFileLinkActions } from "./use-file-link";

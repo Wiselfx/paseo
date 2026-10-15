@@ -1,8 +1,9 @@
 import { memo, useMemo } from "react";
 import { EnrichedMarkdownText, type MarkdownStyle } from "react-native-enriched-markdown";
 import { withUnistyles } from "react-native-unistyles";
+import { useAssistantFileLinkActions } from "@/assistant-file-links";
 import { useStableEvent } from "@/hooks/use-stable-event";
-import { createCompactMarkdownStyles, createMarkdownStyles } from "@/styles/markdown-styles";
+import { createMarkdownStyles } from "@/styles/markdown-styles";
 import type { Theme } from "@/styles/theme";
 import type { MarkdownProseProps } from "./props";
 import { handleProseLinkPress, createProsePreparer } from "./prepare";
@@ -10,34 +11,32 @@ import { handleProseLinkPress, createProsePreparer } from "./prepare";
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
 
-function proseStyleMapping(
-  theme: Theme,
-  compact = false,
-  blockSpacing = 0,
-): { markdownStyle: MarkdownStyle } {
-  const styles = compact ? createCompactMarkdownStyles(theme) : createMarkdownStyles(theme);
+function proseStyleMapping(theme: Theme): { markdownStyle: MarkdownStyle } {
+  const styles = createMarkdownStyles(theme);
   const paragraph = {
     color: styles.body.color,
     fontSize: styles.body.fontSize,
     lineHeight: styles.body.lineHeight,
     marginTop: 0,
-    marginBottom: styles.paragraph.marginBottom + blockSpacing,
+    marginBottom: styles.paragraph.marginBottom + theme.spacing[3],
   };
   return {
     markdownStyle: {
       paragraph,
       h1: {
         ...styles.heading1,
-        marginBottom: styles.heading1.marginBottom + blockSpacing + styles.heading1.paddingBottom,
+        marginBottom:
+          styles.heading1.marginBottom + theme.spacing[3] + styles.heading1.paddingBottom,
       },
       h2: {
         ...styles.heading2,
-        marginBottom: styles.heading2.marginBottom + blockSpacing + styles.heading2.paddingBottom,
+        marginBottom:
+          styles.heading2.marginBottom + theme.spacing[3] + styles.heading2.paddingBottom,
       },
-      h3: { ...styles.heading3, marginBottom: styles.heading3.marginBottom + blockSpacing },
-      h4: { ...styles.heading4, marginBottom: styles.heading4.marginBottom + blockSpacing },
-      h5: { ...styles.heading5, marginBottom: styles.heading5.marginBottom + blockSpacing },
-      h6: { ...styles.heading6, marginBottom: styles.heading6.marginBottom + blockSpacing },
+      h3: { ...styles.heading3, marginBottom: styles.heading3.marginBottom + theme.spacing[3] },
+      h4: { ...styles.heading4, marginBottom: styles.heading4.marginBottom + theme.spacing[3] },
+      h5: { ...styles.heading5, marginBottom: styles.heading5.marginBottom + theme.spacing[3] },
+      h6: { ...styles.heading6, marginBottom: styles.heading6.marginBottom + theme.spacing[3] },
       list: {
         ...paragraph,
         bulletColor: styles.bullet_list_icon.color,
@@ -82,58 +81,40 @@ function proseStyleMapping(
   };
 }
 
+function quoteStyleMapping(theme: Theme): { markdownStyle: MarkdownStyle } {
+  const mapped = proseStyleMapping(theme);
+  return {
+    markdownStyle: {
+      ...mapped.markdownStyle,
+      paragraph: { ...mapped.markdownStyle.paragraph, marginBottom: theme.spacing[3] },
+    },
+  };
+}
+
+const PROSE_CONTAINER = { marginBottom: -12 };
+
 const NativeProse = memo(function NativeProse({
   text,
   sourceBlocks,
   kind,
   onLinkPress,
-  compact = false,
-  blockSpacing = 0,
-  fileLinks,
-  references,
-  linkify = true,
-  allowFileLinks = false,
 }: MarkdownProseProps) {
-  const canResolveCode = useStableEvent(
-    (content: string) =>
-      fileLinks?.canResolveFile({ href: content, text: content, sourceType: "inline-code" }) ??
-      false,
+  const actions = useAssistantFileLinkActions();
+  const canResolveCode = useStableEvent((content: string) =>
+    actions.canResolveFile({ href: content, text: content, sourceType: "inline-code" }),
   );
-  const prepare = useMemo(
-    () => createProsePreparer(canResolveCode, { linkify, allowFileLinks, references }),
-    [canResolveCode, linkify, allowFileLinks, references],
-  );
+  const prepare = useMemo(() => createProsePreparer(canResolveCode), [canResolveCode]);
   const markdown = useMemo(
     () => prepare(sourceBlocks, text.length),
     [text.length, sourceBlocks, prepare],
   );
   const handleLinkPress = useStableEvent(({ url }: { url: string }) => {
-    handleProseLinkPress(
-      url,
-      (source) => (fileLinks ? fileLinks.open(source, "preferred") : onLinkPress(source.href)),
-      onLinkPress,
-    );
+    handleProseLinkPress(url, (source) => actions.open(source, "preferred"), onLinkPress);
   });
-  const uniProps = useMemo(
-    () => (theme: Theme) => {
-      const mapped = proseStyleMapping(theme, compact, blockSpacing);
-      if (kind === "quote")
-        mapped.markdownStyle.paragraph = {
-          ...mapped.markdownStyle.paragraph,
-          marginBottom: theme.spacing[3],
-        };
-      return mapped;
-    },
-    [kind, compact, blockSpacing],
-  );
-  const containerStyle = useMemo(
-    () => (kind === "prose" ? { marginBottom: -blockSpacing } : undefined),
-    [kind, blockSpacing],
-  );
   return (
     <ThemedMarkdown
-      uniProps={uniProps}
-      containerStyle={containerStyle}
+      uniProps={kind === "quote" ? quoteStyleMapping : proseStyleMapping}
+      containerStyle={kind === "prose" ? PROSE_CONTAINER : undefined}
       markdown={markdown}
       flavor="github"
       selectable

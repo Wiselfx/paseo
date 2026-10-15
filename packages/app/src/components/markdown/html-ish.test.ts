@@ -514,6 +514,31 @@ describe("splitHtmlishMarkdown", () => {
       { kind: "details", summary: "Safe", body: '<iframe src="x"></iframe>' },
     ]);
   });
+
+  it("converts inline svg markup to a data-uri image", () => {
+    const svg = '<svg width="10"><circle r="5"/></svg>';
+
+    expect(splitHtmlishMarkdown(svg)).toEqual([
+      {
+        kind: "inlineImage",
+        alt: "",
+        src: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+      },
+    ]);
+  });
+
+  it("leaves unclosed svg as text for streaming", () => {
+    const source = '<svg width="10"><circle r="5">';
+
+    expect(splitHtmlishMarkdown(source)).toEqual([{ kind: "markdown", text: source }]);
+  });
+
+  it("leaves svg markup literal inside code", () => {
+    const svg = '<svg width="10"><circle r="5"/></svg>';
+    const source = `Use \`${svg}\`\n\n\`\`\`html\n${svg}\n\`\`\``;
+
+    expect(splitHtmlishMarkdown(source)).toEqual([{ kind: "markdown", text: source }]);
+  });
 });
 
 function withoutArrayToSorted<T>(callback: () => T): T {

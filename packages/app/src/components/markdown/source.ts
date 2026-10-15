@@ -74,7 +74,8 @@ export function prepareMarkdownSource(
 
   const definitions = new Map<string, { url: string; title?: string | null }>();
   function definitionsIn(node: Nodes) {
-    if (node.type === "definition") definitions.set(node.identifier, node);
+    if (node.type === "definition" && !definitions.has(node.identifier))
+      definitions.set(node.identifier, node);
     if ("children" in node) node.children.forEach(definitionsIn);
   }
   definitionsIn(getTree());

@@ -302,3 +302,12 @@ it("preserves angle-bracket image destinations and authored link titles during H
     '![shot](<blob:shot>) and [open](<my file.png> "<b>literal title</b>")',
   );
 });
+
+it("uses the first repeated image reference definition", () => {
+  const source = "![chart][image]\n\n[image]: first.png\n[image]: second.png";
+  const prepared = prepareMarkdownSource(source);
+  expect(prepared.images.map((image) => image.source)).toEqual(["first.png"]);
+  expect(prepared.render(new Map([["first.png", "blob:first"]]))).toBe(
+    "![chart](<blob:first>)\n\n[image]: first.png\n[image]: second.png",
+  );
+});

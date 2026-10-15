@@ -3,7 +3,7 @@ import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { AssistantFileLinkSource } from "@/assistant-file-links";
 import { decodeString } from "micromark-util-decode-string";
 import { fromMarkdown } from "mdast-util-from-markdown";
-import type { Nodes, Root } from "mdast";
+import type { Link, Nodes, Root } from "mdast";
 
 // Keep this regex in the syntax shared by JavaScript, ICU and java.util.regex.
 // The Unicode flag makes Metro expand it to escapes rejected by native engines.
@@ -37,6 +37,14 @@ export interface MarkdownImage {
   end: number;
 }
 
+function workspaceHoverTitle(link: Link, markup: string, workspaceRoot?: string): string | null {
+  if (link.title !== null || !workspaceRoot || !link.url.startsWith(`${workspaceRoot}/`))
+    return null;
+  // mdast represents both missing titles and authored empty titles as null.
+  if (/\s(?:""|''|\(\))\s*\)$/.test(markup)) return null;
+  return link.url.slice(workspaceRoot.length + 1);
+}
+
 /** Preserve source spelling; adapt workspace images, spoiler delimiters, and entity text. */
 export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
   const images: MarkdownImage[] = [];
@@ -66,14 +74,10 @@ export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
     if (start !== undefined && end !== undefined) {
-      if (
-        node.type === "link" &&
-        !node.title &&
-        workspaceRoot &&
-        node.url.startsWith(`${workspaceRoot}/`)
-      ) {
-        const title = node.url.slice(workspaceRoot.length + 1);
-        edits.push({ start: end - 1, end: end - 1, text: ` ${JSON.stringify(title)}` });
+      if (node.type === "link") {
+        const title = workspaceHoverTitle(node, source.slice(start, end), workspaceRoot);
+        if (title !== null)
+          edits.push({ start: end - 1, end: end - 1, text: ` ${JSON.stringify(title)}` });
       }
       if (node.type === "tableRow") {
         // MD4C's always-enabled spoiler extension otherwise consumes adjacent cell

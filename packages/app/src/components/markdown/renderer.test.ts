@@ -134,3 +134,8 @@ it("keeps workspace-relative hover titles on explicit absolute file links", () =
     '[Open](/repo/src/file.ts:42-45 "src/file.ts:42-45")',
   );
 });
+
+it.each(['""', "''", "()"])("preserves an authored empty link title: %s", (title) => {
+  const source = `[Open](/repo/file.ts ${title})`;
+  expect(prepareMarkdownSource(source, "/repo").render()).toBe(source);
+});

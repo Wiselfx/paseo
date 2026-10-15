@@ -85,15 +85,11 @@ export function normalizeMarkdownHtml(source: string): string {
     // Inline HTML code has separate opening/closing AST nodes. Convert the pair
     // together so its contents keep backslashes and get a safe backtick delimiter.
     const code = /^<code\b[^>]*>[\s\S]*?<\/code\s*>/i.exec(source.slice(range.start));
-    if (code) {
-      result += convert(code[0], range.start);
-      cursor = range.start + code[0].length;
-    } else {
-      result += source
-        .slice(range.start, range.end)
-        .replace(HTML, (raw, offset) => convert(raw, range.start + offset));
-      cursor = range.end;
-    }
+    const end = code ? Math.max(range.end, range.start + code[0].length) : range.end;
+    result += source
+      .slice(range.start, end)
+      .replace(HTML, (raw, offset) => convert(raw, range.start + offset));
+    cursor = end;
   }
   return result + source.slice(cursor);
 }

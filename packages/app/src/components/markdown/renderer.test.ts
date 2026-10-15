@@ -328,3 +328,10 @@ it("keeps paragraph, heading and table-row boundaries when stripping HTML", () =
   const rendered = prepareMarkdownSource(source).render();
   expect(rendered).toBe("First\n\nSecond  \nline\n\nHeading\n\nA B\n\nC D");
 });
+
+it("normalizes images following HTML code in the same HTML block", () => {
+  const prepared = prepareMarkdownSource('<code>\nx\n</code>\n<img src="shot.png">');
+  expect(prepared.images.map((image) => image.source)).toEqual(["shot.png"]);
+  expect(prepared.render(new Map([["shot.png", "blob:shot"]]))).toContain("![](<blob:shot>)");
+  expect(prepared.render()).toContain("`\nx\n`");
+});

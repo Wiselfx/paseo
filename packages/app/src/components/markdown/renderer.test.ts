@@ -292,3 +292,13 @@ it("collapses images that fail to load or decode to their alt text", () => {
     ),
   ).toBe("Remote and Local");
 });
+
+it("preserves angle-bracket image destinations and authored link titles during HTML normalization", () => {
+  const prepared = prepareMarkdownSource(
+    '![shot](<my file.png>) and [open](<my file.png> "<b>literal title</b>")',
+  );
+  expect(prepared.images.map((image) => image.source)).toEqual(["my file.png"]);
+  expect(prepared.render(new Map([["my file.png", "blob:shot"]]))).toBe(
+    '![shot](<blob:shot>) and [open](<my file.png> "<b>literal title</b>")',
+  );
+});

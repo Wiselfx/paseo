@@ -14,6 +14,13 @@ const EMPHASIS: Readonly<Record<string, string>> = { b: "**", strong: "**", i: "
 /** Convert comment HTML to Markdown while preserving the original spelling of code. */
 export function normalizeMarkdownHtml(source: string): string {
   if (!source.includes("<")) return source;
+  const htmlRanges: { start: number; end: number }[] = [];
+  function findHtml(node: Nodes) {
+    if (node.type === "html" && node.position) {
+      htmlRanges.push({ start: node.position.start.offset!, end: node.position.end.offset! });
+    } else if ("children" in node) node.children.forEach(findHtml);
+  }
+  findHtml(fromMarkdown(source));
   const codeRanges: { start: number; end: number }[] = [];
   // Disable HTML parsing so code inside <details> remains visible to the Markdown parser.
   const tree = fromMarkdown(source, {
@@ -28,7 +35,7 @@ export function normalizeMarkdownHtml(source: string): string {
   }
   protectCode(tree);
   const links: (string | undefined)[] = [];
-  return source.replace(HTML, (raw: string, offset: number) => {
+  const convert = (raw: string, offset: number): string => {
     if (codeRanges.some(({ start, end }) => offset >= start && offset < end)) return raw;
     if (raw.startsWith("<!--")) return "";
     const code = /^<code\b[^>]*>([\s\S]*?)<\/code\s*>$/i.exec(raw);
@@ -51,7 +58,26 @@ export function normalizeMarkdownHtml(source: string): string {
       return src ? `![${alt.replace(/[[\]\\]/g, "\\$&")}](<${markdownUrl(src)}>)` : alt;
     }
     return "";
-  });
+  };
+  let result = "";
+  let cursor = 0;
+  for (const range of htmlRanges) {
+    if (range.start < cursor) continue;
+    result += source.slice(cursor, range.start);
+    // Inline HTML code has separate opening/closing AST nodes. Convert the pair
+    // together so its contents keep backslashes and get a safe backtick delimiter.
+    const code = /^<code\b[^>]*>[\s\S]*?<\/code\s*>/i.exec(source.slice(range.start));
+    if (code) {
+      result += convert(code[0], range.start);
+      cursor = range.start + code[0].length;
+    } else {
+      result += source
+        .slice(range.start, range.end)
+        .replace(HTML, (raw, offset) => convert(raw, range.start + offset));
+      cursor = range.end;
+    }
+  }
+  return result + source.slice(cursor);
 }
 
 function attributes(tag: string): Record<string, string> {

@@ -85,12 +85,12 @@ it("extracts only Mermaid fences for the native diagram host", async () => {
   const source =
     "First.\n\n```ts\nconst n = 1;\n```\n\n```mermaid\ngraph TD\nA-->B\n```\n\n> Last.";
   expect(splitMermaidFences(source)).toEqual([
-    { kind: "markdown", offset: 0, source: "First.\n\n```ts\nconst n = 1;\n```\n\n" },
-    { kind: "mermaid", offset: 32, source: "graph TD\nA-->B" },
-    { kind: "markdown", offset: 61, source: "\n\n> Last." },
+    { kind: "markdown", id: "0", source: "First.\n\n```ts\nconst n = 1;\n```\n\n" },
+    { kind: "mermaid", id: "1", source: "graph TD\nA-->B" },
+    { kind: "markdown", id: "2", source: "\n\n> Last." },
   ]);
   expect(splitMermaidFences("```md\n```mermaid\n```")).toEqual([
-    { kind: "markdown", offset: 0, source: "```md\n```mermaid\n```" },
+    { kind: "markdown", id: "0", source: "```md\n```mermaid\n```" },
   ]);
 });
 
@@ -100,12 +100,31 @@ it("keeps reference links available across native Mermaid boundaries", async () 
     "[Before][file]\n\n```mermaid\ngraph TD\nA-->B\n```\n\n[After][file]\n\n[file]: src/file.ts",
   );
   for (const part of parts.filter((candidate) => candidate.kind === "markdown"))
-    expect(part.source).toContain("[file]: src/file.ts");
+    expect(part.source).toContain("[file]: <src/file.ts>");
 });
 
 it("recognizes mixed-case Mermaid fence info and incomplete streaming fences", async () => {
   const { splitMermaidFences } = await import("./fence/mermaid/segments");
   expect(splitMermaidFences("```Mermaid title\ngraph TD\nA-->B")).toEqual([
-    { kind: "mermaid", offset: 0, source: "graph TD\nA-->B" },
+    { kind: "mermaid", id: "0", source: "graph TD\nA-->B" },
   ]);
+});
+
+it("carries reference definitions nested in quotes across a diagram", async () => {
+  const { splitMermaidFences } = await import("./fence/mermaid/segments");
+  const parts = splitMermaidFences(
+    "[open][file]\n\n```mermaid\ngraph TD\nA-->B\n```\n\n> [file]: src/file.ts",
+  );
+  expect(parts[0].source).toContain("[file]: <src/file.ts>");
+});
+
+it("keeps diagram identity when an earlier workspace image resolves", async () => {
+  const { splitMermaidFences } = await import("./fence/mermaid/segments");
+  const source = "![image](a.png)\n\n```mermaid\ngraph TD\nA-->B\n```";
+  const before = splitMermaidFences(source).find((part) => part.kind === "mermaid");
+  const after = splitMermaidFences(
+    source.replace("a.png", "file:///long/cache/path/image.png"),
+  ).find((part) => part.kind === "mermaid");
+  expect(before).toHaveProperty("id");
+  expect(after?.id).toBe(before?.id);
 });

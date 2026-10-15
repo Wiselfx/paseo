@@ -158,17 +158,17 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
   const closeImage = useStableEvent(() => setImage(null));
   const segments = useMemo(
     () =>
-      isWeb ? [{ kind: "markdown", offset: 0, source: markdown }] : splitMermaidFences(markdown),
+      isWeb ? [{ kind: "markdown", id: "0", source: markdown }] : splitMermaidFences(markdown),
     [markdown],
   );
   const content = (
     <MermaidStreamingContext.Provider value={streaming}>
       {segments.map((segment) =>
         segment.kind === "mermaid" ? (
-          <MermaidFence key={segment.offset} code={segment.source} />
+          <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
         ) : (
           <ThemedMarkdown
-            key={segment.offset}
+            key={`${segment.kind}:${segment.id}`}
             markdown={segment.source}
             containerStyle={isWeb ? WEB_CONTAINER : undefined}
             uniProps={compact ? compactStyle : regularStyle}

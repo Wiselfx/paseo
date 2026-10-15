@@ -64,6 +64,114 @@ test("workspace.create worktree source forwards action=checkout + refName into t
   }
 }, 180000);
 
+test.each([false, true])(
+  "workspace.create opens worktree.terminals (setup service: %s)",
+  async (withSetupService) => {
+    const daemon = await createTestPaseoDaemon();
+    const { repoDir, tempRoot } = createGitRepoWithBranch();
+    writeFileSync(
+      path.join(repoDir, "paseo.json"),
+      JSON.stringify({
+        worktree: {
+          ...(withSetupService ? { setup: `"${process.execPath}" setup.cjs` } : {}),
+          terminals: [
+            { name: "preview", command: "echo paseo-auto-terminal > terminal-marker.txt" },
+          ],
+        },
+      }),
+    );
+    writeFileSync(
+      path.join(repoDir, "setup.cjs"),
+      `
+const fs = require("node:fs");
+if (process.argv[2] === "serve") {
+  require("node:net").createServer().listen(Number(process.env.PASEO_WORKTREE_PORT), "127.0.0.1", () => {
+    fs.writeFileSync("setup-pid.txt", String(process.pid));
+    process.send("ready");
+  });
+} else {
+  const child = require("node:child_process").spawn(process.execPath, [__filename, "serve"], {
+    detached: true,
+    stdio: ["ignore", "ignore", "ignore", "ipc"],
+  });
+  child.once("message", () => { child.disconnect(); child.unref(); });
+}
+`,
+    );
+    execFileSync("git", ["add", "paseo.json", "setup.cjs"], { cwd: repoDir, stdio: "pipe" });
+    execFileSync("git", ["-c", "commit.gpgsign=false", "commit", "-m", "add paseo.json"], {
+      cwd: repoDir,
+      stdio: "pipe",
+    });
+    const client = new DaemonClient({
+      url: `ws://127.0.0.1:${daemon.port}/ws`,
+      appVersion: "0.1.82",
+    });
+
+    let workspaceCwd: string | undefined;
+    try {
+      await client.connect();
+
+      // This is the request the New Workspace screen sends: the workspace is
+      // created on its own, with no agent in the same request.
+      const result = await client.createWorkspace({
+        source: {
+          kind: "worktree",
+          cwd: repoDir,
+          action: "branch-off",
+          branchName: "feature/auto-terminals",
+          worktreeSlug: "feature-auto-terminals",
+          baseBranch: "main",
+        },
+      });
+
+      expect(result.error).toBeNull();
+      const workspace = result.workspace;
+      if (!workspace) {
+        throw new Error("Expected a created workspace");
+      }
+
+      workspaceCwd = workspace.workspaceDirectory;
+      if (withSetupService) {
+        await expect.poll(() => existsSync(path.join(workspaceCwd!, "setup-pid.txt"))).toBe(true);
+      }
+      await expect
+        .poll(
+          async () =>
+            (
+              await client.listTerminals(workspace.workspaceDirectory, undefined, {
+                workspaceId: workspace.id,
+              })
+            ).terminals.map((terminal) => terminal.name),
+          { timeout: 30000 },
+        )
+        .toContain("preview");
+      await expect
+        .poll(
+          () => {
+            const marker = path.join(workspaceCwd!, "terminal-marker.txt");
+            return existsSync(marker) ? readFileSync(marker, "utf8").trim() : null;
+          },
+          { timeout: 10000 },
+        )
+        .toBe("paseo-auto-terminal");
+      expect(
+        (await client.listTerminals(workspaceCwd, undefined, { workspaceId: workspace.id }))
+          .terminals,
+      ).toHaveLength(1);
+    } finally {
+      const pidFile = workspaceCwd && path.join(workspaceCwd, "setup-pid.txt");
+      if (pidFile && existsSync(pidFile)) {
+        process.kill(Number(readFileSync(pidFile, "utf8")));
+      }
+      await client.close().catch(() => undefined);
+      await daemon.close();
+      rmSync(tempRoot, { recursive: true, force: true });
+    }
+  },
+  180000,
+);
+
 test("existing branch changes remain visible after archive and restore", async () => {
   const daemon = await createTestPaseoDaemon();
   const { repoDir, tempRoot } = createGitRepoWithBranch();

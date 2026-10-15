@@ -5,7 +5,7 @@ import { isWeb } from "@/constants/platform";
 export function createMarkdownStyles(
   theme: Theme,
   compact = false,
-): { markdownStyle: MarkdownStyle } {
+): { markdownStyle: MarkdownStyle; selectionColor: string } {
   const fontSize = compact ? theme.fontSize.base : theme.fontSize.content;
   const paragraph = {
     fontSize,
@@ -23,6 +23,7 @@ export function createMarkdownStyles(
     marginTop: theme.spacing[3],
   });
   return {
+    selectionColor: theme.colors.terminal.selectionBackground,
     markdownStyle: {
       paragraph,
       h1: heading(1.6),

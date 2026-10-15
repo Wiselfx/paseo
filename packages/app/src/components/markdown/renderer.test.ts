@@ -195,3 +195,10 @@ it.each([
     expect(style.thematicBreak?.color).toBe(theme.colors.border);
   },
 );
+
+it.each([darkTheme, lightTheme])("supplies the theme selection colour to the renderer", (theme) => {
+  expect(createMarkdownStyles(theme)).toHaveProperty(
+    "selectionColor",
+    theme.colors.terminal.selectionBackground,
+  );
+});

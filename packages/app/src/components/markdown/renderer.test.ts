@@ -369,3 +369,25 @@ it("retries transient image decoding failures instead of caching an unavailable 
   expect(attempts).toBe(2);
   client.clear();
 });
+
+it("keeps the document's first reference definition across every native Mermaid segment", async () => {
+  const { fromMarkdown } = await import("mdast-util-from-markdown");
+  const { splitMermaidFences } = await import("./fence/mermaid/segments");
+  const before = '[first]: /repo/first.ts "Original"\n\n';
+  const after = '\n\n[open][first]\n\n[first]: /repo/second.ts "Later"';
+  const source = `${before}\`\`\`mermaid\ngraph TD\nA-->B\n\`\`\`${after}`;
+  const firstDefinition = (markdown: string) =>
+    fromMarkdown(markdown).children.find((node) => node.type === "definition");
+  const canonical = firstDefinition(source);
+  const segments = splitMermaidFences(source);
+  for (const segment of segments.filter((candidate) => candidate.kind === "markdown")) {
+    expect(firstDefinition(segment.source)).toMatchObject({
+      identifier: canonical?.identifier,
+      url: canonical?.url,
+      title: canonical?.title,
+    });
+  }
+  expect(segments[0].source.endsWith(before)).toBe(true);
+  expect(segments[2].source.endsWith(after)).toBe(true);
+  expect(segments[1]).toEqual({ kind: "mermaid", id: "1", source: "graph TD\nA-->B" });
+});

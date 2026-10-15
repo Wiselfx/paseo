@@ -312,35 +312,64 @@ function prepareText(context: InlinePreparation) {
   for (let i = 0; i < context.source.length; i++) {
     if (contains(context.protectedRanges, i)) continue;
     const char = context.source[i]!;
-    if (char === "|") insert(context, i, "\\");
+    if (
+      char === "|" ||
+      (char === "~" && context.source[i - 1] !== "~" && context.source[i + 1] !== "~")
+    )
+      insert(context, i, "\\");
     if (context.uppercase && char.toUpperCase() !== char)
       context.edits.push({ start: i, end: i + 1, text: char.toUpperCase() });
   }
 }
+/** Linkify sees decoded inline text; keep its offsets tied to the original Markdown. */
+function linkifySource(context: InlinePreparation) {
+  const positions: number[] = [];
+  let decoded = "";
+  let cursor = 0;
+  const escapes = /\\[!"#$%&'()*+,\-./:;<=>?@[\\\]^_`{|}~]|&[a-z#][a-z0-9]{1,31};/gi;
+  function appendPlain(end: number) {
+    while (cursor < end) {
+      positions.push(cursor);
+      decoded += context.source[cursor++];
+    }
+  }
+  for (const match of context.source.matchAll(escapes)) {
+    appendPlain(match.index);
+    const text = context.parser.utils.unescapeAll(match[0]);
+    for (let index = 0; index < text.length; index++) positions.push(cursor);
+    decoded += text;
+    cursor += match[0].length;
+  }
+  appendPlain(context.source.length);
+  positions.push(cursor);
+  return { decoded, positions };
+}
 function prepareLinkifiedLinks(context: InlinePreparation) {
-  const destinations = new Set(
-    context.token.children
-      ?.filter((child) => child.type === "link_open" && child.markup === "linkify")
-      .map((child) => child.attrGet("href")),
-  );
-  for (const match of context.parser.linkify.match(context.source) ?? []) {
-    if (
-      contains(context.protectedRanges, match.index, match.lastIndex) ||
-      contains(context.referenceRanges, match.index, match.lastIndex)
-    )
-      continue;
-    if (!destinations.has(match.url)) continue;
+  const links =
+    context.token.children?.filter(
+      (child) => child.type === "link_open" && child.markup === "linkify",
+    ) ?? [];
+  if (!links.length) return;
+  const destinations = new Map(links.map((link) => [link.attrGet("href"), link]));
+  const { decoded, positions } = linkifySource(context);
+  for (const match of context.parser.linkify.match(decoded) ?? []) {
+    const start = positions[match.index]!;
+    const end = positions[match.lastIndex]!;
+    if (contains(context.referenceRanges, start)) continue;
+    const link = destinations.get(context.parser.normalizeLink(match.url));
+    if (!link) continue;
+    const destination = link.attrGet("href")!;
     const payload: AssistantFileLinkSource = {
-      href: match.url,
+      href: destination,
       text: match.text,
       markup: "linkify",
       sourceInfo: "auto",
     };
     const href = context.canResolveCode(match.text)
       ? FILE_LINK_SCHEME + encodeURIComponent(JSON.stringify(payload))
-      : match.url;
-    insert(context, match.index, "[");
-    insert(context, match.lastIndex, `](<${href}>)`);
+      : destination;
+    insert(context, start, "[");
+    insert(context, end, `](<${href}>)`);
   }
 }
 function sourcePositions(

@@ -10,6 +10,23 @@ import {
 const noFiles = () => false;
 describe("source-preserving prose", () => {
   it.each([
+    ["Paths ~/.config and ~/.local are used.", "Paths \\~/.config and \\~/.local are used."],
+    ["~/a ~/b", "\\~/a \\~/b"],
+    ["~~gone~~", "~~gone~~"],
+    ["a ~ b", "a \\~ b"],
+    ["`~~` and `~/a ~/b`", "`~~` and `~/a ~/b`"],
+  ])("keeps single tildes literal: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+    expect(prepareProse([source], noFiles, true)).toBe(expected);
+  });
+  it.each([
+    ["https://example.com/a&amp;b", "[https://example.com/a&b](<https://example.com/a&b>)"],
+    ["https://example.com/é", "[https://example.com/é](<https://example.com/%C3%A9>)"],
+    ["https://example.com/a\\_b", "[https://example.com/a\\_b](<https://example.com/a_b>)"],
+  ])("wraps linkify's normalized destination: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+  });
+  it.each([
     "A & B",
     "# A & B",
     "- A & B",

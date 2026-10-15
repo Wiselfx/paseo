@@ -1,3 +1,5 @@
+import type { ASTNode } from "react-native-markdown-display";
+
 /**
  * Native port of the media-cards plugin detectors: same matchers, none of
  * the gates. The plugin caps at 5 cards, vetoes long prose, and replaces the
@@ -40,6 +42,22 @@ export function isLocalPath(path: string): boolean {
 
 export function trimTrailingPunctuation(s: string): string {
   return s.replace(TRAILING_PUNCT_RE, "");
+}
+
+/**
+ * True when the link is the paragraph's only meaningful content: every
+ * sibling is either the link itself or whitespace text. Native cards
+ * render for standalone bare links; links embedded in prose stay links,
+ * so paragraphs never break around a card. The plugin could not do this
+ * (raw-text regexes, no AST) and gated on prose length instead.
+ */
+export function isSoleParagraphContent(nodeKey: string, parent: ASTNode[]): boolean {
+  const paragraph = parent.find((ancestor) => ancestor?.type === "paragraph");
+  const siblings = paragraph?.children;
+  if (!Array.isArray(siblings) || siblings.length === 0) return false;
+  return siblings.every(
+    (child) => child?.key === nodeKey || (child?.type === "text" && child?.content.trim() === ""),
+  );
 }
 
 /**

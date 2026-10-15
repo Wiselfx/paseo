@@ -73,6 +73,9 @@ import type { MarkdownPhase } from "@/components/markdown/fence/types";
 import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
 import { useRevealedText } from "@/hooks/use-revealed-text";
 import { colorMarkdownLinkChildren } from "@/components/markdown/link-children";
+import { AssistantLinkCard } from "@/components/markdown/link-card";
+import { isRemoteImageUrl, isSoleParagraphContent } from "@/components/markdown/media-links";
+import { youtubeIdForUrl } from "@/components/markdown/fence/youtube";
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
 import { getTurnDurationLabel } from "./assistant-turn-footer-label";
@@ -1919,15 +1922,49 @@ export const AssistantMessage = memo(function AssistantMessage({
           {children}
         </MarkdownParagraphView>
       ),
-      link: (node: ASTNode, children: ReactNode[], _parent: ASTNode[], styles: MarkdownStyles) => (
-        <AssistantMarkdownLink
-          key={node.key}
-          source={getMarkdownLinkSource(node)}
-          style={styles.link}
-        >
-          {colorMarkdownLinkChildren(children, styles.link.color)}
-        </AssistantMarkdownLink>
-      ),
+      link: (node: ASTNode, children: ReactNode[], parent: ASTNode[], styles: MarkdownStyles) => {
+        const source = getMarkdownLinkSource(node);
+        // Bare remote image URLs render inline previews (same component as
+        // authored ![images](...)). YouTube stays on the AssistantMarkdownLink
+        // hook, so it is excluded from the card branch below.
+        if (isRemoteImageUrl(source.href)) {
+          return (
+            <AssistantMarkdownImage
+              key={node.key}
+              source={source.href}
+              occurrenceKey={`${occurrenceKey}:${node.key}`}
+              alt={getMarkdownNodeText(node) || undefined}
+              hasLeadingContent={false}
+              client={client}
+              workspaceRoot={workspaceRoot}
+              serverId={serverId}
+            />
+          );
+        }
+        // Standalone bare links become favicon cards; links embedded in
+        // prose stay links so paragraphs never break around a card.
+        // Authored [text](url) links always stay links.
+        if (
+          source.markup === "linkify" &&
+          !youtubeIdForUrl(source.href) &&
+          isSoleParagraphContent(node.key, parent)
+        ) {
+          return (
+            <AssistantLinkCard
+              key={node.key}
+              url={source.href}
+              onPress={(url) => {
+                fileLinkActions.open({ href: url }, "preferred");
+              }}
+            />
+          );
+        }
+        return (
+          <AssistantMarkdownLink key={node.key} source={source} style={styles.link}>
+            {colorMarkdownLinkChildren(children, styles.link.color)}
+          </AssistantMarkdownLink>
+        );
+      },
       image: (
         node: ASTNode,
         _children: ReactNode[],

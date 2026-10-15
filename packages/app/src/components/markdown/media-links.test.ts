@@ -5,6 +5,7 @@ import {
   isLocalImagePath,
   isLocalPath,
   isRemoteImageUrl,
+  isSoleParagraphContent,
   matchBareLocalPaths,
 } from "./media-links";
 
@@ -57,5 +58,27 @@ describe("displayUrl / domainForUrl", () => {
   it("extracts the host", () => {
     expect(domainForUrl("https://sub.x.test:8080/a")).toBe("sub.x.test");
     expect(domainForUrl("notaurl")).toBe("notaurl");
+  });
+});
+
+describe("isSoleParagraphContent", () => {
+  const text = (key: string, content: string) =>
+    ({ type: "text", key, content, children: [] }) as never;
+  const link = (key: string) => ({ type: "link", key, children: [] }) as never;
+  const para = (children: never[]) => [{ type: "paragraph", key: "p", children }] as never;
+
+  it("accepts a lone link", () => {
+    expect(isSoleParagraphContent("l", para([link("l")]))).toBe(true);
+  });
+  it("accepts a link with whitespace around it", () => {
+    expect(isSoleParagraphContent("l", para([text("a", "  "), link("l"), text("b", "\n")]))).toBe(
+      true,
+    );
+  });
+  it("rejects links embedded in prose", () => {
+    expect(isSoleParagraphContent("l", para([text("a", "see "), link("l")]))).toBe(false);
+  });
+  it("rejects missing paragraphs", () => {
+    expect(isSoleParagraphContent("l", [])).toBe(false);
   });
 });

@@ -33,8 +33,8 @@ const STREAMED_RESPONSE = [
 const RESPONSE =
   'İ😀hello **world**; hello *world*.\n\n[hello &amp; world](https://example.com/hidden-destination)\n\n```ts\nconst a = "a.b";\n```\n\n- first cell\n- second cell';
 
-// One message far taller than the viewport, so its first and last paragraph rows are
-// never in the virtualizer's window at the same time.
+// One message taller than the viewport, exercising navigation between distant
+// matches inside the same rendered row.
 const PARAGRAPH_PADDING = Array.from({ length: 40 }, (_, index) => `padding${index}`).join(" ");
 const TALL_RESPONSE = Array.from({ length: 30 }, (_, index) => {
   if (index === 0) return `Opening paragraph with span-needle. ${PARAGRAPH_PADDING}`;

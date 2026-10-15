@@ -1,8 +1,5 @@
-import { QueryClient } from "@tanstack/react-query";
-import { ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT } from "@/components/assistant-message-render-limit";
-import { describe, expect, it } from "vitest";
-import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
 import { runPluginClientBundle, type PluginClientRuntime } from "@/plugins/evaluate";
+import { transformTimelineItem, type TimelineItemTransform } from "@/plugins/timeline/model";
 import type { InstalledPlugin } from "@/plugins/types";
 import {
   applyStreamEvent,
@@ -11,9 +8,11 @@ import {
   type ToolCallItem,
   type UserMessageItem,
 } from "@/types/stream";
-import { transformTimelineItem, type TimelineItemTransform } from "@/plugins/timeline/model";
-import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
+import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
+import { QueryClient } from "@tanstack/react-query";
+import { describe, expect, it } from "vitest";
 import { buildAgentStreamRenderModel } from "./model";
+import { createStreamPresentation, getStreamItemMessageId } from "./presentation";
 
 const runtime = {
   paseo: {},
@@ -124,326 +123,22 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
   return [...result.tail, ...result.head];
 }
 
-describe("native prose runs", () => {
-  it("keeps an oversized history block on the existing block renderer", () => {
-    const text = "a".repeat(ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT + 1);
-    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toHaveLength(1);
-    expect(result.tail[0]).toMatchObject({ text, markdownKind: "block" });
-    expect(result.tail[0]).not.toHaveProperty("markdownProseBlocks", expect.anything());
-  });
-
-  it("keeps a normal history paragraph as selectable prose", () => {
-    const text = "A normal paragraph.";
-    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toHaveLength(1);
-    expect(result.tail[0]).toMatchObject({
-      text,
-      markdownKind: "prose",
-      markdownProseBlocks: [text],
-    });
-  });
-
-  it("retains completed runs and their source arrays while the tail grows", () => {
-    const present = createStreamPresentation({ markdown: "prose-runs" });
-    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-    state = applyStreamEvent({
-      ...state,
-      event: assistant("First.\n\nSecond.\n\n```js\n1\n```\n\nTail."),
-      timestamp: new Date(1000),
-    });
-    const before = rows(present({ ...presentationOptions, ...state, transform: undefined }));
-    state = applyStreamEvent({ ...state, event: assistant(" More."), timestamp: new Date(1000) });
-    const after = rows(present({ ...presentationOptions, ...state, transform: undefined }));
-    expect(after[0]).toBe(before[0]);
-    expect(after[1]).toBe(before[1]);
-    expect(after[2]).not.toBe(before[2]);
-  });
-  it("does not duplicate retained prose around split images on append", () => {
-    const present = createStreamPresentation({ markdown: "prose-runs" });
-    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-    let combined = "";
-    for (const text of ["First.\n\nBefore ![shot](shots/app.png) after.", "\n\nNext.", " More."]) {
-      combined += text;
-      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
-      const live = rows(
-        present({ ...presentationOptions, ...state, isTurnActive: false, transform: undefined }),
-      );
-      const history = createStreamPresentation({ markdown: "prose-runs" })({
+describe("whole-message Markdown presentation", () => {
+  it("keeps paragraphs, fences and quotes in one progressively updated row", () => {
+    const present = createStreamPresentation();
+    const text = "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst n = 1;\n```\n\n> Quote";
+    for (const length of [10, 30, text.length]) {
+      const source = hydrateStreamState([
+        { event: assistant(text.slice(0, length)), timestamp: new Date(1000) },
+      ]);
+      const result = present({
         ...presentationOptions,
-        tail: hydrateStreamState([{ event: assistant(combined), timestamp: new Date(1000) }]),
-        head: [],
-        transform: undefined,
-      });
-      expect(live).toEqual(history.tail);
-    }
-  });
-  it.each([
-    ["short paragraphs", "A short paragraph.\n\n".repeat(3).slice(0, 50)],
-    [
-      "one growing paragraph",
-      "Use `foo` with https://example.com/path and `bar`. ".repeat(2).slice(0, 50),
-    ],
-  ])("keeps 600 appends near blocks mode: %s", { retry: 2 }, (_name, chunk) => {
-    function measure(markdown: "blocks" | "prose-runs") {
-      const present = createStreamPresentation({ markdown });
-      let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-      const start = performance.now();
-      for (let i = 0; i < 600; i++) {
-        state = applyStreamEvent({
-          ...state,
-          event: assistant(chunk),
-          timestamp: new Date(1000),
-        });
-        present({ ...presentationOptions, ...state, transform: undefined });
-      }
-      return performance.now() - start;
-    }
-    measure("blocks");
-    const blocks = measure("blocks");
-    const prose = measure("prose-runs");
-    expect(prose).toBeLessThan(Math.max(300, blocks * 3));
-    expect(prose).toBeLessThan(1500);
-  });
-  it.each([
-    "<!-- keep this -->\nText.",
-    "<?pi hello?>",
-    "<!DOCTYPE html>",
-    "Text <!-- inline --> after",
-  ])("preserves HTML constructs: %s", (text) => {
-    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toMatchObject([{ text, markdownKind: "block" }]);
-  });
-  it.each(["blocks", "prose-runs"] as const)(
-    "projects a completed streamed reference definition like fresh history in %s",
-    (markdown) => {
-      const present = createStreamPresentation({ markdown });
-      let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-      for (const text of ["![shot][pic]\n\n[pic]:", " shots/app.png"]) {
-        state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
-        present({ ...presentationOptions, ...state, transform: undefined });
-      }
-      const live = present({
-        ...presentationOptions,
-        ...state,
-        isTurnActive: false,
-        transform: undefined,
-      });
-      const history = createStreamPresentation({ markdown })({
-        ...presentationOptions,
-        tail: hydrateStreamState([
-          { event: assistant("![shot][pic]\n\n[pic]: shots/app.png"), timestamp: new Date(1000) },
-        ]),
-        head: [],
-        transform: undefined,
-      });
-      expect([...live.tail, ...live.head]).toEqual(history.tail);
-    },
-  );
-  it("keeps file URL images in Paseo's renderer", () => {
-    const source = hydrateStreamState([
-      {
-        event: assistant("Before ![shot](file:///repo/shots/app.png) after."),
-        timestamp: new Date(1000),
-      },
-    ]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toMatchObject([
-      { text: "Before", markdownKind: "prose" },
-      { text: "![shot](file:///repo/shots/app.png)", markdownKind: "block" },
-      { text: "after.", markdownKind: "prose" },
-    ]);
-  });
-
-  it("starts another run before combined paragraphs exceed the render cap", () => {
-    const first = "a".repeat(20_000);
-    const second = "b".repeat(20_000);
-    const present = createStreamPresentation({ markdown: "prose-runs" });
-    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-    for (const text of [first, "\n\n" + second.slice(0, 10_000), second.slice(10_000)]) {
-      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
-      present({ ...presentationOptions, ...state, transform: undefined });
-    }
-    const live = present({
-      ...presentationOptions,
-      ...state,
-      isTurnActive: false,
-      transform: undefined,
-    });
-    expect([...live.tail, ...live.head]).toMatchObject([
-      { id: "message-1:run:0", text: first },
-      { id: "message-1:run:1", text: second },
-    ]);
-    const source = hydrateStreamState([
-      { event: assistant(`${first}\n\n${second}`), timestamp: new Date(1000) },
-    ]);
-    expect(
-      present({ ...presentationOptions, tail: source, head: [], transform: undefined }).tail,
-    ).toMatchObject([{ text: first }, { text: second }]);
-  });
-
-  it.each([
-    "![Screenshot][pic]\n\n[pic]: shots/app.png",
-    "**before ![alt](file.png) after**",
-    "# heading ![alt](file.png) after",
-    "[before ![alt](file.png) after](https://example.com)",
-    "~~before ![alt](file.png) after~~",
-    "- parent\n  - before ![x](shots/app.png) after\n  - next",
-  ])("keeps image context in Paseo's block renderer: %s", (text) => {
-    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toMatchObject([{ text, markdownKind: "block" }]);
-    expect(result.tail).toHaveLength(1);
-  });
-
-  it("splits inline workspace images out of prose without mistaking code for images", () => {
-    const source = hydrateStreamState([
-      {
-        event: assistant("Before `![literal](code.png)` ![Screenshot](shots/app.png) after."),
-        timestamp: new Date(1000),
-      },
-    ]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toMatchObject([
-      { text: "Before `![literal](code.png)`", markdownKind: "prose" },
-      { text: "![Screenshot](shots/app.png)", markdownKind: "block" },
-      { text: "after.", markdownKind: "prose" },
-    ]);
-  });
-
-  it.each([
-    { middle: "```ts\nconst a = 1;\n```", kind: "block" },
-    { middle: "> Quoted paragraph.", kind: "quote" },
-    { middle: "![Image](image.png)", kind: "block" },
-  ])("keeps $kind between prose in a separate row", ({ middle, kind }) => {
-    const source = hydrateStreamState([
-      { event: assistant(`First.\n\n${middle}\n\nLast.`), timestamp: new Date(1000) },
-    ]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toMatchObject([
-      { id: `${source[0]!.id}:run:0`, text: "First.", markdownKind: "prose" },
-      { id: `${source[0]!.id}:block:1`, text: middle, markdownKind: kind },
-      { id: `${source[0]!.id}:run:2`, text: "Last.", markdownKind: "prose" },
-    ]);
-  });
-
-  it.each(["> Quoted text.", "- List item", "### Heading", "Plain paragraph."])(
-    "classifies the final block at turn completion: %s",
-    (text) => {
-      const present = createStreamPresentation({ markdown: "prose-runs" });
-      const head = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
-      expect(
-        present({ ...presentationOptions, tail: [], head, transform: undefined }).head,
-      ).toMatchObject([{ markdownKind: "block" }]);
-      const completed = present({
-        ...presentationOptions,
-        isTurnActive: false,
         tail: [],
-        head,
+        head: source,
         transform: undefined,
       });
-      const history = createStreamPresentation({ markdown: "prose-runs" })({
-        ...presentationOptions,
-        tail: head,
-        head: [],
-        transform: undefined,
-      });
-      expect(rows(completed)).toEqual(history.tail);
-    },
-  );
-  it("keeps the growing block separate and merges completed blocks into a stable run", () => {
-    const present = createStreamPresentation({ markdown: "prose-runs" });
-    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-    function send(text: string) {
-      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
-      return present({ ...presentationOptions, ...state, transform: undefined });
+      expect(rows(result)).toEqual(source);
     }
-    expect(send("First.").head).toMatchObject([{ id: "message-1:block:0", markdownKind: "block" }]);
-    const second = send("\n\nSecond.");
-    expect(second.tail).toMatchObject([
-      { id: "message-1:run:0", text: "First.", markdownKind: "prose" },
-    ]);
-    expect(second.head).toMatchObject([
-      { id: "message-1:block:1", text: "Second.", markdownKind: "block" },
-    ]);
-    const growing = send(" More.");
-    expect(growing.tail[0]).toBe(second.tail[0]);
-    const third = send("\n\nThird.");
-    expect(third.tail).toMatchObject([{ id: "message-1:run:0", text: "First.\n\nSecond. More." }]);
-    const completed = present({
-      ...presentationOptions,
-      ...state,
-      isTurnActive: false,
-      transform: undefined,
-    });
-    const history = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: [...state.tail, ...state.head],
-      head: [],
-      transform: undefined,
-    });
-    expect(rows(completed)).toEqual(history.tail);
-    expect(rows(completed)).toMatchObject([
-      { id: "message-1:run:0", text: "First.\n\nSecond. More.\n\nThird." },
-    ]);
-  });
-
-  it("keeps consecutive paragraphs in one selectable row", () => {
-    const source = hydrateStreamState([
-      { event: assistant("First paragraph.\n\nSecond paragraph."), timestamp: new Date(1000) },
-    ]);
-    const result = createStreamPresentation({ markdown: "prose-runs" })({
-      ...presentationOptions,
-      tail: source,
-      head: [],
-      transform: undefined,
-    });
-    expect(result.tail).toMatchObject([
-      {
-        id: `${source[0]!.id}:run:0`,
-        text: "First paragraph.\n\nSecond paragraph.",
-        markdownKind: "prose",
-        blockGroupId: source[0]!.id,
-      },
-    ]);
   });
 });
 
@@ -522,26 +217,17 @@ describe("stream presentation through installed plugins", () => {
       { text: "Header\n\nBody", phase: "streaming" },
     ]);
     expect(rows(harness.render(transform))).toHaveLength(1);
-    expect(rows(harness.render()).map((item) => item.kind)).toEqual([
-      "assistant_message",
-      "assistant_message",
-    ]);
+    expect(rows(harness.render()).map((item) => item.kind)).toEqual(["assistant_message"]);
   });
 
-  it("keeps completed native blocks stable while the last block grows and finishes", () => {
+  it("retains the complete message when streaming finishes", () => {
     const harness = streamHarness();
-    const first = harness.send(assistant("Intro\n\n![Image](image.png)"));
-    const growing = harness.send(assistant("\n\nAfter\n"));
-    const last = harness.send(assistant("- item"));
+    harness.send(assistant("Intro\n\n![Image](image.png)"));
+    const last = harness.send(assistant("\n\nAfter\n- item"));
     const completed = harness.send({ type: "turn_completed", provider: "claude" });
-    expect(first.tail).toMatchObject([{ text: "Intro", blockIndex: 0 }]);
-    expect(first.head).toMatchObject([{ text: "![Image](image.png)", blockIndex: 1 }]);
-    expect(growing.tail[0]).toBe(first.tail[0]);
-    expect(growing.tail[1]).toBe(first.head[0]);
-    expect(last.tail).toBe(growing.tail);
-    expect(last.head).toMatchObject([{ text: "After\n- item", blockIndex: 2 }]);
-    expect(completed.tail).toEqual(rows(last));
-    expect(completed.tail[2]).toBe(last.head[0]);
+    expect(last.tail).toEqual([]);
+    expect(last.head).toMatchObject([{ text: "Intro\n\n![Image](image.png)\n\nAfter\n- item" }]);
+    expect(completed.tail).toEqual(last.head);
     expect(completed.head).toEqual([]);
   });
 
@@ -549,8 +235,8 @@ describe("stream presentation through installed plugins", () => {
     const harness = streamHarness();
     harness.send(assistant("Intro\n\n```ts\nconst a = 1;"));
     const result = harness.send(assistant("\n\nconst b = 2;"));
-    expect(result.tail).toMatchObject([{ text: "Intro" }]);
-    expect(result.head).toMatchObject([{ text: "```ts\nconst a = 1;\n\nconst b = 2;" }]);
+    expect(result.tail).toEqual([]);
+    expect(result.head).toMatchObject([{ text: "Intro\n\n```ts\nconst a = 1;\n\nconst b = 2;" }]);
   });
 
   // Codex streams a line break and the next line's indent as their own chunks.
@@ -568,14 +254,13 @@ describe("stream presentation through installed plugins", () => {
   // which is what lets find, scroll-to-message and history reveal address it by id.
   // A link reference definition stays with the paragraph that uses it, so the split
   // never leaves an empty row behind and the reference still resolves.
-  it("splits an assistant message into the same blocks through history and through the live head", () => {
+  it("preserves source identity through history and the live head", () => {
     const source = hydrateStreamState([
       {
         event: assistant("[Link][docs]\n\n[docs]: https://example.com\n\nClosing paragraph."),
         timestamp: new Date(1000),
       },
     ]);
-    const messageId = source[0]!.id;
     const present = (placement: "tail" | "head") =>
       rows(
         createStreamPresentation()({
@@ -585,20 +270,7 @@ describe("stream presentation through installed plugins", () => {
           transform: undefined,
         }),
       );
-    expect(present("tail")).toMatchObject([
-      {
-        id: `${messageId}:block:0`,
-        blockGroupId: messageId,
-        blockIndex: 0,
-        text: "[Link][docs]\n\n[docs]: https://example.com",
-      },
-      {
-        id: `${messageId}:block:1`,
-        blockGroupId: messageId,
-        blockIndex: 1,
-        text: "Closing paragraph.",
-      },
-    ]);
+    expect(present("tail")).toEqual(source);
     const blocks = (items: StreamItem[]) =>
       items.map((item) => [item.id, item.kind === "assistant_message" ? item.text : null]);
     expect(blocks(present("head"))).toEqual(blocks(present("tail")));
@@ -606,7 +278,7 @@ describe("stream presentation through installed plugins", () => {
 
   // Rows are addressed by id from outside presentation, so the same text has to land on
   // the same ids whether the reader watched it arrive or opened the chat afterwards.
-  it("gives a streamed message the block ids its hydrated text would have had", () => {
+  it("gives a streamed message the same id as its hydrated text", () => {
     const text = "Intro paragraph.\n\n# Heading\n\n- first\n- second\n\nClosing paragraph.";
     const harness = streamHarness();
     for (let end = 8; end < text.length; end += 8) {
@@ -628,7 +300,7 @@ describe("stream presentation through installed plugins", () => {
     );
   });
 
-  it("repoints a block at the canonical source that replaced the streamed one", () => {
+  it("uses the canonical source that replaced the streamed message", () => {
     const harness = streamHarness();
     harness.send(assistant("Streamed answer"));
     const streamed = rows(harness.render());
@@ -662,15 +334,8 @@ describe("stream presentation through installed plugins", () => {
       head: [],
       transform: undefined,
     });
-    expect(result.tail).toMatchObject([
-      {
-        id: `${messageId}:block:0`,
-        blockGroupId: messageId,
-        blockIndex: 0,
-        text: "Only one paragraph.",
-      },
-    ]);
-    expect(result.tail[0]!.id).not.toBe(messageId);
+    expect(result.tail).toEqual(source);
+    expect(result.tail[0]!.id).toBe(messageId);
   });
 
   it("continues to stream inline reasoning with a stable plugin row", () => {
@@ -887,13 +552,7 @@ describe("timeline presentation", () => {
         text: "<spoken-input>Example</spoken-input><instruction>Explain this XML.</instruction>",
       },
     ];
-    expect(projectTimelineItems(items)).toEqual(
-      items.map((item) =>
-        item.kind === "assistant_message"
-          ? { ...item, id: `${item.id}:block:0`, blockGroupId: item.id, blockIndex: 0 }
-          : item,
-      ),
-    );
+    expect(projectTimelineItems(items)).toEqual(items);
     expect(projectTimelineItems(items)[0]).toBe(items[0]);
   });
 

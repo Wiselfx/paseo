@@ -1,99 +1,38 @@
-/**
- * @vitest-environment jsdom
- */
-import * as React from "react";
-import { createElement, type ReactNode } from "react";
-import { fireEvent, render } from "@testing-library/react";
-import { Text, type StyleProp, type TextStyle } from "react-native";
-import { describe, expect, it, vi } from "vitest";
-import { resolveInlineImageSize } from "./inline-image-size";
-import { colorMarkdownLinkChildren } from "./link-children";
-import { MarkdownLinkText } from "./link-text";
+import { describe, expect, it } from "vitest";
+import { prepareMarkdownSource } from "./source";
 
-vi.stubGlobal("React", React);
-
-vi.mock("react-native", () => ({
-  Pressable: ({
-    accessibilityRole,
-    children,
-    onHoverIn,
-    onHoverOut,
-    onPress,
-  }: {
-    accessibilityRole?: string;
-    children?: ReactNode;
-    onHoverIn?(): void;
-    onHoverOut?(): void;
-    onPress?(): void;
-  }) =>
-    createElement(
-      "div",
-      {
-        role: accessibilityRole,
-        onClick: onPress,
-        onMouseEnter: onHoverIn,
-        onMouseLeave: onHoverOut,
-      },
-      children,
-    ),
-  Text: ({ children, style }: { children?: ReactNode; style?: StyleProp<TextStyle> }) =>
-    createElement("span", { style: flattenStyle(style) }, children),
-}));
-
-function flattenStyle(style: StyleProp<TextStyle>): TextStyle {
-  return Object.assign({}, ...(Array.isArray(style) ? style.filter(Boolean) : [style]));
-}
-
-describe("resolveInlineImageSize", () => {
-  it("respects a one-sided explicit width using natural aspect ratio", () => {
-    expect(
-      resolveInlineImageSize({ explicit: { width: 18 }, natural: { width: 90, height: 45 } }),
-    ).toEqual({
-      width: 18,
-      height: 9,
-    });
+describe("shared Markdown source adaptation", () => {
+  it("keeps paragraphs, fences and quotes together for the library", () => {
+    const source = "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst n = 1;\n```\n\n> Quote";
+    expect(prepareMarkdownSource(source).render()).toBe(source);
   });
-
-  it("respects a one-sided explicit height using natural aspect ratio", () => {
-    expect(
-      resolveInlineImageSize({ explicit: { height: 18 }, natural: { width: 90, height: 45 } }),
-    ).toEqual({
-      width: 36,
-      height: 18,
-    });
+  it("resolves workspace images without rewriting code or remote image URLs", () => {
+    const source =
+      "![Local](assets/a.png)\n\n![Remote](https://example.com/a.png)\n\n```md\n![Code](assets/a.png)\n```";
+    const prepared = prepareMarkdownSource(source);
+    expect(prepared.images.map((image) => image.source)).toEqual([
+      "assets/a.png",
+      "https://example.com/a.png",
+    ]);
+    expect(prepared.render(new Map([["assets/a.png", "blob:cached"]]))).toBe(
+      "![Local](<blob:cached>)\n\n![Remote](https://example.com/a.png)\n\n```md\n![Code](assets/a.png)\n```",
+    );
   });
-
-  it("reserves a capped 3:2 placeholder when no dimensions are known", () => {
-    expect(resolveInlineImageSize({ explicit: {}, natural: null })).toEqual({
-      width: 240,
-      height: 160,
-    });
+  it("resolves reference images and images nested in lists and quotes", () => {
+    const prepared = prepareMarkdownSource("> - ![Image][picture]\n\n[picture]: ../a.png");
+    expect(prepared.render(new Map([["../a.png", "file:///cache/a.png"]]))).toBe(
+      "> - ![Image](<file:///cache/a.png>)\n\n[picture]: ../a.png",
+    );
+  });
+  it("escapes spoiler delimiters only in prose", () => {
+    expect(prepareMarkdownSource("Show ||words|| and `||code||`.").render()).toBe(
+      "Show \\|\\|words\\|\\| and `||code||`.",
+    );
   });
 });
 
-describe("shared Markdown links", () => {
-  it("renders accent text and underlines it while hovered", () => {
-    const onPress = vi.fn();
-    const children = colorMarkdownLinkChildren(
-      createElement(Text, { style: { color: "white" } }, "Paseo"),
-      "rgb(0, 122, 255)",
-    );
-    const view = render(
-      createElement(MarkdownLinkText, { style: { color: "rgb(0, 122, 255)" }, onPress }, children),
-    );
-    const link = view.getByRole("link");
-    const linkText = link.firstElementChild as HTMLElement;
-
-    expect((view.getByText("Paseo") as HTMLElement).style.color).toBe("rgb(0, 122, 255)");
-    expect(linkText.style.textDecorationLine).toBe("");
-
-    fireEvent.mouseEnter(link);
-    expect(linkText.style.textDecorationLine).toBe("underline");
-
-    fireEvent.mouseLeave(link);
-    expect(linkText.style.textDecorationLine).toBe("");
-
-    fireEvent.click(link);
-    expect(onPress).toHaveBeenCalledOnce();
-  });
+it("preserves named and numeric entities as literal rendered text", () => {
+  expect(prepareMarkdownSource("AT&amp;T &#x1F600; &#35; heading and `&amp;`").render()).toBe(
+    "AT\\&T 😀 \\# heading and `&amp;`",
+  );
 });

@@ -307,7 +307,6 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     olderHistoryProgressKey,
     scrollEnabled,
     contentMaxWidth,
-    imageContext,
     isMobileBreakpoint,
   } = props;
   const historyVirtualized = useRevisedHistoryRows(
@@ -455,7 +454,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       const row = segments.historyVirtualized[index];
       const measured = row && measuredRowHeights.current.get(row.id);
       if (measured && measured.width === contentWidth) return measured.height;
-      return row ? estimateStreamItemHeight({ item: row, contentMaxWidth, imageContext }) : 120;
+      return row ? estimateStreamItemHeight({ item: row, contentMaxWidth }) : 120;
     },
     observeElementOffset: observeVirtualOffset,
     rangeExtractor,

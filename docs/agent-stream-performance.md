@@ -29,26 +29,8 @@ So arrival sets a _target_ and the reveal rate is derived from the backlog inste
 - **The coalescer is leading + trailing.** The first delta after an idle window flushes synchronously; only the rest of the burst waits for the trailing timer. Reverting to trailing-only adds a full window to the first character of every turn. Same shape and the same reason as `TerminalOutputCoalescer`.
 - **The leading flush adds a canonical row, and that is fine.** A burst's first chunk lands as its own timeline row. `mergeAssistantChunks` / `mergeReasoningChunks` in `timeline-projection.ts` join contiguous same-turn rows, and clients read the projected timeline, so history is unaffected. Tests that assert on raw rows have to account for the extra row; tests that assert on what a client sees do not.
 - **The store holds the full text; only the rendered slice is paced.** Copy, selection, the chat outline, and scroll geometry all read the same string the user can see. Pacing the store instead would leave the bottom anchor chasing a content height that is ahead of the reveal.
-- **Markdown rows belong to presentation, and every assistant message is a block group.**
-  `agent-stream/presentation.ts` keeps the source message whole for plugins, then splits it for
-  display. Native groups completed adjacent prose into selectable runs; web retains individual blocks.
-  The growing last source block stays on the existing block renderer and streaming parser.
-  It joins the preceding run when the next block starts or the turn ends.
-  Code, tables, images, HTML-like content and blockquotes end a native run. See
-  [native text selection](native-text-selection.md) for renderer ownership and library constraints.
-  Appends reparse the growing last block. A completed reference definition at its start can
-  belong to the preceding block, so that case reparses the full message. Completed rows retain
-  object identity and unchanged history stays cached. Prose rows retain their original source
-  blocks so native preparation cannot broaden reference scope. Completed blocks are classified
-  and prepared once; the growing block is neither classified nor prepared for the prose renderer.
-- **A row id is never a message id.** Block rows are `${messageId}:block:${n}`; native prose runs use `${messageId}:run:${n}` with
-  `blockGroupId = messageId`, including single-row messages. Inline images split a source block into offset-keyed parts, so nothing can come to rely on the two
-  being equal. `getStreamItemMessageId` in `presentation.ts` is the only way to go from a row to its
-  message, and web rows carry it as `data-message-id` alongside `data-history-row-id`. Anything
-  addressing a message — chat find, scroll-to-message, history reveal, the find expansion that lifts
-  the render cap — uses the message id and must expect several rows to answer to it. Row ids stay for
-  React keys, virtualizer measurement, scroll anchors, and per-row caches like assistant image
-  occurrence keys.
+- **One source assistant message is one display row.** Presentation projects plugin output and caches unchanged history. The shared [Markdown renderer](markdown-renderer.md) owns rendering on every platform. Chat paces the visible source and applies its 32,000-character render cap; it does not split Markdown or promote completed blocks into history.
+- **Message identity survives completion.** Assistant row ids are source message ids. Plugin rows can replace a source, so find, scroll-to-message and history reveal still use `getStreamItemMessageId`. Width-specific measurements describe whole rendered messages.
 - **First sight of a text is revealed whole.** Only growth is paced. This is what makes history hydration, timeline replay, a virtualized row remounting on scroll, and an already-finished message all render complete on first paint without a special case for each.
 - **Leaving `phase: "streaming"` snaps the reveal.** A completed turn must never be left holding characters. `layoutStream` sets the phase, so anything outside the live head with an active turn is already complete.
 - **The reducer queue commits on a frame, with a timer as the ceiling.** A frame callback never fires in a hidden tab, so a timer races it and wins when nothing is painting — the store has to keep advancing either way.

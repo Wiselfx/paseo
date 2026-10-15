@@ -314,6 +314,7 @@ function findNextDisplayPartIndex(tokens: HtmlToken[], start: number): number | 
   for (let index = start; index < tokens.length; index += 1) {
     if (
       isOpenTag(tokens[index], "details") ||
+      isOpenTag(tokens[index], "svg") ||
       findMixedHeadingClose(tokens, index) !== null ||
       parseInlineImageAt(tokens, index)
     ) {

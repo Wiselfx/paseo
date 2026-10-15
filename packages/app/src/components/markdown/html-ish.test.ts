@@ -527,6 +527,25 @@ describe("splitHtmlishMarkdown", () => {
     ]);
   });
 
+  it("splits mid-slice svg out of surrounding prose", () => {
+    const svg = '<svg width="10"><circle r="5"/></svg>';
+    const parts = splitHtmlishMarkdown(`Intro\n\n${svg}\n\nOutro`);
+
+    expect(parts.map((part) => part.kind)).toEqual(["markdown", "inlineImage", "markdown"]);
+    expect(parts[1]).toEqual({
+      kind: "inlineImage",
+      alt: "",
+      src: `data:image/svg+xml,${encodeURIComponent(svg)}`,
+    });
+  });
+
+  it("splits svg preceded by blank lines", () => {
+    const svg = '<svg width="10"><circle r="5"/></svg>';
+    const parts = splitHtmlishMarkdown(`\n\n${svg}`);
+
+    expect(parts.map((part) => part.kind)).toEqual(["markdown", "inlineImage"]);
+  });
+
   it("leaves unclosed svg as text for streaming", () => {
     const source = '<svg width="10"><circle r="5">';
 

@@ -124,7 +124,7 @@ export async function expectAssistantImageRendered(
   page: Page,
   image: AssistantImageFixture,
 ): Promise<void> {
-  const rendered = page.getByRole("img", { name: image.alt }).first();
+  const rendered = page.getByRole("button", { name: image.alt }).first();
   await expect(rendered).toBeVisible({ timeout: 30_000 });
   await expect
     .poll(async () =>
@@ -172,14 +172,14 @@ export async function expectAssistantImageNotMounted(
   page: Page,
   image: AssistantImageFixture,
 ): Promise<void> {
-  await expect(page.getByRole("img", { name: image.alt })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: image.alt })).toHaveCount(0);
 }
 
 export async function userPagesUntilAssistantImageRenders(
   page: Page,
   image: AssistantImageFixture,
 ): Promise<void> {
-  const rendered = page.getByRole("img", { name: image.alt });
+  const rendered = page.getByRole("button", { name: image.alt });
   for (let attempt = 0; attempt < 10; attempt += 1) {
     if ((await rendered.count()) > 0) {
       await expectAssistantImageRendered(page, image);
@@ -253,8 +253,8 @@ async function beginVisibleImageStabilityObservation(
         );
         const imageTab = document.querySelector(`[data-testid="${tabTestId}"]`);
         if (imageTab?.getAttribute("aria-selected") !== "true") return;
-        const imageVisible = Array.from(document.querySelectorAll('[role="img"]')).some(
-          (element) => element.getAttribute("aria-label") === accessibleName && isVisible(element),
+        const imageVisible = Array.from(document.querySelectorAll("img[alt]")).some(
+          (element) => element.getAttribute("alt") === accessibleName && isVisible(element),
         );
         record.missingSeen ||= !imageVisible;
       };

@@ -97,11 +97,11 @@ test("opens a timeline image in a zoomable lightbox", async ({
   await openAssistantImageTimeline(page, imageAgent);
   await expectAssistantImageRendered(page, image);
 
-  await page.getByRole("button", { name: "Open image attachment" }).click();
+  await page.getByRole("button", { name: image.alt }).click();
   const lightboxImage = page.getByTestId("attachment-lightbox-image");
   const canvas = page.getByTestId("attachment-lightbox-canvas");
   await expect(lightboxImage).toBeVisible();
-  await canvas.hover();
+  await page.getByTestId("zoomable-viewport-toolbar").hover();
   const transformedContent = canvas.locator(":scope > div").first();
   const initialBox = await transformedContent.boundingBox();
   const canvasBox = await canvas.boundingBox();
@@ -133,7 +133,7 @@ test("opens a timeline image in a zoomable lightbox", async ({
   await expectAgentReadyToInterrupt(page);
 });
 
-test("reloading a timeline anchors near-tail assistant image growth", async ({
+test("reloading a timeline reserves image height without a load-time scroll jump", async ({
   imageWorkspace: workspace,
   page,
 }) => {
@@ -194,14 +194,15 @@ test("reloading a timeline anchors near-tail assistant image growth", async ({
         }
       };
       const inspect = () => {
-        const target = Array.from(document.querySelectorAll('[role="img"]')).find(
-          (element) => element.getAttribute("aria-label") === accessibleName,
+        const target = Array.from(document.querySelectorAll("img[alt]")).find(
+          (element) => element.getAttribute("alt") === accessibleName,
         );
         if (!target || target === state.target) {
           record();
           return;
         }
         state.target = target;
+        target.addEventListener("load", record, { once: true });
         state.resizeObserver?.disconnect();
         state.resizeObserver = new ResizeObserver(record);
         state.resizeObserver.observe(target);
@@ -235,7 +236,6 @@ test("reloading a timeline anchors near-tail assistant image growth", async ({
   await expectAssistantImageRendered(page, image);
   await page.reload();
   await expectAssistantImageRendered(page, image);
-  await page.waitForTimeout(500);
 
   const events = await page.evaluate(() => {
     const state = (
@@ -246,16 +246,17 @@ test("reloading a timeline anchors near-tail assistant image growth", async ({
     if (!state) throw new Error("Reload image geometry observer was not installed");
     return state.events;
   });
-  const geometryEvents = events as Array<{ height: number; scrollTop: number }>;
-  const initialGeometry = geometryEvents.find((event) => event.height > 0);
-  if (!initialGeometry)
-    throw new Error(`Image geometry was never measurable: ${JSON.stringify(events)}`);
-  const expandedGeometry = geometryEvents.find((event) => event.height > initialGeometry.height);
-  if (!expandedGeometry)
-    throw new Error(`Image geometry never expanded: ${JSON.stringify(events)}`);
-  expect(expandedGeometry.scrollTop, JSON.stringify(events)).toBeGreaterThan(
-    initialGeometry.scrollTop,
-  );
+  const geometryEvents = events as Array<{
+    complete: boolean;
+    height: number;
+    scrollTop: number;
+  }>;
+  const loadedIndex = geometryEvents.findIndex((event) => event.complete && event.height > 0);
+  expect(loadedIndex, JSON.stringify(events)).toBeGreaterThan(0);
+  const beforeLoad = geometryEvents[loadedIndex - 1]!;
+  const loaded = geometryEvents[loadedIndex]!;
+  expect(loaded.height).toBe(beforeLoad.height);
+  expect(loaded.scrollTop).toBe(beforeLoad.scrollTop);
 });
 
 test("a real assistant PNG remains reachable through pagination and remount", async ({

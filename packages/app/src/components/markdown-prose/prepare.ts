@@ -1,0 +1,125 @@
+import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
+import type Token from "markdown-it/lib/token.mjs";
+
+const parser = createAssistantMarkdownParser();
+const streamingParser = createAssistantMarkdownParser({ streaming: true });
+const INLINE_CODE_SCHEME = "paseo-inline-code:";
+
+export function inlineCodeLinkContent(url: string): string | null {
+  return url.startsWith(INLINE_CODE_SCHEME)
+    ? decodeURIComponent(url.slice(INLINE_CODE_SCHEME.length))
+    : null;
+}
+
+function escapeText(text: string): string {
+  return text.replace(/&/g, "&amp;").replace(/[\\`*_{}[\]<>()#+\-.!|~]/g, "\\$&");
+}
+
+function renderInline(tokens: Token[], canResolveCode: (text: string) => boolean): string {
+  const links: string[] = [];
+  return tokens
+    .map((token) => {
+      switch (token.type) {
+        case "text":
+          return escapeText(token.content);
+        case "softbreak":
+          return "\n";
+        case "hardbreak":
+          return "  \n";
+        case "link_open":
+          links.push(token.attrGet("href") ?? "");
+          return "[";
+        case "link_close": {
+          return `](<${links.pop() ?? ""}>)`;
+        }
+        case "code_inline": {
+          const needsPadding =
+            /[^ ]/.test(token.content) &&
+            (/^[ `]/.test(token.content) || /[ `]$/.test(token.content));
+          const padding = needsPadding ? " " : "";
+          const code = `${token.markup}${padding}${token.content}${padding}${token.markup}`;
+          if (links.length > 0) return code;
+          if (canResolveCode(token.content)) {
+            return `[${code}](<${INLINE_CODE_SCHEME}${encodeURIComponent(token.content)}>)`;
+          }
+          const matches = parser.linkify.match(token.content);
+          const match = matches?.length === 1 ? matches[0] : undefined;
+          if (match?.index === 0 && match.lastIndex === token.content.length)
+            return `[${code}](<${match.url}>)`;
+          return code;
+        }
+        default:
+          return token.markup || token.content;
+      }
+    })
+    .join("");
+}
+
+/** Keep the existing inline dialect, including literal pipes and tappable inline paths. */
+export function prepareProse(
+  text: string,
+  canResolveCode: (text: string) => boolean,
+  streaming = false,
+): string {
+  text = prepareBlockInlines(text, canResolveCode, streaming);
+  const state = new parser.inline.State(text, parser, {}, []);
+  let prepared = "";
+  while (state.pos < state.posMax) {
+    const start = state.pos;
+    parser.inline.skipToken(state);
+    const source = text.slice(start, state.pos);
+    // Escapes and entities already protect their contents from delimiter parsing.
+    if (source.startsWith("\\") || source.startsWith("&")) {
+      prepared += source;
+      continue;
+    }
+    const tokens = parser.parseInline(source, {})[0]!.children!;
+    const containsLinkOrCode = tokens.some(
+      (token) => token.type === "code_inline" || token.type === "link_open",
+    );
+    prepared += containsLinkOrCode
+      ? renderInline(tokens, canResolveCode)
+      : source.replace(/\|/g, "\\|");
+  }
+  return prepared;
+}
+
+function prepareBlockInlines(
+  text: string,
+  canResolveCode: (text: string) => boolean,
+  streaming: boolean,
+): string {
+  const tokens = (streaming ? streamingParser : parser).parse(text, {});
+  const tail = tokens.findLast((token) => token.nesting !== -1);
+  const lines = text.split("\n");
+  for (let index = tokens.length - 1; index >= 0; index--) {
+    const token = tokens[index]!;
+    const uppercase = tokens[index - 1]?.type === "heading_open" && tokens[index - 1]?.tag === "h6";
+    if (
+      token.type !== "inline" ||
+      !token.map ||
+      !token.children ||
+      !(uppercase || (streaming && token === tail))
+    )
+      continue;
+    const [start, end] = token.map;
+    const prefixes = token.content.split("\n").map((content, offset) => {
+      const line = lines[start + offset]!;
+      const position = line.indexOf(content);
+      return position < 0 ? "" : line.slice(0, position);
+    });
+    if (uppercase) {
+      for (const child of token.children) {
+        if (child.type === "text") child.content = child.content.toUpperCase();
+      }
+    }
+    const rendered = renderInline(token.children, canResolveCode)
+      .replace(/ $/, "&#32;")
+      .split("\n");
+    const replacement = rendered.map(
+      (line, offset) => `${prefixes[offset] ?? prefixes.at(-1) ?? ""}${line}`,
+    );
+    lines.splice(start, end - start, ...replacement);
+  }
+  return lines.join("\n");
+}

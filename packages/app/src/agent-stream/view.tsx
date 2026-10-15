@@ -535,7 +535,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     const effectiveStreamHead = useRetainedValue(streamHead, isActive);
     const effectiveTurnPresentation = useRetainedValue(turnPresentation, isActive);
     const isTurnActive = effectiveTurnPresentation.isActive;
-    const presentStream = useMemo(() => createStreamPresentation(), []);
+    const presentStream = useMemo(
+      () => createStreamPresentation({ markdown: isWeb ? "blocks" : "prose-runs" }),
+      [],
+    );
     const presentation = useMemo(
       () =>
         presentStream({
@@ -726,6 +729,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             <ChatFindExpansion messageId={getStreamItemMessageId(item)}>
               {(renderFullContent) => (
                 <AssistantMessage
+                  markdownKind={item.markdownKind}
                   renderFullContent={renderFullContent}
                   occurrenceKey={createAssistantImageOccurrenceKey({ agentId, itemId: item.id })}
                   message={item.text}

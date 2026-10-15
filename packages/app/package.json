@@ -114,6 +114,7 @@
     "react-native": "0.81.5",
     "react-native-draggable-flatlist": "^4.0.3",
     "react-native-edge-to-edge": "^1.7.0",
+    "react-native-enriched-markdown": "1.1.1",
     "react-native-gesture-handler": "~2.28.0",
     "react-native-keyboard-controller": "1.21.12",
     "react-native-markdown-display": "^7.0.2",
@@ -163,6 +164,12 @@
     "vitest": "^4.1.6",
     "wrangler": "^4.105.0",
     "ws": "^8.20.0"
+  },
+  "enriched-markdown": {
+    "enableMath": false,
+    "enableCodeHighlight": false,
+    "codeHighlightLanguages": [],
+    "enableVideo": false
   },
   "reanimated": {
     "staticFeatureFlags": {

@@ -1,3 +1,5 @@
+import { Image } from "react-native";
+import { isWeb } from "@/constants/platform";
 import { useMemo, useEffect, useId } from "react";
 import { useFetchQueries } from "@/data/query";
 import { createAssistantImageFileAcquisition } from "@/assistant-image/file-acquisition";
@@ -35,7 +37,7 @@ export interface MarkdownImageContext {
 export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   const occurrenceKey = useId();
   const prepared = useMemo(
-    () => prepareMarkdownSource(text, context.workspaceRoot),
+    () => prepareMarkdownSource(text, context.workspaceRoot, { supportsSvg: isWeb }),
     [text, context.workspaceRoot],
   );
   const sources = [...new Set(prepared.images.map((image) => image.source))];
@@ -90,10 +92,39 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   results.forEach((result, index) => {
     if (result.data) resolved.set(sources[index]!, result.data.uri);
   });
+  const displayUrls = sources.map(
+    (source) =>
+      resolved.get(source) ?? (/^(https?:|data:|blob:)/i.test(source) ? source : undefined),
+  );
+  const decoded = useFetchQueries(
+    displayUrls.map((uri, index) => ({
+      queryKey: ["markdownImageDecode", occurrenceKey, uri ?? sources[index]],
+      enabled: uri !== undefined,
+      immutableWhen: () => true,
+      dataShape: "value",
+      gcTime: 0,
+      queryFn: () => (uri ? canDecodeImage(uri) : Promise.resolve(false)),
+    })),
+  );
+  const unavailableImages = new Set(
+    sources.filter(
+      (_source, index) => displayUrls[index] !== undefined && decoded[index]?.data !== true,
+    ),
+  );
   return {
-    markdown: prepared.render(resolved),
+    markdown: prepared.render(resolved, unavailableImages),
     linkRecognition: prepared.linkRecognition,
     linkSource: prepared.linkSource,
     imageSources: Object.fromEntries([...resolved].map(([source, url]) => [url, source])),
   };
+}
+
+function canDecodeImage(uri: string): Promise<boolean> {
+  return new Promise((resolve) => {
+    Image.getSize(
+      uri,
+      (width, height) => resolve(width > 0 && height > 0),
+      () => resolve(false),
+    );
+  });
 }

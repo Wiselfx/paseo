@@ -265,3 +265,30 @@ it("keeps the renderer root and child identity as workspace images resolve", () 
     paseoMarkdownImageSources: JSON.stringify({ "blob:resolved": "/repo/image.png" }),
   });
 });
+
+it.each([false, true])(
+  "caps inline images to the paragraph line height (compact: %s)",
+  (compact) => {
+    const { markdownStyle } = createMarkdownStyles(darkTheme, compact);
+    expect(markdownStyle.inlineImage?.size).toBe(markdownStyle.paragraph?.lineHeight);
+  },
+);
+
+it("shows native SVG badges as alt text without reserving an image box", () => {
+  const source = "![P1](https://example.com/p1.svg?v=9) **Finding**";
+  const prepared = prepareMarkdownSource(source, undefined, { supportsSvg: false });
+  expect(prepared.render()).toBe("P1 **Finding**");
+  expect(prepared.images).toEqual([]);
+});
+
+it("collapses images that fail to load or decode to their alt text", () => {
+  const prepared = prepareMarkdownSource(
+    "![Remote](https://example.com/broken.png) and ![Local](broken.png)",
+  );
+  expect(
+    prepared.render(
+      new Map([["broken.png", "file:///broken.png"]]),
+      new Set(["https://example.com/broken.png", "broken.png"]),
+    ),
+  ).toBe("Remote and Local");
+});

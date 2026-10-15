@@ -49,7 +49,11 @@ function workspaceHoverTitle(link: Link, markup: string, workspaceRoot?: string)
 }
 
 /** Preserve source spelling; adapt workspace images, spoiler delimiters, and entity text. */
-export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
+export function prepareMarkdownSource(
+  source: string,
+  workspaceRoot?: string,
+  options: { supportsSvg?: boolean } = {},
+) {
   source = normalizeMarkdownHtml(source);
   const images: MarkdownImage[] = [];
   let tree: Root | undefined;
@@ -74,6 +78,29 @@ export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
     if ("children" in node) node.children.forEach(definitionsIn);
   }
   definitionsIn(getTree());
+  function collectImage(
+    node: Extract<Nodes, { type: "image" | "imageReference" }>,
+    start: number,
+    end: number,
+  ) {
+    const target = node.type === "image" ? node : definitions.get(node.identifier);
+    if (
+      target &&
+      options.supportsSvg === false &&
+      /(?:\.svg(?:[?#]|$)|^data:image\/svg\+xml)/i.test(target.url)
+    ) {
+      edits.push({ start, end, text: node.alt ?? "" });
+      return;
+    }
+    if (target)
+      images.push({
+        source: target.url,
+        alt: node.alt ?? "",
+        title: target.title ?? null,
+        start,
+        end,
+      });
+  }
   function visit(node: Nodes) {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
@@ -92,15 +119,7 @@ export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
         }
       }
       if (node.type === "image" || node.type === "imageReference") {
-        const target = node.type === "image" ? node : definitions.get(node.identifier);
-        if (target)
-          images.push({
-            source: target.url,
-            alt: node.alt ?? "",
-            title: target.title ?? null,
-            start,
-            end,
-          });
+        collectImage(node, start, end);
         return;
       }
       if (node.type === "text") {
@@ -119,11 +138,15 @@ export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
   return {
     images,
     ...linkMetadata(),
-    render(urls: ReadonlyMap<string, string> = new Map()) {
+    render(
+      urls: ReadonlyMap<string, string> = new Map(),
+      unavailableImages: ReadonlySet<string> = new Set(),
+    ) {
       const replacements = [...edits];
       for (const image of images) {
-        if (/^(https?:|data:|blob:)/i.test(image.source)) continue;
-        const url = urls.get(image.source);
+        const unavailable = unavailableImages.has(image.source);
+        if (!unavailable && /^(https?:|data:|blob:)/i.test(image.source)) continue;
+        const url = unavailable ? undefined : urls.get(image.source);
         replacements.push({
           start: image.start,
           end: image.end,

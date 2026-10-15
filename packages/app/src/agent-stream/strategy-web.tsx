@@ -978,14 +978,25 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
       if (!followOutputRef.current) {
         return;
       }
-      scheduleStickToBottom();
+      // ResizeObserver runs before paint. Following in the next frame exposes
+      // the newly grown row at the old offset for one painted frame.
+      forceStickToBottom();
     });
     observer.observe(scrollContainer);
     if (contentNode) {
       observer.observe(contentNode);
     }
+    // Paced reveal commits inside a message without rerendering this viewport.
+    // Observe those commits too, so the next frame sees the grown content at the
+    // bottom instead of waiting for the resize notification after animation frames.
+    const contentChanges = new MutationObserver(() => {
+      if (isActiveRef.current && followOutputRef.current) forceStickToBottom();
+    });
+    if (contentNode)
+      contentChanges.observe(contentNode, { childList: true, characterData: true, subtree: true });
     return () => {
       observer.disconnect();
+      contentChanges.disconnect();
     };
   }, [
     reconcileReadingPosition,
@@ -993,7 +1004,7 @@ function WebStreamViewport(props: StreamRenderInput & { isMobileBreakpoint: bool
     isActive,
     reportReadingPosition,
     scheduleHistoryStartPrependSettle,
-    scheduleStickToBottom,
+    forceStickToBottom,
     updateScrollMetrics,
     measureVirtualizedRows,
   ]);

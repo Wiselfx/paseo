@@ -1,4 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
+import { ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT } from "@/components/assistant-message-render-limit";
 import { describe, expect, it } from "vitest";
 import type { AgentStreamEventPayload } from "@getpaseo/protocol/messages";
 import { runPluginClientBundle, type PluginClientRuntime } from "@/plugins/evaluate";
@@ -124,6 +125,37 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
 }
 
 describe("native prose runs", () => {
+  it("keeps an oversized history block on the existing block renderer", () => {
+    const text = "a".repeat(ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT + 1);
+    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toHaveLength(1);
+    expect(result.tail[0]).toMatchObject({ text, markdownKind: "block" });
+    expect(result.tail[0]).not.toHaveProperty("markdownProseBlocks", expect.anything());
+  });
+
+  it("keeps a normal history paragraph as selectable prose", () => {
+    const text = "A normal paragraph.";
+    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toHaveLength(1);
+    expect(result.tail[0]).toMatchObject({
+      text,
+      markdownKind: "prose",
+      markdownProseBlocks: [text],
+    });
+  });
+
   it("retains completed runs and their source arrays while the tail grows", () => {
     const present = createStreamPresentation({ markdown: "prose-runs" });
     let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };

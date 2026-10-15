@@ -9,6 +9,10 @@ const partsByBlock = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>()
 function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   const cached = partsByBlock.get(block);
   if (cached) return cached;
+  // Oversized blocks cannot join capped runs; the existing renderer caps text before parsing.
+  if (block.text.length > ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT) {
+    return [{ ...block, markdownKind: "block" }];
+  }
   const environment: { references?: unknown } = {};
   const tokens = parser.parse(block.text, environment);
   const preserved = tokens.some(

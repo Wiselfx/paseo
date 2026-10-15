@@ -4,7 +4,7 @@ import { useTranslation } from "react-i18next";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import type { OpenFileDisposition } from "@/workspace/file-open";
 import { openExternalUrl } from "@/utils/open-external-url";
-import type { InlinePathTarget } from "./paths";
+import type { InlinePathTarget } from "./parse";
 import {
   useAssistantFileLinkResolverContext,
   type AssistantFileLinkResolverContextValue,

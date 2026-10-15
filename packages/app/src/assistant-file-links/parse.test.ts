@@ -5,7 +5,7 @@ import {
   parseAssistantFileLink,
   parseFileProtocolUrl,
   parseInlinePathToken,
-} from "./index";
+} from "./parse";
 
 describe("parseInlinePathToken", () => {
   it("returns null for plain paths without a line number", () => {

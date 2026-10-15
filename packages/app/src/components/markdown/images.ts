@@ -34,10 +34,7 @@ export interface MarkdownImageContext {
 
 export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   const occurrenceKey = useId();
-  const prepared = useMemo(
-    () => prepareMarkdownSource(text, context.workspaceRoot),
-    [text, context.workspaceRoot],
-  );
+  const prepared = useMemo(() => prepareMarkdownSource(text), [text]);
   const sources = [...new Set(prepared.images.map((image) => image.source))];
   const acquisitions = sources.map((source) => {
     const resolved = context.filePath
@@ -95,7 +92,6 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   return {
     markdown: prepared.render(resolved),
     linkRecognition: prepared.linkRecognition,
-    linkPillContent: prepared.linkPillContent,
     linkSource: prepared.linkSource,
     imageSources: Object.fromEntries([...resolved].map(([source, url]) => [url, source])),
   };

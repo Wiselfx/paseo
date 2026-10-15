@@ -48,18 +48,64 @@ it.each([
   "src/components/message.tsx",
   "C:\\repo\\file.ts",
   "docs/说明.md",
+  "my%20file.ts",
   "src/file.ts:10-20",
   "src/file.ts(10,2)",
 ])("recognizes inline paths through the file resolver: %s", (path) => {
-  const prepared = prepareMarkdownSource(`Open \`${path}\`.`, "/workspace");
+  const prepared = prepareMarkdownSource(`Open \`${path}\`.`);
   expect(prepared.linkRecognition.inlineCode?.test(path)).toBe(true);
-  expect(prepared.linkSource(path)).toEqual({ href: path, text: path, sourceType: "inline-code" });
+  expect(prepared.linkSource(path, "inline-code")).toEqual({
+    href: path,
+    text: path,
+    sourceType: "inline-code",
+  });
 });
 
 it("recognizes bare Unicode filenames and preserves inline-code URLs", () => {
-  const prepared = prepareMarkdownSource("Read 说明.md, or `https://example.com`.", "/workspace");
+  const prepared = prepareMarkdownSource("Read 说明.md, or `https://example.com`.");
   expect([..."说明.md,".matchAll(prepared.linkRecognition.text)].map(([text]) => text)).toEqual([
     "说明.md",
   ]);
   expect(prepared.linkRecognition.inlineCode?.test("https://example.com")).toBe(true);
+});
+
+it("keeps explicit and inline-code links distinct when their URL strings match", () => {
+  const url = "/tmp/my%20file.ts";
+  const prepared = prepareMarkdownSource(`[open](${url}) and \`${url}\``);
+  expect(prepared.linkSource(url, "markdown")).toEqual({ href: url, text: url });
+  expect(prepared.linkSource(url, "inline-code")).toEqual({
+    href: url,
+    text: url,
+    sourceType: "inline-code",
+  });
+});
+
+it("extracts only Mermaid fences for the native diagram host", async () => {
+  const { splitMermaidFences } = await import("./fence/mermaid/segments");
+  const source =
+    "First.\n\n```ts\nconst n = 1;\n```\n\n```mermaid\ngraph TD\nA-->B\n```\n\n> Last.";
+  expect(splitMermaidFences(source)).toEqual([
+    { kind: "markdown", offset: 0, source: "First.\n\n```ts\nconst n = 1;\n```\n\n" },
+    { kind: "mermaid", offset: 32, source: "graph TD\nA-->B" },
+    { kind: "markdown", offset: 61, source: "\n\n> Last." },
+  ]);
+  expect(splitMermaidFences("```md\n```mermaid\n```")).toEqual([
+    { kind: "markdown", offset: 0, source: "```md\n```mermaid\n```" },
+  ]);
+});
+
+it("keeps reference links available across native Mermaid boundaries", async () => {
+  const { splitMermaidFences } = await import("./fence/mermaid/segments");
+  const parts = splitMermaidFences(
+    "[Before][file]\n\n```mermaid\ngraph TD\nA-->B\n```\n\n[After][file]\n\n[file]: src/file.ts",
+  );
+  for (const part of parts.filter((candidate) => candidate.kind === "markdown"))
+    expect(part.source).toContain("[file]: src/file.ts");
+});
+
+it("recognizes mixed-case Mermaid fence info and incomplete streaming fences", async () => {
+  const { splitMermaidFences } = await import("./fence/mermaid/segments");
+  expect(splitMermaidFences("```Mermaid title\ngraph TD\nA-->B")).toEqual([
+    { kind: "mermaid", offset: 0, source: "graph TD\nA-->B" },
+  ]);
 });

@@ -3,7 +3,7 @@ import {
   isFileLookingAssistantToken,
   type AssistantFileLinkClassification,
   type InlinePathTarget,
-} from "./paths";
+} from "./parse";
 import { i18n } from "@/i18n/i18next";
 
 export interface AssistantFileLinkSource {

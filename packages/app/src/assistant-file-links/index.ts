@@ -2,7 +2,7 @@ export {
   classifyAssistantFileLink,
   normalizeInlinePathTarget,
   type InlinePathTarget,
-} from "./paths";
+} from "./parse";
 export {
   AssistantFileLinkResolverProvider,
   useAssistantFileLinkEnvironment,

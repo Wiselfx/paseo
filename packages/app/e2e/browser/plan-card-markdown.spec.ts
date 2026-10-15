@@ -35,7 +35,7 @@ test("chat and file preview share the library renderer and resolve file links", 
 }, testInfo) => {
   const { writeFile, mkdir } = await import("node:fs/promises");
   const source =
-    "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst answer = 42;\n```\n\n> A quote\n\n| Key || Value |\n| --- | --- | --- |\n| Answer || 42 |\n\nOpen `README.md` or `src/说明.md:2-3`.";
+    "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst answer = 42;\n```\n\n> A quote\n\n| Key || Value |\n| --- | --- | --- |\n| Answer || 42 |\n\nOpen `README.md` or `src/说明.md:2-3`.\n\n[Space file](my%20file.ts) and `my%20file.ts`.";
   const session = await seedMockAgentWorkspace({
     repoPrefix: "shared-markdown-",
     title: "Shared Markdown",
@@ -44,6 +44,11 @@ test("chat and file preview share the library renderer and resolve file links", 
   });
   try {
     await writeFile(`${session.cwd}/README.md`, source);
+    await writeFile(`${session.cwd}/my file.ts`, "Explicit link opened the space filename.");
+    await writeFile(
+      `${session.cwd}/my%20file.ts`,
+      "Inline code opened the literal percent filename.",
+    );
     await mkdir(`${session.cwd}/packages/app/src`, { recursive: true });
     await writeFile(
       `${session.cwd}/packages/app/src/说明.md`,
@@ -67,6 +72,16 @@ test("chat and file preview share the library renderer and resolve file links", 
     await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
     await message.getByRole("link", { name: "src/说明.md:2-3" }).click();
     await expect(page.getByText("Unicode suffix lookup succeeded.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
+    await message.getByRole("link", { name: "Space file", exact: true }).click();
+    await expect(
+      page.getByText("Explicit link opened the space filename.", { exact: true }),
+    ).toBeVisible();
+    await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
+    await message.getByRole("link", { name: "my%20file.ts", exact: true }).click();
+    await expect(
+      page.getByText("Inline code opened the literal percent filename.", { exact: true }),
+    ).toBeVisible();
     await testInfo.attach("shared-renderer", {
       body: await page.screenshot(),
       contentType: "image/png",

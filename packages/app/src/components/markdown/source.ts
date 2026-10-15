@@ -1,6 +1,5 @@
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
-import { classifyAssistantFileLink } from "@/assistant-file-links/paths";
 import type { AssistantFileLinkSource } from "@/assistant-file-links";
 import { decodeString } from "micromark-util-decode-string";
 import { fromMarkdown } from "mdast-util-from-markdown";
@@ -9,35 +8,23 @@ import type { Nodes, Root } from "mdast";
 // Keep this regex in the syntax shared by JavaScript, ICU and java.util.regex.
 // The Unicode flag makes Metro expand it to escapes rejected by native engines.
 const FILE_PATTERN =
-  /(?:https?:\/\/[^\s<>]+|(?:[A-Za-z]:[\\/]|\.{0,2}\/|~\/)?[a-zA-Z0-9\u0080-\uFFFF_@.%+-]+(?:[\\/][a-zA-Z0-9\u0080-\uFFFF_@.%+-]+)+(?::\d+(?::\d+)?(?:-\d+(?::\d+)?)?)?|[a-zA-Z0-9\u0080-\uFFFF_@-]+\.[a-zA-Z0-9\u0080-\uFFFF_-]+(?::\d+(?::\d+)?(?:-\d+(?::\d+)?)?)?)/g;
+  /(?:https?:\/\/[^\s<>]+|(?:[A-Za-z]:[\\/]|\.{0,2}\/|~\/)?[a-zA-Z0-9\u0080-\uFFFF_@.%+-]+(?:[\\/][a-zA-Z0-9\u0080-\uFFFF_@.%+-]+)+(?::\d+(?::\d+)?(?:-\d+(?::\d+)?)?)?|[a-zA-Z0-9\u0080-\uFFFF_@%-]+\.[a-zA-Z0-9\u0080-\uFFFF_%-]+(?::\d+(?::\d+)?(?:-\d+(?::\d+)?)?)?)/g;
 
-function linkMetadata(source: string, getTree: () => Root, workspaceRoot?: string) {
+function linkMetadata() {
   return {
-    linkPillContent: Object.fromEntries(
-      [...source.matchAll(FILE_PATTERN)]
-        .filter(([url]) => !/^https?:/i.test(url))
-        .map(([url]) => [url, { label: url }]),
-    ),
     linkRecognition: {
       text: FILE_PATTERN,
       inlineCode: new RegExp(
         String.raw`^(?:${FILE_PATTERN.source})(?:\(\d+(?:,\d+)?(?:-\d+(?:,\d+)?)?\)| lines? \d+(?:-\d+)?)?$`,
       ),
     },
-    linkSource(url: string): AssistantFileLinkSource {
-      function containsInlinePath(node: Nodes): boolean {
-        return (
-          (node.type === "inlineCode" && node.value === url) ||
-          ("children" in node && node.children.some(containsInlinePath))
-        );
-      }
-      // The library emits only the URL. Recover raw inline-code semantics at tap time,
-      // without parsing every reveal frame merely to configure link recognition.
-      return source.includes("`") &&
-        classifyAssistantFileLink(url, { workspaceRoot }) &&
-        containsInlinePath(getTree())
-        ? { href: url, text: url, sourceType: "inline-code" }
-        : { href: url, text: url };
+    linkSource(
+      url: string,
+      sourceType?: "markdown" | "text" | "inline-code",
+    ): AssistantFileLinkSource {
+      if (sourceType === "inline-code") return { href: url, text: url, sourceType };
+      if (sourceType === "text") return { href: url, text: url, markup: "linkify" };
+      return { href: url, text: url };
     },
   };
 }
@@ -51,7 +38,7 @@ export interface MarkdownImage {
 }
 
 /** Preserve source spelling; adapt workspace images, spoiler delimiters, and entity text. */
-export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
+export function prepareMarkdownSource(source: string) {
   const images: MarkdownImage[] = [];
   let tree: Root | undefined;
   const getTree = () =>
@@ -61,7 +48,7 @@ export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
     }));
   const edits: { start: number; end: number; text: string }[] = [];
   if (!source.includes("![") && !source.includes("||") && !source.includes("&")) {
-    return { images, ...linkMetadata(source, getTree, workspaceRoot), render: () => source };
+    return { images, ...linkMetadata(), render: () => source };
   }
 
   const definitions = new Map<string, { url: string; title?: string | null }>();
@@ -109,7 +96,7 @@ export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
   visit(getTree());
   return {
     images,
-    ...linkMetadata(source, getTree, workspaceRoot),
+    ...linkMetadata(),
     render(urls: ReadonlyMap<string, string> = new Map()) {
       const replacements = [...edits];
       for (const image of images) {

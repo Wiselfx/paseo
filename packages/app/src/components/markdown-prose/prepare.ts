@@ -368,25 +368,37 @@ function compileBlock(
       edits.push({ ...edit, start: positions[edit.start]!, end: positions[edit.end]! });
   }
   const rendered = applyEdits(text, edits);
+  return { text: rendered, cuts, offsets: preparedOffsets(cuts, edits) };
+}
+function preparedOffsets(cuts: number[], edits: Edit[]): number[] {
   const offsets: number[] = [];
   let editIndex = 0;
   let delta = 0;
   for (const cut of cuts) {
-    while (editIndex < edits.length && edits[editIndex]!.end <= cut) {
+    while (
+      editIndex < edits.length &&
+      edits[editIndex]!.end <= cut &&
+      edits[editIndex]!.start < cut
+    ) {
       const edit = edits[editIndex++]!;
       delta += edit.text.length - (edit.end - edit.start);
     }
     offsets.push(cut + delta);
   }
-  return { text: rendered, cuts, offsets };
+  return offsets;
 }
 function paragraphCuts(source: string, trace: InlineTrace): number[] {
   const cuts: number[] = [];
   let depth = 0;
+  // A bracket can remain a provisional reference/link even after its closing bracket.
+  // Keep that suffix together until the block settles.
+  const bracket = source.indexOf("[");
+  const stableEnd = bracket < 0 ? source.length : bracket;
   for (const span of trace.spans) {
     if (span.insideLink) continue;
     if (depth === 0 && span.tokens.length === 0 && source[span.start] !== "&") {
-      for (let i = span.start; i < span.end; i++) if (source[i] === " ") cuts.push(i + 1);
+      for (let i = span.start; i < span.end; i++)
+        if (i < stableEnd && source[i] === " ") cuts.push(i + 1);
     }
     for (const token of span.tokens) depth += token.nesting;
   }

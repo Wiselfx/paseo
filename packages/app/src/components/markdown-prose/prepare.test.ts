@@ -77,6 +77,16 @@ describe("source-preserving prose", () => {
       expect(prepare(blocks, true, length)).toBe(prepareProse(blocks, noFiles, true, length));
     }
   });
+  it.each([
+    ["A ||literal|| and escaped \\* text.", 2, "A "],
+    ["Use `README.md` and example.com. Later.", 4, "Use "],
+    ["[unresolved label] later.", 12, "unresolved "],
+    ["[unresolved label] later.", 19, "unresolved label "],
+  ] as const)("keeps cached reveal boundaries literal: %s", (source, length, expected) => {
+    const prepare = createProsePreparer((text) => text === "README.md");
+    prepare([source], true, source.length);
+    expect(prepare([source], true, length)).toBe(expected);
+  });
   it("changes only prose pipes", () => {
     expect(prepareProse(["Keep ||literal|| and `a || b` and [a|b](https://x/a|b)."], noFiles)).toBe(
       "Keep \\|\\|literal\\|\\| and `a || b` and [a\\|b](https://x/a|b).",

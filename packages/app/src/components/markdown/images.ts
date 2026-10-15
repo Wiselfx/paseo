@@ -15,6 +15,7 @@ import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { AttachmentMetadata } from "@/attachments/types";
 import { resolveMarkdownPreviewImageSource } from "./image-source";
 import { prepareMarkdownSource } from "./source";
+import { decodeMarkdownImage } from "./image-decoding";
 
 const urls = createAssistantImageAcquisitionCache<{ uri: string; attachment: AttachmentMetadata }>({
   capacity: 500,
@@ -99,11 +100,15 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   const decoded = useFetchQueries(
     displayUrls.map((uri, index) => ({
       queryKey: ["markdownImageDecode", occurrenceKey, uri ?? sources[index]],
+      refetchOnReconnect: true,
       enabled: uri !== undefined,
       immutableWhen: () => true,
       dataShape: "value",
       gcTime: 0,
-      queryFn: () => (uri ? canDecodeImage(uri) : Promise.resolve(false)),
+      queryFn: () => {
+        if (!uri) throw new Error("No image URL to decode");
+        return decodeMarkdownImage(uri, Image.getSize);
+      },
     })),
   );
   const unavailableImages = new Set(
@@ -117,14 +122,4 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
     linkSource: prepared.linkSource,
     imageSources: Object.fromEntries([...resolved].map(([source, url]) => [url, source])),
   };
-}
-
-function canDecodeImage(uri: string): Promise<boolean> {
-  return new Promise((resolve) => {
-    Image.getSize(
-      uri,
-      (width, height) => resolve(width > 0 && height > 0),
-      () => resolve(false),
-    );
-  });
 }

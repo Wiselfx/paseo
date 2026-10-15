@@ -1,3 +1,5 @@
+import { QueryClient } from "@tanstack/react-query";
+import { decodeMarkdownImage } from "./image-decoding";
 import { createElement } from "react";
 import { MarkdownRendererFrame } from "./frame";
 import { describe, expect, it } from "vitest";
@@ -347,4 +349,23 @@ it("preserves literal Markdown punctuation in unsupported and failed image label
       new Set(["https://example.com/badge.png"]),
     ),
   ).toBe(label);
+});
+
+it("retries transient image decoding failures instead of caching an unavailable image", async () => {
+  const client = new QueryClient();
+  let attempts = 0;
+  const decoded = await client.fetchQuery({
+    queryKey: ["markdownImageDecode", "transient.png"],
+    retry: 1,
+    retryDelay: 0,
+    queryFn: () =>
+      decodeMarkdownImage("transient.png", (_uri, success, failure) => {
+        attempts += 1;
+        if (attempts === 1) failure(new Error("temporarily unavailable"));
+        else success(20, 20);
+      }),
+  });
+  expect(decoded).toBe(true);
+  expect(attempts).toBe(2);
+  client.clear();
 });

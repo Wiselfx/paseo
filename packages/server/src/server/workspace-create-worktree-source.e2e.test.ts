@@ -18,6 +18,7 @@ function createGitRepoWithBranch(): { repoDir: string; tempRoot: string } {
   const tempRoot = mkdtempSync(path.join(tmpdir(), "workspace-create-worktree-source-"));
   const repoDir = path.join(tempRoot, "repo");
   execFileSync("git", ["init", "-b", "main", repoDir], { stdio: "pipe" });
+  execFileSync("git", ["config", "core.autocrlf", "false"], { cwd: repoDir, stdio: "pipe" });
   execFileSync("git", ["config", "user.email", "test@getpaseo.local"], {
     cwd: repoDir,
     stdio: "pipe",
@@ -60,7 +61,7 @@ test("workspace.create worktree source forwards action=checkout + refName into t
   } finally {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 180000);
 
@@ -73,7 +74,7 @@ test.each([false, true])(
       path.join(repoDir, "paseo.json"),
       JSON.stringify({
         worktree: {
-          ...(withSetupService ? { setup: `"${process.execPath}" setup.cjs` } : {}),
+          ...(withSetupService ? { setup: "node setup.cjs" } : {}),
           terminals: [
             { name: "preview", command: "echo paseo-auto-terminal >> terminal-marker.txt" },
           ],
@@ -133,7 +134,9 @@ if (process.argv[2] === "serve") {
 
       workspaceCwd = workspace.workspaceDirectory;
       if (withSetupService) {
-        await expect.poll(() => existsSync(path.join(workspaceCwd!, "setup-pid.txt"))).toBe(true);
+        await expect
+          .poll(() => existsSync(path.join(workspaceCwd!, "setup-pid.txt")), { timeout: 30000 })
+          .toBe(true);
       }
       await expect
         .poll(
@@ -166,7 +169,7 @@ if (process.argv[2] === "serve") {
       }
       await client.close().catch(() => undefined);
       await daemon.close();
-      rmSync(tempRoot, { recursive: true, force: true });
+      rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
     }
   },
   180000,
@@ -182,7 +185,7 @@ test("existing branch changes remain visible after archive and restore", async (
   onTestFinished(async () => {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   });
   runGit(repoDir, "switch", "feature/existing-branch");
   commitFile(repoDir, "feature.txt", "feature change\n");
@@ -242,7 +245,7 @@ test("workspace.create keeps a branch-off name separate from its worktree slug",
   } finally {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 180000);
 
@@ -276,7 +279,7 @@ test("workspace.create accepts a Git-valid branch-off name outside Paseo slug sy
   } finally {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 180000);
 
@@ -318,7 +321,7 @@ test("workspace.create always creates a new worktree when the slug is already oc
   } finally {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 180000);
 
@@ -363,7 +366,7 @@ test("workspace.create suffixes past an occupied detached worktree", async () =>
   } finally {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 180000);
 
@@ -405,7 +408,7 @@ test("workspace.create suffixes an occupied checkout branch", async () => {
   } finally {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   }
 }, 180000);
 
@@ -448,7 +451,7 @@ async function createRestorableWorkspace(baseRef: string) {
   onTestFinished(async () => {
     await client.close().catch(() => undefined);
     await daemon.close();
-    rmSync(tempRoot, { recursive: true, force: true });
+    rmSync(tempRoot, { recursive: true, force: true, maxRetries: 3, retryDelay: 100 });
   });
   createDivergentBases(repoDir);
   await client.connect();

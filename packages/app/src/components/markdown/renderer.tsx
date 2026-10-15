@@ -1,5 +1,3 @@
-import { View } from "react-native";
-import { markdownCopyImageSourcesDataSet } from "@/assistant-selection-copy/markup";
 import { memo, useMemo, useState } from "react";
 import { EnrichedMarkdownText, type LinkPressEvent } from "react-native-enriched-markdown";
 import { withUnistyles } from "react-native-unistyles";
@@ -11,6 +9,7 @@ import { useStableEvent } from "@/hooks/use-stable-event";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
+import { MarkdownRendererFrame } from "./frame";
 import { WEB_RENDERERS } from "./renderers";
 import { createMarkdownStyles } from "./styles";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
@@ -95,9 +94,5 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
       {image ? <AttachmentLightbox source={image} onClose={closeImage} /> : null}
     </MermaidStreamingContext.Provider>
   );
-  return isWeb && Object.keys(imageSources).length > 0 ? (
-    <View dataSet={markdownCopyImageSourcesDataSet(imageSources)}>{content}</View>
-  ) : (
-    content
-  );
+  return <MarkdownRendererFrame imageSources={imageSources}>{content}</MarkdownRendererFrame>;
 });

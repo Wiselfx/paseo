@@ -46,6 +46,9 @@ import {
 import { groupMarkdownParts, type MarkdownPartGroup } from "./part-groups";
 import { colorMarkdownLinkChildren } from "./link-children";
 import { MarkdownLinkText } from "./link-text";
+import { MarkdownProse } from "./prose/renderer";
+import { splitMarkdownProse, type MarkdownProsePart } from "./parts";
+import type { AssistantFileLinkActions } from "@/assistant-file-links/use-file-link";
 
 export type MarkdownStyles = Record<string, TextStyle & ViewStyle & { [key: string]: unknown }>;
 
@@ -84,9 +87,73 @@ export interface MarkdownRendererProps {
   allowedImageHandlers?: readonly string[];
   topLevelMaxExceededItem?: ReactNode;
   enableHtmlish?: boolean;
+  /** A virtualized caller supplies an already grouped part, including the live block. */
+  part?: Pick<MarkdownProsePart, "markdownKind" | "markdownProseBlocks">;
+  blockSpacing?: number;
+  fileLinks?: AssistantFileLinkActions;
 }
 
-export function MarkdownRenderer({
+export function MarkdownRenderer(props: MarkdownRendererProps) {
+  const parts = useMemo<MarkdownProsePart[]>(() => {
+    if (!isNative) return [];
+    if (props.part) return [{ ...props.part, text: props.text, id: "part" }];
+    return splitMarkdownProse(props.text);
+  }, [props.part, props.text]);
+  if (!isNative) return <MarkdownBlockRenderer {...props} />;
+  const parser = props.markdownit ?? defaultMarkdownParser;
+  return (
+    <>
+      {parts.map((part) => (
+        <MarkdownProse
+          key={part.id}
+          text={part.text}
+          sourceBlocks={part.markdownProseBlocks ?? [part.text]}
+          kind={part.markdownKind ?? "block"}
+          compact={props.compact}
+          blockSpacing={props.blockSpacing}
+          fileLinks={props.fileLinks}
+          references={part.references}
+          linkify={parser.options.linkify}
+          allowFileLinks={parser.validateLink("file:///file")}
+          onLinkPress={props.onLinkPress ?? openMarkdownLink}
+        >
+          <MarkdownScopedBlock {...props} text={part.text} references={part.references} />
+        </MarkdownProse>
+      ))}
+    </>
+  );
+}
+
+function MarkdownScopedBlock({
+  references,
+  ...props
+}: MarkdownRendererProps & Pick<MarkdownProsePart, "references">) {
+  const parser = props.markdownit ?? defaultMarkdownParser;
+  // markdown-display supplies its own environment. Preserve the document's reference
+  // scope while still using the caller's parser rules for each retained block.
+  const scopedParser = useMemo(
+    () =>
+      references
+        ? new Proxy(parser, {
+            get(target, key, receiver) {
+              if (key === "parse")
+                return (source: string, env: object) =>
+                  target.parse(source, { ...env, references });
+              return Reflect.get(target, key, receiver);
+            },
+          })
+        : parser,
+    [parser, references],
+  );
+  return <MarkdownBlockRenderer {...props} markdownit={scopedParser} />;
+}
+
+function openMarkdownLink(url: string): boolean {
+  void openExternalUrl(url);
+  return false;
+}
+
+function MarkdownBlockRenderer({
   text,
   compact = false,
   rules,

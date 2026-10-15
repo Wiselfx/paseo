@@ -1,8 +1,12 @@
 # Native text selection
 
-Assistant prose uses `react-native-enriched-markdown` 1.1.1 on iOS and Android. Native selection belongs to one text view, so separate paragraph rows prevent dragging a selection between them.
+The shared `components/markdown/renderer.tsx` renders native prose with `react-native-enriched-markdown` 1.1.1 on iOS and Android. Native selection belongs to one text view, so separate paragraph rows prevent dragging a selection between them.
 
-Keep completed adjacent paragraphs, headings, lists and horizontal rules in prose runs. The growing last source block uses Paseo’s existing block renderer and streaming parser. It joins the preceding run when another block starts or the turn ends, retaining the run’s id. Selection across that paragraph becomes available at completion. Code, tables, images and HTML-like content need Paseo's existing renderers. Preserve whole containers when splitting around an image would lose formatting or list context. Reference definitions retain their original block scope; grouping text for selection must not change which references resolve.
+Every `MarkdownRenderer` consumer gets prose runs without surface-specific wiring: chat, Markdown file previews, plan cards, pull request activity and changelogs. The renderer owns classification, native preparation and the platform component under `components/markdown/`. Its pure `parts` boundary groups adjacent paragraphs, headings, lists and horizontal rules; code, tables, images and HTML-like content retain Paseo's block renderers. Keep whole containers when splitting around an image would lose formatting or list context.
+
+Chat uses the same grouper to create virtualized display rows. Presentation owns message-to-row ids, promoted/history identity and the growing last source block. It passes an already grouped part to `MarkdownRenderer`; the growing block uses the existing streaming parser and joins the preceding run when another block starts or the turn ends. Selection across that paragraph becomes available at completion. Chat supplies its file-link actions; native prose does not require a chat provider. Other surfaces keep their parser's link policy and compact typography.
+
+Reference definitions retain their source scope; grouping text for selection must not change which references resolve. Runs are capped at `ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT`. Oversized source blocks bypass prose classification and remain on the block renderer.
 
 Selection stops at preserved blocks, blockquotes and run boundaries required by the 32,000-character render cap. Consecutive paragraphs inside a quote share its text segment; nested quotes and embedded blocks introduce further library segments. Web keeps its existing renderer and selection behavior.
 

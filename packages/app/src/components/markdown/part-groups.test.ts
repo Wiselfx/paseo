@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import type { MarkdownDisplayPart } from "./html-ish";
 import { groupMarkdownParts } from "./part-groups";
+import { parseMarkdownPreviewDocument } from "@/file-pane/markdown-preview/document";
+import { createProsePreparer } from "./prose/prepare";
+import { splitMarkdownProse } from "./parts";
 
 describe("groupMarkdownParts", () => {
   const flowImage: MarkdownDisplayPart = {
@@ -88,5 +91,42 @@ describe("groupMarkdownParts", () => {
       { kind: "part", part: { kind: "markdown", text: "Intro" } },
       { kind: "part", part: details },
     ]);
+  });
+});
+
+describe("shared renderer prose parts", () => {
+  it("groups paragraphs and retains code and quote boundaries for a document", () => {
+    const parts = splitMarkdownProse(
+      "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst x = 1;\n```\n\n> Quote one.\n>\n> Quote two.",
+    );
+    expect(parts.map((part) => part.markdownKind)).toEqual(["prose", "block", "quote"]);
+    expect(parts[0]?.markdownProseBlocks).toEqual(["First paragraph.", "Second paragraph."]);
+  });
+});
+
+describe("Markdown file preview document", () => {
+  it("uses shared prose parts after removing front matter", () => {
+    const document = parseMarkdownPreviewDocument(
+      "---\ntitle: Preview\n---\n\nFirst paragraph.\n\nSecond paragraph.\n\n```js\n42\n```\n\n> Quote",
+    );
+    expect(splitMarkdownProse(document.body).map((part) => part.markdownKind)).toEqual([
+      "prose",
+      "block",
+      "quote",
+    ]);
+  });
+  it("retains document-wide references in prose and image blocks", () => {
+    const parts = splitMarkdownProse(
+      "[site][ref]\n\n![image][pic]\n\nOther text.\n\n[ref]: https://example.com\n[pic]: image.png",
+    );
+    expect(parts.map((part) => part.markdownKind)).toEqual(["prose", "block", "prose"]);
+    const first = parts[0]!;
+    const prepare = createProsePreparer(() => false, {
+      linkify: true,
+      allowFileLinks: false,
+      references: first.references,
+    });
+    expect(prepare(first.markdownProseBlocks!)).toBe("[site](<https://example.com>)");
+    expect(parts[1]?.references?.PIC?.href).toBe("image.png");
   });
 });

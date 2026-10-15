@@ -1,4 +1,3 @@
-import { MarkdownProse } from "@/components/markdown-prose";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
 import { ASSISTANT_IMAGE_DEFAULT_ASPECT_RATIO } from "@/utils/assistant-image-metadata";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -1393,6 +1392,8 @@ function AssistantMessageBlockContainer({
   );
 }
 
+const BLOCK_MARKDOWN_PART = { markdownKind: "block" as const };
+
 interface MemoizedMarkdownBlockProps {
   text: string;
   rules: RenderRules;
@@ -1409,6 +1410,7 @@ const MemoizedMarkdownBlock = React.memo(function MemoizedMarkdownBlock({
   return (
     <MarkdownRenderer
       text={text}
+      part={BLOCK_MARKDOWN_PART}
       enableHtmlish={false}
       rules={rules}
       markdownit={parser}
@@ -1964,6 +1966,10 @@ export const AssistantMessage = memo(function AssistantMessage({
     };
   }, [client, fileLinkActions, markdownParser, occurrenceKey, phase, serverId, workspaceRoot]);
 
+  const markdownPart = useMemo(
+    () => ({ markdownKind, markdownProseBlocks: markdownProseBlocks ?? [message] }),
+    [markdownKind, markdownProseBlocks, message],
+  );
   const blocks = useMemo(
     () => (markdownKind === "block" ? splitMarkdownBlocks(revealedMessage) : []),
     [revealedMessage, markdownKind],
@@ -1997,31 +2003,37 @@ export const AssistantMessage = memo(function AssistantMessage({
 
   return (
     <View testID="assistant-message" dataSet={revealDataSet} style={assistantContainerStyle}>
-      <MarkdownProse
-        kind={markdownKind}
-        text={revealedMessage}
-        sourceBlocks={markdownProseBlocks ?? [message]}
-        onLinkPress={handleMarkdownLinkPress}
-      >
-        {keyedBlocks.map(({ key, block }, index) => (
-          <AssistantMessageBlockContainer
-            key={key}
-            block={block}
-            marginBottom={index < keyedBlocks.length - 1 ? 12 : 0}
-          >
-            <MemoizedMarkdownBlock
-              text={block}
-              rules={markdownRules}
-              parser={
-                phase === "streaming" && index === keyedBlocks.length - 1
-                  ? streamingMarkdownParser
-                  : markdownParser
-              }
-              onLinkPress={handleMarkdownLinkPress}
-            />
-          </AssistantMessageBlockContainer>
-        ))}
-      </MarkdownProse>
+      {markdownKind !== "block" ? (
+        <MarkdownRenderer
+          text={revealedMessage}
+          part={markdownPart}
+          blockSpacing={12}
+          fileLinks={fileLinkActions}
+          markdownit={markdownParser}
+          onLinkPress={handleMarkdownLinkPress}
+        />
+      ) : (
+        <>
+          {keyedBlocks.map(({ key, block }, index) => (
+            <AssistantMessageBlockContainer
+              key={key}
+              block={block}
+              marginBottom={index < keyedBlocks.length - 1 ? 12 : 0}
+            >
+              <MemoizedMarkdownBlock
+                text={block}
+                rules={markdownRules}
+                parser={
+                  phase === "streaming" && index === keyedBlocks.length - 1
+                    ? streamingMarkdownParser
+                    : markdownParser
+                }
+                onLinkPress={handleMarkdownLinkPress}
+              />
+            </AssistantMessageBlockContainer>
+          ))}
+        </>
+      )}
       {fullMessageByteLength !== null ? (
         <Text
           testID="assistant-message-capped-notice"

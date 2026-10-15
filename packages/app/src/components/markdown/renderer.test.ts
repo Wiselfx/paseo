@@ -1,4 +1,6 @@
 import { describe, expect, it } from "vitest";
+import { darkTheme, lightTheme } from "@/styles/theme";
+import { createMarkdownStyles } from "./styles";
 import { prepareMarkdownSource } from "./source";
 
 describe("shared Markdown source adaptation", () => {
@@ -139,3 +141,57 @@ it.each(['""', "''", "()"])("preserves an authored empty link title: %s", (title
   const source = `[Open](/repo/file.ts ${title})`;
   expect(prepareMarkdownSource(source, "/repo").render()).toBe(source);
 });
+
+describe("shared Markdown theme colours", () => {
+  it.each([
+    ["dark", darkTheme],
+    ["light", lightTheme],
+  ] as const)("uses %s theme colours for tables and task labels", (_name, theme) => {
+    const { markdownStyle: style } = createMarkdownStyles(theme);
+    expect(style.table).toMatchObject({
+      color: theme.colors.foreground,
+      headerTextColor: theme.colors.foreground,
+      headerBackgroundColor: theme.colors.surface2,
+      rowEvenBackgroundColor: theme.colors.surface0,
+      rowOddBackgroundColor: theme.colors.surface1,
+      borderColor: theme.colors.border,
+    });
+    expect(style.list?.color).toBe(theme.colors.foreground);
+    expect(style.taskList).toMatchObject({
+      checkedTextColor: theme.colors.foregroundMuted,
+      checkedColor: theme.colors.accent,
+      checkmarkColor: theme.colors.accentForeground,
+      borderColor: theme.colors.foregroundMuted,
+    });
+  });
+});
+
+it.each([
+  ["dark", darkTheme],
+  ["light", lightTheme],
+] as const)(
+  "uses %s theme colours for quotes, admonitions, code, links and dividers",
+  (_name, theme) => {
+    const { markdownStyle: style } = createMarkdownStyles(theme);
+    expect(style.blockquote).toMatchObject({
+      color: theme.colors.foregroundMuted,
+      backgroundColor: theme.colors.surface2,
+      borderColor: theme.colors.border,
+      admonitions: {
+        note: { color: theme.colors.accentBright, backgroundColor: theme.colors.surface2 },
+        tip: { color: theme.colors.statusSuccess, backgroundColor: theme.colors.surface2 },
+        important: { color: theme.colors.statusMerged, backgroundColor: theme.colors.surface2 },
+        warning: { color: theme.colors.statusWarning, backgroundColor: theme.colors.surface2 },
+        caution: { color: theme.colors.statusDanger, backgroundColor: theme.colors.surface2 },
+      },
+    });
+    expect(style.code).toMatchObject({
+      color: theme.colors.foreground,
+      backgroundColor: theme.colors.surface2,
+      borderColor: "transparent",
+    });
+    expect(style.link?.color).toBe(theme.colors.accent);
+    expect(style.linkVariants?.["^(?!https?://).+"]?.color).toBe(theme.colors.accent);
+    expect(style.thematicBreak?.color).toBe(theme.colors.border);
+  },
+);

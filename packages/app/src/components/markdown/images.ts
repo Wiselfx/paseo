@@ -40,13 +40,11 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   );
   const sources = [...new Set(prepared.images.map((image) => image.source))];
   const acquisitions = sources.map((source) => {
-    const resolved = context.filePath
-      ? resolveMarkdownPreviewImageSource({
-          source,
-          markdownPath: context.filePath,
-          workspaceRoot: context.workspaceRoot,
-        })
-      : source;
+    const resolved = resolveMarkdownPreviewImageSource({
+      source,
+      markdownPath: context.filePath ?? "",
+      workspaceRoot: context.workspaceRoot,
+    });
     return createAssistantImageFileAcquisition({
       port: context.client
         ? {

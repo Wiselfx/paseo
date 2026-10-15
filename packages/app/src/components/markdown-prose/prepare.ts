@@ -2,8 +2,7 @@ import type { AssistantFileLinkSource } from "@/assistant-file-links";
 import type Token from "markdown-it/lib/token.mjs";
 import { type InlineSpan, type InlineTrace, createSourceParser } from "./source-inline";
 
-const settled = createSourceParser(false);
-const provisional = createSourceParser(true);
+const settled = createSourceParser();
 const INLINE_CODE_SCHEME = "paseo-inline-code:";
 const FILE_LINK_SCHEME = "paseo-file-link:";
 
@@ -58,82 +57,33 @@ function applyEdits(source: string, edits: Edit[]): string {
   return result + source.slice(cursor);
 }
 
-/** Source blocks are presentation's canonical inputs, never reconstructed from a joined run. */
+/** Each completed source block retains its own reference scope. */
 export function prepareProse(
   blocks: readonly string[],
   canResolveCode: (text: string) => boolean,
-  streaming = false,
   visibleLength = Infinity,
 ): string {
-  const visible: string[] = [];
-  let remaining = visibleLength;
-  for (const block of blocks) {
-    if (remaining < 0) break;
-    visible.push(block.slice(0, remaining));
-    remaining -= block.length + 2;
-  }
-  return visible
-    .map((block, index) =>
-      prepareBlock(block, canResolveCode, streaming && index === visible.length - 1),
-    )
-    .join("\n\n");
+  return createProsePreparer(canResolveCode)(blocks, visibleLength);
 }
 
-interface PreparedBlock {
-  text: string;
-  cuts: number[];
-  offsets: number[];
-}
-
-/** One cache per mounted prose row. Reveal reuses the prepared prefix and parses only its open tail. */
+/** One cache per prose row; joining a completed block does not reparse earlier blocks. */
 export function createProsePreparer(canResolveCode: (text: string) => boolean) {
-  let cache = new Map<string, { source: string; prepared: PreparedBlock }>();
-  return (blocks: readonly string[], streaming: boolean, visibleLength: number): string => {
-    const retained = new Map<string, { source: string; prepared: PreparedBlock }>();
+  let cache = new Map<string, string>();
+  return (blocks: readonly string[], visibleLength = Infinity): string => {
+    const retained = new Map<string, string>();
     const result: string[] = [];
     let remaining = visibleLength;
-    for (const [index, block] of blocks.entries()) {
+    for (const block of blocks) {
       if (remaining < 0) break;
-      const live = streaming && (index === blocks.length - 1 || remaining < block.length);
-      const key = `${live}:${block}`;
       const source = block.slice(0, remaining);
-      const cached = cache.get(key);
-      const entry =
-        cached && cached.source.length >= source.length
-          ? cached
-          : { source, prepared: compileBlock(source, canResolveCode, live) };
-      retained.set(key, entry);
-      result.push(
-        revealBlock(entry.source, entry.prepared, source.length, canResolveCode, streaming),
-      );
+      const prepared = cache.get(source) ?? prepareBlock(source, canResolveCode);
+      retained.set(source, prepared);
+      result.push(prepared);
       remaining -= block.length + 2;
     }
     cache = retained;
     return result.join("\n\n");
   };
-}
-function revealBlock(
-  source: string,
-  prepared: PreparedBlock,
-  length: number,
-  canResolveCode: (text: string) => boolean,
-  streaming: boolean,
-): string {
-  if (length >= source.length) return prepared.text;
-  // Checkpoints are outside inline containers, at whitespace in a plain paragraph.
-  let low = 0;
-  let high = prepared.cuts.length;
-  while (low < high) {
-    const mid = (low + high) >>> 1;
-    if (prepared.cuts[mid]! <= length) low = mid + 1;
-    else high = mid;
-  }
-  const index = low - 1;
-  if (index < 0) return prepareBlock(source.slice(0, length), canResolveCode, streaming);
-  const cut = prepared.cuts[index]!;
-  // Retain paragraph context if the tail happens to begin with a block marker.
-  const tail = prepareBlock(`x ${source.slice(cut, length)}`, canResolveCode, streaming).slice(2);
-  return prepared.text.slice(0, prepared.offsets[index]) + tail;
 }
 
 interface InlinePreparation {
@@ -142,7 +92,6 @@ interface InlinePreparation {
   trace: InlineTrace;
   parser: typeof settled.parser;
   env: object;
-  streaming: boolean;
   uppercase: boolean;
   canResolveCode: (text: string) => boolean;
   protectedRanges: Uint8Array;
@@ -166,28 +115,18 @@ function codeUrl(context: InlinePreparation, content: string): string | null {
   const match = matches?.length === 1 ? matches[0] : undefined;
   return match?.index === 0 && match.lastIndex === content.length ? match.url : null;
 }
-function prepareCode(context: InlinePreparation, span: InlineSpan, raw: string, code: Token) {
+function prepareCode(context: InlinePreparation, span: InlineSpan, code: Token) {
   protect(context.protectedRanges, span);
   protect(context.referenceRanges, span);
-  const complete = raw.length >= code.markup.length * 2 && raw.endsWith(code.markup);
-  const closing = complete ? "" : code.markup.slice(raw.match(/`+$/)?.[0].length ?? 0);
   const url = codeUrl(context, code.content);
   if (!span.insideLink && url) {
     insert(context, span.start, "[");
-    insert(context, span.end, `${closing}](<${url}>)`);
-  } else if (closing) insert(context, span.end, closing);
+    insert(context, span.end, `](<${url}>)`);
+  }
 }
 function labelEnd(context: InlinePreparation, source: string, start: number): number {
   const state = new context.parser.inline.State(source, context.parser, context.env, []);
   return context.parser.helpers.parseLinkLabel(state, start, false);
-}
-function prepareUnfinishedLink(context: InlinePreparation, span: InlineSpan, raw: string) {
-  const start = raw.startsWith("![") ? 1 : 0;
-  const end = labelEnd(context, raw, start);
-  context.edits.push({ start: span.start, end: span.start + start + 1, text: "" });
-  if (start === 1) context.edits.push({ start: span.start + 2, end: span.end, text: "" });
-  else if (end !== -1) context.edits.push({ start: span.start + end, end: span.end, text: "" });
-  protect(context.referenceRanges, span);
 }
 function preserveLinkScope(context: InlinePreparation, span: InlineSpan, raw: string, link: Token) {
   const end = labelEnd(context, raw, 0);
@@ -275,22 +214,10 @@ function prepareSpan(context: InlinePreparation, span: InlineSpan) {
   } else if (link && raw.startsWith("[")) {
     preserveLinkScope(context, span, raw, link);
   } else if (code && raw.startsWith("`")) {
-    prepareCode(context, span, raw, code);
-  } else if (
-    context.streaming &&
-    !contains(context.referenceRanges, span.start) &&
-    (raw.startsWith("[") || raw.startsWith("!["))
-  ) {
-    prepareUnfinishedLink(context, span, raw);
-  } else if (
-    context.streaming &&
-    span.tokens.length === 0 &&
-    /^(?:\*{1,3}|_{1,3}|~{1,2}|`+)$/.test(raw)
-  ) {
-    context.edits.push({ start: span.start, end: span.end, text: "" });
-    protect(context.protectedRanges, span);
+    prepareCode(context, span, code);
   }
 }
+
 function preserveUnresolvedReferences(context: InlinePreparation) {
   // Protect every unresolved label, regardless of CommonMark's case/whitespace
   // normalization. Escapes inside a label do not make its opening bracket safe.
@@ -421,19 +348,7 @@ function sourcePositions(
   }
   return positions;
 }
-function prepareBlock(
-  text: string,
-  canResolveCode: (text: string) => boolean,
-  streaming: boolean,
-): string {
-  return compileBlock(text, canResolveCode, streaming).text;
-}
-function compileBlock(
-  text: string,
-  canResolveCode: (text: string) => boolean,
-  streaming: boolean,
-): PreparedBlock {
-  const normalized = !/[\r\t]/.test(text);
+function prepareBlock(text: string, canResolveCode: (text: string) => boolean): string {
   text = text.replace(/\r\n?/g, "\n").replaceAll("\0", "\ufffd");
   text = text.replace(/^[ \t>]*/gm, (prefix) => {
     let expanded = "";
@@ -441,7 +356,7 @@ function compileBlock(
       expanded += char === "\t" ? " ".repeat(4 - (expanded.length % 4)) : char;
     return expanded;
   });
-  const { parser, traces } = streaming ? provisional : settled;
+  const { parser, traces } = settled;
   const env = {};
   const tokens = parser.parse(text, env);
   const lines = text.split("\n");
@@ -452,17 +367,9 @@ function compileBlock(
     offset += line.length + 1;
   }
   const edits: Edit[] = [];
-  let cuts: number[] = [];
   for (const [index, token] of tokens.entries()) {
     if (token.type !== "inline" || !token.map) continue;
     const trace = traces.get(token)!;
-    if (
-      normalized &&
-      text === token.content &&
-      tokens.length === 3 &&
-      tokens[0]!.type === "paragraph_open"
-    )
-      cuts = paragraphCuts(token.content, trace);
     const heading = tokens[index - 1];
     const context: InlinePreparation = {
       source: token.content,
@@ -470,7 +377,6 @@ function compileBlock(
       trace,
       parser,
       env,
-      streaming,
       uppercase: heading?.type === "heading_open" && heading.tag === "h6",
       canResolveCode,
       protectedRanges: new Uint8Array(token.content.length),
@@ -478,59 +384,17 @@ function compileBlock(
       task: tokens[index - 2]?.type === "list_item_open",
       edits: [],
     };
-    // Link/code ownership is established before either references or provisional
-    // brackets can be rewritten. Linkify uses the parser's emphasis-split text tokens.
+    // Link/code ownership is established before references can be rewritten. Linkify uses the parser's emphasis-split text tokens.
     for (const span of trace.spans)
       if (span.tokens.some((child) => ["link_open", "code_inline", "image"].includes(child.type)))
         protect(context.referenceRanges, span);
     prepareLinkifiedLinks(context);
     for (const span of trace.spans) prepareSpan(context, span);
-    if (trace.trim) {
-      const tail = { start: token.content.length - trace.trim, end: token.content.length };
-      context.edits.push({ ...tail, text: "" });
-      protect(context.protectedRanges, tail);
-    }
     preserveUnresolvedReferences(context);
     prepareText(context);
-    if (trace.suffix) insert(context, token.content.length, trace.suffix);
     const positions = sourcePositions(token, heading, lines, lineOffsets);
     for (const edit of context.edits)
       edits.push({ ...edit, start: positions[edit.start]!, end: positions[edit.end]! });
   }
-  const rendered = applyEdits(text, edits);
-  return { text: rendered, cuts, offsets: preparedOffsets(cuts, edits) };
-}
-function preparedOffsets(cuts: number[], edits: Edit[]): number[] {
-  const offsets: number[] = [];
-  let editIndex = 0;
-  let delta = 0;
-  for (const cut of cuts) {
-    while (
-      editIndex < edits.length &&
-      edits[editIndex]!.end <= cut &&
-      edits[editIndex]!.start < cut
-    ) {
-      const edit = edits[editIndex++]!;
-      delta += edit.text.length - (edit.end - edit.start);
-    }
-    offsets.push(cut + delta);
-  }
-  return offsets;
-}
-function paragraphCuts(source: string, trace: InlineTrace): number[] {
-  const cuts: number[] = [];
-  let depth = 0;
-  // A bracket can remain a provisional reference/link even after its closing bracket.
-  // Keep that suffix together until the block settles.
-  const bracket = source.indexOf("[");
-  const stableEnd = bracket < 0 ? source.length : bracket;
-  for (const span of trace.spans) {
-    if (span.insideLink) continue;
-    if (depth === 0 && span.tokens.length === 0 && source[span.start] !== "&") {
-      for (let i = span.start; i < span.end; i++)
-        if (i < stableEnd && source[i] === " ") cuts.push(i + 1);
-    }
-    for (const token of span.tokens) depth += token.nesting;
-  }
-  return cuts;
+  return applyEdits(text, edits);
 }

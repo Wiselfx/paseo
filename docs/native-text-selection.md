@@ -2,7 +2,7 @@
 
 Assistant prose uses `react-native-enriched-markdown` 1.1.1 on iOS and Android. Native selection belongs to one text view, so separate paragraph rows prevent dragging a selection between them.
 
-Keep adjacent paragraphs, headings, lists and horizontal rules in prose runs. Code, tables, images and HTML-like content need Paseo's existing renderers. Preserve whole containers when splitting around an image would lose formatting or list context. Reference definitions retain their original block scope; grouping text for selection must not change which references resolve.
+Keep completed adjacent paragraphs, headings, lists and horizontal rules in prose runs. The growing last source block uses Paseo’s existing block renderer and streaming parser. It joins the preceding run when another block starts or the turn ends, retaining the run’s id. Selection across that paragraph becomes available at completion. Code, tables, images and HTML-like content need Paseo's existing renderers. Preserve whole containers when splitting around an image would lose formatting or list context. Reference definitions retain their original block scope; grouping text for selection must not change which references resolve.
 
 Selection stops at preserved blocks, blockquotes and run boundaries required by the 32,000-character render cap. Consecutive paragraphs inside a quote share its text segment; nested quotes and embedded blocks introduce further library segments. Web keeps its existing renderer and selection behavior.
 
@@ -23,7 +23,7 @@ Checkbox toggling is disabled because changes would not persist. Admonitions add
 - Native h1/h2 lose their 1px bottom borders because the library has no heading-border API. H6 keeps uppercase plain text but loses its 0.5 letter spacing; code and link destinations keep their source casing.
 - Android heading spans override inline code's font, size and color. iOS retains the code style; its system-monospace alias needs mapping at the library boundary. Web headings are unchanged.
 - Published 1.1.1 cannot embed Paseo's custom React link pills or hover tooltips in its text view. Links retain Paseo's press handling.
-- Streaming updates replace attributed text. The library does not retain selections made while the selected run is changing.
+- Adding a completed block replaces the run’s attributed text. The library does not retain selections made while that run changes. The growing block never goes through native prose preparation.
 
 Keep the package's math, highlighting, tree-sitter and video engines disabled. Paseo owns those renderers; duplicate native engines add binary size without serving this surface. Rebuild the dev client after changing engine configuration.
 

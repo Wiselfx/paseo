@@ -21,13 +21,6 @@ describe("source-preserving prose", () => {
     expect(prepareProse([source], noFiles)).toBe(expected);
   });
   it.each([
-    ["Use ~", "Use "],
-    ["Use ~/", "Use \\~/"],
-    ["Use ~/.config", "Use \\~/.config"],
-  ])("keeps provisional tilde escapes attached: %s", (source, expected) => {
-    expect(prepareProse([source], noFiles, true)).toBe(expected);
-  });
-  it.each([
     ["Paths ~/.config and ~/.local are used.", "Paths \\~/.config and \\~/.local are used."],
     ["~/a ~/b", "\\~/a \\~/b"],
     ["~~gone~~", "~~gone~~"],
@@ -35,7 +28,6 @@ describe("source-preserving prose", () => {
     ["`~~` and `~/a ~/b`", "`~~` and `~/a ~/b`"],
   ])("keeps single tildes literal: %s", (source, expected) => {
     expect(prepareProse([source], noFiles)).toBe(expected);
-    expect(prepareProse([source], noFiles, true)).toBe(expected);
   });
   it.each([
     ["https://example.com/a&amp;b", "[https://example.com/a&b](<https://example.com/a&b>)"],
@@ -99,9 +91,9 @@ describe("source-preserving prose", () => {
       candidates.push(text);
       return false;
     });
-    prepare(["First `one`.", "Next `two`.", "Last `three`."], true, Infinity);
+    prepare(["First `one`.", "Next `two`.", "Last `three`."], Infinity);
     candidates.length = 0;
-    prepare(["First `one`.", "Next `two`.", "Last `three`. More."], true, Infinity);
+    prepare(["First `one`.", "Next `two`.", "Last `three`. More."], Infinity);
     expect(candidates).toEqual(["three"]);
   });
   it("bounds preparation before parsing a capped block", () => {
@@ -111,7 +103,7 @@ describe("source-preserving prose", () => {
       return false;
     });
     const source = "Use `foo` here. ".repeat(70_000);
-    prepare([source], false, 32_000);
+    prepare([source], 32_000);
     expect(candidates).toBeLessThan(2200);
   });
   it("decodes entities outside code", () => {
@@ -150,25 +142,6 @@ describe("source-preserving prose", () => {
     for (let i = 0; i < 5; i++) expect(prepareProse([text], noFiles)).toBe(text);
     expect((performance.now() - start) / 5).toBeLessThan(50);
   });
-  it("reuses prepared prefixes while completing the visible inline tail", () => {
-    const prepare = createProsePreparer(noFiles);
-    const blocks = ["First &amp; paragraph.", "Use `foo` and **bold** here. ".repeat(30)];
-    const source = blocks.join("\n\n");
-    prepare(blocks, true, source.length);
-    for (let length = 0; length < source.length; length += 7) {
-      expect(prepare(blocks, true, length)).toBe(prepareProse(blocks, noFiles, true, length));
-    }
-  });
-  it.each([
-    ["A ||literal|| and escaped \\* text.", 2, "A "],
-    ["Use `README.md` and example.com. Later.", 4, "Use "],
-    ["[unresolved label] later.", 12, "unresolved "],
-    ["[unresolved label] later.", 19, "unresolved label "],
-  ] as const)("keeps cached reveal boundaries literal: %s", (source, length, expected) => {
-    const prepare = createProsePreparer((text) => text === "README.md");
-    prepare([source], true, source.length);
-    expect(prepare([source], true, length)).toBe(expected);
-  });
   it("changes only prose pipes", () => {
     expect(prepareProse(["Keep ||literal|| and `a || b` and [a|b](https://x/a|b)."], noFiles)).toBe(
       "Keep \\|\\|literal\\|\\| and `a || b` and [a\\|b](https://x/a|b).",
@@ -193,18 +166,6 @@ describe("source-preserving prose", () => {
         noFiles,
       ),
     ).toBe("###### SMALL **BOLD** `lower.ts` [LINK](https://example.com/lower) &");
-  });
-  it.each([
-    ["Before **bold", "Before **bold**"],
-    ["Before `code", "Before `code`"],
-    ["Before [label](https://exa", "Before label"],
-    ["### A **heading", "### A **heading**"],
-    ["- First\n- **Second", "- First\n- **Second**"],
-    ["> First\n> **Second", "> First\n> **Second**"],
-    ["Before **", "Before "],
-    ["Before ~~strike", "Before ~~strike~~"],
-  ])("minimally completes the streaming tail: %s", (source, expected) => {
-    expect(prepareProse([source], noFiles, true)).toBe(expected);
   });
   it("prepares source blocks independently, even beside a reference definition", () => {
     const blocks = ["![shot][pic]", "Other paragraph.\n\n[pic]: shots/app.png"];

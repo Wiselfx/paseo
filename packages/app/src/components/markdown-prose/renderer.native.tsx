@@ -96,7 +96,6 @@ const PROSE_CONTAINER = { marginBottom: -12 };
 const NativeProse = memo(function NativeProse({
   text,
   sourceBlocks,
-  streaming,
   kind,
   onLinkPress,
 }: MarkdownProseProps) {
@@ -106,8 +105,8 @@ const NativeProse = memo(function NativeProse({
   );
   const prepare = useMemo(() => createProsePreparer(canResolveCode), [canResolveCode]);
   const markdown = useMemo(
-    () => prepare(sourceBlocks, streaming, text.length),
-    [text.length, sourceBlocks, prepare, streaming],
+    () => prepare(sourceBlocks, text.length),
+    [text.length, sourceBlocks, prepare],
   );
   const handleLinkPress = useStableEvent(({ url }: { url: string }) => {
     handleProseLinkPress(url, (source) => actions.open(source, "preferred"), onLinkPress);

@@ -66,21 +66,25 @@ function splitParagraphImages(block: AssistantMessageItem): AssistantMessageItem
 }
 
 interface GroupedRuns {
+  growing: boolean;
   rows: AssistantMessageItem[];
   starts: number[];
   ends: number[];
 }
 const runsByBlocks = new WeakMap<readonly AssistantMessageItem[], GroupedRuns>();
+const growingRunsByBlocks = new WeakMap<readonly AssistantMessageItem[], GroupedRuns>();
 
 /** Rebuild only the run containing the changed source block; completed runs retain identity. */
 export function groupMarkdownProse(
   blocks: readonly AssistantMessageItem[],
   previousBlocks?: readonly AssistantMessageItem[],
+  growing = false,
 ): AssistantMessageItem[] {
-  const cached = runsByBlocks.get(blocks);
+  const cache = growing ? growingRunsByBlocks : runsByBlocks;
+  const cached = cache.get(blocks);
   if (cached) return cached.rows;
-  const previous = previousBlocks && runsByBlocks.get(previousBlocks);
-  const retained = retainedRunCount(blocks, previousBlocks, previous);
+  const previous = previousGroups(previousBlocks);
+  const retained = retainedRunCount(blocks, previousBlocks, previous, growing);
   const start = previous?.starts[retained] ?? 0;
   const rows = previous?.rows.slice(0, retained) ?? [];
   const starts = previous?.starts.slice(0, retained) ?? [];
@@ -105,14 +109,13 @@ export function groupMarkdownProse(
     length = 0;
   }
   for (let index = start; index < blocks.length; index++) {
-    for (const part of splitBlock(blocks[index]!)) {
-      if (
-        parts.length &&
-        (part.markdownKind !== "prose" ||
-          parts[0]!.markdownKind !== "prose" ||
-          length + 2 + part.text.length > ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT)
-      )
-        flush();
+    const block = blocks[index]!;
+    const partsForBlock =
+      growing && index === blocks.length - 1
+        ? [{ ...block, markdownKind: "block" as const }]
+        : splitBlock(block);
+    for (const part of partsForBlock) {
+      if (parts.length && !canJoinRun(parts[0]!, part, length)) flush();
       if (!parts.length) runStart = index;
       length += (parts.length ? 2 : 0) + part.text.length;
       parts.push(part);
@@ -121,7 +124,7 @@ export function groupMarkdownProse(
   }
   flush();
   reuseUnchangedRows(blocks, previousBlocks, previous, rows, starts, ends, retained);
-  runsByBlocks.set(blocks, { rows, starts, ends });
+  cache.set(blocks, { rows, starts, ends, growing });
   return rows;
 }
 
@@ -129,15 +132,20 @@ function retainedRunCount(
   blocks: readonly AssistantMessageItem[],
   previousBlocks: readonly AssistantMessageItem[] | undefined,
   previous: GroupedRuns | undefined,
+  growing: boolean,
 ): number {
   if (!previous || !previousBlocks) return 0;
   let shared = 0;
   while (shared < blocks.length && blocks[shared] === previousBlocks[shared]) shared++;
+  if (previous.growing && (!growing || blocks.length !== previousBlocks.length))
+    shared = Math.min(shared, previousBlocks.length - 1);
   let retained = 0;
-  // Revisit the boundary run because newly appended prose can join it.
-  while (retained + 1 < previous.rows.length && previous.starts[retained + 1]! < shared) retained++;
-  // Several image parts can originate from one source block. Rebuild them together.
-  while (retained > 0 && previous.ends[retained - 1]! >= previous.starts[retained]!) retained--;
+  while (retained < previous.rows.length && previous.ends[retained]! < shared) retained++;
+  // Only completed blocks can merge with the preceding run. The live tail is a
+  // hard boundary, so appending to it never rebuilds completed prose.
+  if (!(growing && shared === blocks.length - 1)) retained = Math.max(0, retained - 1);
+  while (retained > 0 && previous.ends[retained - 1]! >= (previous.starts[retained] ?? shared))
+    retained--;
   return retained;
 }
 function reuseUnchangedRows(
@@ -153,7 +161,8 @@ function reuseUnchangedRows(
   for (let index = retained; index < rows.length; index++) {
     const old = previous.rows[index];
     const row = rows[index]!;
-    if (old?.id !== row.id || old.text !== row.text) continue;
+    if (old?.id !== row.id || old.text !== row.text || old.markdownKind !== row.markdownKind)
+      continue;
     const end = ends[index]!;
     let identical = true;
     for (let block = starts[index]!; block <= end; block++)
@@ -164,4 +173,22 @@ function reuseUnchangedRows(
     if (!identical) continue;
     rows[index] = old;
   }
+}
+
+function canJoinRun(
+  first: AssistantMessageItem,
+  next: AssistantMessageItem,
+  length: number,
+): boolean {
+  return (
+    first.markdownKind === "prose" &&
+    next.markdownKind === "prose" &&
+    length + 2 + next.text.length <= ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT
+  );
+}
+
+function previousGroups(
+  blocks: readonly AssistantMessageItem[] | undefined,
+): GroupedRuns | undefined {
+  return blocks && (growingRunsByBlocks.get(blocks) ?? runsByBlocks.get(blocks));
 }

@@ -146,7 +146,9 @@ describe("native prose runs", () => {
     for (const text of ["First.\n\nBefore ![shot](shots/app.png) after.", "\n\nNext.", " More."]) {
       combined += text;
       state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
-      const live = rows(present({ ...presentationOptions, ...state, transform: undefined }));
+      const live = rows(
+        present({ ...presentationOptions, ...state, isTurnActive: false, transform: undefined }),
+      );
       const history = createStreamPresentation({ markdown: "prose-runs" })({
         ...presentationOptions,
         tail: hydrateStreamState([{ event: assistant(combined), timestamp: new Date(1000) }]),
@@ -156,7 +158,13 @@ describe("native prose runs", () => {
       expect(live).toEqual(history.tail);
     }
   });
-  it("keeps 600 short-paragraph appends near blocks mode", { retry: 2 }, () => {
+  it.each([
+    ["short paragraphs", "A short paragraph.\n\n".repeat(3).slice(0, 50)],
+    [
+      "one growing paragraph",
+      "Use `foo` with https://example.com/path and `bar`. ".repeat(2).slice(0, 50),
+    ],
+  ])("keeps 600 appends near blocks mode: %s", { retry: 2 }, (_name, chunk) => {
     function measure(markdown: "blocks" | "prose-runs") {
       const present = createStreamPresentation({ markdown });
       let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
@@ -164,7 +172,7 @@ describe("native prose runs", () => {
       for (let i = 0; i < 600; i++) {
         state = applyStreamEvent({
           ...state,
-          event: assistant("A short paragraph.\n\n".repeat(3).slice(0, 50)),
+          event: assistant(chunk),
           timestamp: new Date(1000),
         });
         present({ ...presentationOptions, ...state, transform: undefined });
@@ -201,7 +209,12 @@ describe("native prose runs", () => {
         state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
         present({ ...presentationOptions, ...state, transform: undefined });
       }
-      const live = present({ ...presentationOptions, ...state, transform: undefined });
+      const live = present({
+        ...presentationOptions,
+        ...state,
+        isTurnActive: false,
+        transform: undefined,
+      });
       const history = createStreamPresentation({ markdown })({
         ...presentationOptions,
         tail: hydrateStreamState([
@@ -242,7 +255,12 @@ describe("native prose runs", () => {
       state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
       present({ ...presentationOptions, ...state, transform: undefined });
     }
-    const live = present({ ...presentationOptions, ...state, transform: undefined });
+    const live = present({
+      ...presentationOptions,
+      ...state,
+      isTurnActive: false,
+      transform: undefined,
+    });
     expect([...live.tail, ...live.head]).toMatchObject([
       { id: "message-1:run:0", text: first },
       { id: "message-1:run:1", text: second },
@@ -315,23 +333,65 @@ describe("native prose runs", () => {
     ]);
   });
 
-  it("grows the live run and retains promoted rows", () => {
+  it.each(["> Quoted text.", "- List item", "### Heading", "Plain paragraph."])(
+    "classifies the final block at turn completion: %s",
+    (text) => {
+      const present = createStreamPresentation({ markdown: "prose-runs" });
+      const head = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
+      expect(
+        present({ ...presentationOptions, tail: [], head, transform: undefined }).head,
+      ).toMatchObject([{ markdownKind: "block" }]);
+      const completed = present({
+        ...presentationOptions,
+        isTurnActive: false,
+        tail: [],
+        head,
+        transform: undefined,
+      });
+      const history = createStreamPresentation({ markdown: "prose-runs" })({
+        ...presentationOptions,
+        tail: head,
+        head: [],
+        transform: undefined,
+      });
+      expect(rows(completed)).toEqual(history.tail);
+    },
+  );
+  it("keeps the growing block separate and merges completed blocks into a stable run", () => {
     const present = createStreamPresentation({ markdown: "prose-runs" });
     let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
     function send(text: string) {
       state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
       return present({ ...presentationOptions, ...state, transform: undefined });
     }
-    const first = send("First.");
+    expect(send("First.").head).toMatchObject([{ id: "message-1:block:0", markdownKind: "block" }]);
     const second = send("\n\nSecond.");
-    expect(second.tail).toEqual([]);
-    expect(second.head).toMatchObject([{ id: first.head[0]!.id, text: "First.\n\nSecond." }]);
-    const boundary = send("\n\n```ts\na\n```");
-    expect(boundary.tail[0]).toBe(second.head[0]);
-    const last = send("\n\nAfter.");
-    expect(last.tail[0]).toBe(second.head[0]);
-    expect(last.tail[1]).toBe(boundary.head[0]);
-    expect(last.head).toMatchObject([{ id: "message-1:run:3", text: "After." }]);
+    expect(second.tail).toMatchObject([
+      { id: "message-1:run:0", text: "First.", markdownKind: "prose" },
+    ]);
+    expect(second.head).toMatchObject([
+      { id: "message-1:block:1", text: "Second.", markdownKind: "block" },
+    ]);
+    const growing = send(" More.");
+    expect(growing.tail[0]).toBe(second.tail[0]);
+    const third = send("\n\nThird.");
+    expect(third.tail).toMatchObject([{ id: "message-1:run:0", text: "First.\n\nSecond. More." }]);
+    const completed = present({
+      ...presentationOptions,
+      ...state,
+      isTurnActive: false,
+      transform: undefined,
+    });
+    const history = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: [...state.tail, ...state.head],
+      head: [],
+      transform: undefined,
+    });
+    expect(rows(completed)).toEqual(history.tail);
+    expect(rows(completed)).toMatchObject([
+      { id: "message-1:run:0", text: "First.\n\nSecond. More.\n\nThird." },
+    ]);
   });
 
   it("keeps consecutive paragraphs in one selectable row", () => {

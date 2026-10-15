@@ -123,6 +123,88 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
   return [...result.tail, ...result.head];
 }
 
+describe("native prose runs", () => {
+  it("splits inline workspace images out of prose without mistaking code for images", () => {
+    const source = hydrateStreamState([
+      {
+        event: assistant("Before `![literal](code.png)` ![Screenshot](shots/app.png) after."),
+        timestamp: new Date(1000),
+      },
+    ]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toMatchObject([
+      { text: "Before `![literal](code.png)`", markdownKind: "prose" },
+      { text: "![Screenshot](shots/app.png)", markdownKind: "block" },
+      { text: "after.", markdownKind: "prose" },
+    ]);
+  });
+
+  it.each([
+    { middle: "```ts\nconst a = 1;\n```", kind: "block" },
+    { middle: "> Quoted paragraph.", kind: "quote" },
+    { middle: "![Image](image.png)", kind: "block" },
+  ])("keeps $kind between prose in a separate row", ({ middle, kind }) => {
+    const source = hydrateStreamState([
+      { event: assistant(`First.\n\n${middle}\n\nLast.`), timestamp: new Date(1000) },
+    ]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toMatchObject([
+      { id: `${source[0]!.id}:run:0`, text: "First.", markdownKind: "prose" },
+      { id: `${source[0]!.id}:block:1`, text: middle, markdownKind: kind },
+      { id: `${source[0]!.id}:run:2`, text: "Last.", markdownKind: "prose" },
+    ]);
+  });
+
+  it("grows the live run and retains promoted rows", () => {
+    const present = createStreamPresentation({ markdown: "prose-runs" });
+    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+    function send(text: string) {
+      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
+      return present({ ...presentationOptions, ...state, transform: undefined });
+    }
+    const first = send("First.");
+    const second = send("\n\nSecond.");
+    expect(second.tail).toEqual([]);
+    expect(second.head).toMatchObject([{ id: first.head[0]!.id, text: "First.\n\nSecond." }]);
+    const boundary = send("\n\n```ts\na\n```");
+    expect(boundary.tail[0]).toBe(second.head[0]);
+    const last = send("\n\nAfter.");
+    expect(last.tail[0]).toBe(second.head[0]);
+    expect(last.tail[1]).toBe(boundary.head[0]);
+    expect(last.head).toMatchObject([{ id: "message-1:run:3", text: "After." }]);
+  });
+
+  it("keeps consecutive paragraphs in one selectable row", () => {
+    const source = hydrateStreamState([
+      { event: assistant("First paragraph.\n\nSecond paragraph."), timestamp: new Date(1000) },
+    ]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toMatchObject([
+      {
+        id: `${source[0]!.id}:run:0`,
+        text: "First paragraph.\n\nSecond paragraph.",
+        markdownKind: "prose",
+        blockGroupId: source[0]!.id,
+      },
+    ]);
+  });
+});
+
 describe("stream presentation through installed plugins", () => {
   it("offers every source tool call to an installed transformer in Overview mode", () => {
     const calls = [toolCall("call-1", "bash"), toolCall("call-2", "read")];

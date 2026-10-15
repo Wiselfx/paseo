@@ -9,6 +9,8 @@ import {
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
 
+import { groupMarkdownProse } from "@/components/markdown-prose/runs";
+
 interface PresentationInput {
   tail: StreamItem[];
   head: StreamItem[];
@@ -53,7 +55,10 @@ function isReusableBlock(block: AssistantMessageItem, source: AssistantMessageIt
 }
 
 /** Source messages reach plugins before any Markdown splitting or Overview grouping. */
-export function createStreamPresentation() {
+export function createStreamPresentation({
+  markdown = "blocks",
+}: { markdown?: "blocks" | "prose-runs" } = {}) {
+  const runsBySource = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>();
   const userMessageCache = new WeakMap<UserMessageItem, UserMessageItem>();
 
   function presentUserMessage(item: UserMessageItem): UserMessageItem {
@@ -139,6 +144,27 @@ export function createStreamPresentation() {
     return blocks;
   }
 
+  function presentRows(item: StreamItem): StreamItem[] {
+    const blocks = nativeBlocks(item);
+    if (markdown === "blocks" || item.kind !== "assistant_message") return blocks;
+    const cached = runsBySource.get(item);
+    if (cached) return cached;
+    const previousSource = liveSources.get(item.id);
+    const previous = previousSource && runsBySource.get(previousSource);
+    const previousById = new Map(previous?.map((row) => [row.id, row]));
+    const assistantBlocks = blocks.filter(
+      (block): block is AssistantMessageItem => block.kind === "assistant_message",
+    );
+    const runs = groupMarkdownProse(assistantBlocks).map((row) => {
+      const existing = previousById.get(row.id);
+      return existing?.text === row.text && isReusableBlock(existing, item, row.id)
+        ? existing
+        : row;
+    });
+    runsBySource.set(item, runs);
+    return runs;
+  }
+
   return (input: PresentationInput) => {
     // Retained history is not reprojected or regrouped on each live text update.
     if (historySource !== input.tail || historyTransform !== input.transform) {
@@ -146,7 +172,7 @@ export function createStreamPresentation() {
       // `blocksBySource` keeps both the live block identities and the split cost
       // from being paid again when only the tail's array identity changed.
       historyRows = projectPluginTimelineItems(input.tail, input.transform).flatMap<StreamItem>(
-        nativeBlocks,
+        presentRows,
       );
       historySource = input.tail;
       historyTransform = input.transform;
@@ -155,7 +181,7 @@ export function createStreamPresentation() {
     const promoted: StreamItem[] = [];
     const nextLiveSources = new Map<string, AssistantMessageItem>();
     for (const item of projectPluginTimelineItems(input.head, input.transform, "streaming")) {
-      const blocks = nativeBlocks(item);
+      const blocks = presentRows(item);
       if (item.kind === "assistant_message") nextLiveSources.set(item.id, item);
       if (item.kind === "assistant_message" && blocks.length > 1) {
         promoted.push(...blocks.slice(0, -1));

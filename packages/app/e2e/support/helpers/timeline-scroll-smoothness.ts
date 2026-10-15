@@ -100,11 +100,16 @@ export async function holdParagraphThroughCompletion(page: Page, agent: MockAgen
   const paragraph = page.getByRole("heading", { name: "Long section 3", exact: true });
   await paragraph.waitFor({ state: "attached" });
   const recording = await paragraph.evaluateHandle((heading) => {
+    if (!document.querySelector('[data-testid="turn-working-indicator"]')) {
+      throw new Error("The stream completed before the reader detached");
+    }
     const viewport = document.querySelector<HTMLElement>('[data-testid="agent-chat-scroll"]')!;
     const clip = viewport.getBoundingClientRect();
     viewport.scrollTop += heading.getBoundingClientRect().y - (clip.top + clip.height / 2);
     const baseline = heading.getBoundingClientRect().y;
-    const result = { maxDrift: 0, retained: true, done: false };
+    const initialTextLength = heading.closest('[data-testid="assistant-message"]')!.textContent!
+      .length;
+    const result = { maxDrift: 0, retained: true, textGrowth: 0, done: false };
     let stableAt = performance.now();
     let signature = "";
     const frame = (now: number) => {
@@ -112,6 +117,9 @@ export async function holdParagraphThroughCompletion(page: Page, agent: MockAgen
       const current = [...document.querySelectorAll("h2")].find(
         (n) => n.textContent === "Long section 3",
       );
+      const textLength =
+        current?.closest('[data-testid="assistant-message"]')?.textContent?.length ?? 0;
+      result.textGrowth = Math.max(result.textGrowth, textLength - initialTextLength);
       if (current)
         result.maxDrift = Math.max(
           result.maxDrift,

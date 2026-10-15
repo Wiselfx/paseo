@@ -157,6 +157,10 @@ test("holds a paragraph still while a mixed response streams and completes", asy
   await withStreamingReader(async (agent) => {
     const reading = await holdParagraphThroughCompletion(page, agent);
     expect(
+      reading.textGrowth,
+      "the held reader must observe an actively growing response",
+    ).toBeGreaterThan(1000);
+    expect(
       reading.maxFollowGap,
       "follow-bottom must catch each streamed commit before the next frame",
     ).toBeLessThanOrEqual(1);

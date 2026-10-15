@@ -33,22 +33,18 @@ import { createCompactMarkdownStyles, createMarkdownStyles } from "@/styles/mark
 import type { Theme } from "@/styles/theme";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { isNative } from "@/constants/platform";
-import {
-  splitHtmlishMarkdown,
-  type MarkdownDisplayPart,
-  type MarkdownInlineImagePart,
-} from "./html-ish";
+import { type MarkdownDisplayPart, type MarkdownInlineImagePart } from "./html-ish";
 import { resolveInlineImageSize, type InlineImageDimensions } from "./inline-image-size";
 import {
   getAssistantImageMetadata,
   setAssistantImageMetadata,
 } from "@/utils/assistant-image-metadata";
-import { groupMarkdownParts, type MarkdownPartGroup } from "./part-groups";
+import { groupMarkdownParts, prepareMarkdownGroups, type MarkdownPartGroup } from "./part-groups";
 import { colorMarkdownLinkChildren } from "./link-children";
 import { MarkdownLinkText } from "./link-text";
 import { MarkdownProse } from "./prose/renderer";
 import { splitMarkdownProse, type MarkdownProsePart } from "./parts";
-import type { AssistantFileLinkActions } from "@/assistant-file-links/use-file-link";
+import type { AssistantFileLinkActions } from "@/assistant-file-links";
 
 export type MarkdownStyles = Record<string, TextStyle & ViewStyle & { [key: string]: unknown }>;
 
@@ -94,12 +90,17 @@ export interface MarkdownRendererProps {
 }
 
 export function MarkdownRenderer(props: MarkdownRendererProps) {
+  if (isNative && props.part) return <MarkdownRuns {...props} />;
+  return <MarkdownBlockRenderer {...props} />;
+}
+
+const BLOCK_PART = { markdownKind: "block" as const };
+
+function MarkdownRuns(props: MarkdownRendererProps) {
   const parts = useMemo<MarkdownProsePart[]>(() => {
-    if (!isNative) return [];
     if (props.part) return [{ ...props.part, text: props.text, id: "part" }];
     return splitMarkdownProse(props.text);
   }, [props.part, props.text]);
-  if (!isNative) return <MarkdownBlockRenderer {...props} />;
   const parser = props.markdownit ?? defaultMarkdownParser;
   return (
     <>
@@ -108,7 +109,7 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
           key={part.id}
           text={part.text}
           sourceBlocks={part.markdownProseBlocks ?? [part.text]}
-          kind={part.markdownKind ?? "block"}
+          kind={part.markdownKind}
           compact={props.compact}
           blockSpacing={props.blockSpacing}
           fileLinks={props.fileLinks}
@@ -117,7 +118,12 @@ export function MarkdownRenderer(props: MarkdownRendererProps) {
           allowFileLinks={parser.validateLink("file:///file")}
           onLinkPress={props.onLinkPress ?? openMarkdownLink}
         >
-          <MarkdownScopedBlock {...props} text={part.text} references={part.references} />
+          <MarkdownScopedBlock
+            {...props}
+            part={BLOCK_PART}
+            text={part.text}
+            references={part.references}
+          />
         </MarkdownProse>
       ))}
     </>
@@ -162,10 +168,11 @@ function MarkdownBlockRenderer({
   allowedImageHandlers,
   topLevelMaxExceededItem,
   enableHtmlish = true,
+  part,
 }: MarkdownRendererProps) {
   const markdownRules = useMemo(() => rules ?? createSharedMarkdownRules(), [rules]);
-  const parts = useMemo(
-    () => (enableHtmlish ? splitHtmlishMarkdown(text) : [{ kind: "markdown" as const, text }]),
+  const groups = useMemo(
+    () => prepareMarkdownGroups({ text, enableHtmlish }),
     [enableHtmlish, text],
   );
   const rendererProps = useMemo(
@@ -176,6 +183,7 @@ function MarkdownBlockRenderer({
       onLinkPress,
       allowedImageHandlers,
       topLevelMaxExceededItem,
+      part,
     }),
     [
       allowedImageHandlers,
@@ -184,24 +192,25 @@ function MarkdownBlockRenderer({
       markdownit,
       onLinkPress,
       topLevelMaxExceededItem,
+      part,
     ],
   );
 
-  return <MarkdownPartList parts={parts} rendererProps={rendererProps} />;
+  return <MarkdownGroupList groups={groups} rendererProps={rendererProps} />;
 }
 
 type MarkdownPartRendererProps = Omit<MarkdownRendererProps, "text" | "enableHtmlish"> & {
   rules: RenderRules;
 };
 
-function MarkdownPartList({
-  parts,
+function MarkdownGroupList({
+  groups,
   rendererProps,
 }: {
-  parts: MarkdownDisplayPart[];
+  groups: MarkdownPartGroup[];
   rendererProps: MarkdownPartRendererProps;
 }) {
-  const keyedGroups = useMemo(() => keyMarkdownGroups(groupMarkdownParts(parts)), [parts]);
+  const keyedGroups = useMemo(() => keyMarkdownGroups(groups), [groups]);
   return (
     <>
       {keyedGroups.map(({ key, group }) =>
@@ -243,7 +252,12 @@ function MarkdownPart({
   return <MarkdownFragment text={part.text} {...rendererProps} />;
 }
 
-function MarkdownFragment({
+function MarkdownFragment(props: MarkdownRendererProps & { rules: RenderRules }) {
+  if (isNative && !props.part) return <MarkdownRuns {...props} enableHtmlish={false} />;
+  return <MarkdownBlockFragment {...props} />;
+}
+
+function MarkdownBlockFragment({
   text,
   compact,
   rules,
@@ -443,8 +457,8 @@ function MarkdownDetails({
 }) {
   const [open, setOpen] = useState(false);
   const toggle = useCallback(() => setOpen((current) => !current), []);
-  const bodyParts = useMemo(
-    () => part.bodyParts ?? [{ kind: "markdown" as const, text: part.body }],
+  const bodyGroups = useMemo(
+    () => groupMarkdownParts(part.bodyParts ?? [{ kind: "markdown" as const, text: part.body }]),
     [part.body, part.bodyParts],
   );
   return (
@@ -459,7 +473,7 @@ function MarkdownDetails({
       </Pressable>
       {open ? (
         <View style={detailsStyles.body}>
-          <MarkdownPartList parts={bodyParts} rendererProps={rendererProps} />
+          <MarkdownGroupList groups={bodyGroups} rendererProps={rendererProps} />
         </View>
       ) : null}
     </View>

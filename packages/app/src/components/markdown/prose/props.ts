@@ -1,5 +1,5 @@
 import type { ReactNode } from "react";
-import type { AssistantFileLinkActions } from "@/assistant-file-links/use-file-link";
+import type { AssistantFileLinkActions } from "@/assistant-file-links";
 
 import type { MarkdownReferences } from "../parts";
 

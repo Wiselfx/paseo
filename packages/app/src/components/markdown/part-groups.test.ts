@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { MarkdownDisplayPart } from "./html-ish";
-import { groupMarkdownParts } from "./part-groups";
+import { groupMarkdownParts, prepareMarkdownGroups } from "./part-groups";
 import { parseMarkdownPreviewDocument } from "@/file-pane/markdown-preview/document";
 import { createProsePreparer } from "./prose/prepare";
 import { splitMarkdownProse } from "./parts";
@@ -128,5 +128,27 @@ describe("Markdown file preview document", () => {
     });
     expect(prepare(first.markdownProseBlocks!)).toBe("[site](<https://example.com>)");
     expect(parts[1]?.references?.PIC?.href).toBe("image.png");
+  });
+});
+
+describe("renderer container ordering", () => {
+  it("retains a collapsible before preparing its prose", () => {
+    const groups = prepareMarkdownGroups({
+      text: "Before.\n\n<details>\n<summary>More</summary>\n\nFirst paragraph.\n\nSecond paragraph.\n\n</details>\n\nAfter.",
+      enableHtmlish: true,
+    });
+    expect(groups.map((group) => (group.kind === "part" ? group.part.kind : group.kind))).toEqual([
+      "markdown",
+      "details",
+      "markdown",
+    ]);
+    const details = groups[1];
+    expect(details?.kind).toBe("part");
+    if (details?.kind !== "part" || details.part.kind !== "details")
+      throw new Error("Missing collapsible");
+    expect(details.part.summary).toBe("More");
+    expect(splitMarkdownProse(details.part.body).map((part) => part.markdownKind)).toEqual([
+      "prose",
+    ]);
   });
 });

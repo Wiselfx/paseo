@@ -34,7 +34,10 @@ export interface MarkdownImageContext {
 
 export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   const occurrenceKey = useId();
-  const prepared = useMemo(() => prepareMarkdownSource(text), [text]);
+  const prepared = useMemo(
+    () => prepareMarkdownSource(text, context.workspaceRoot),
+    [text, context.workspaceRoot],
+  );
   const sources = [...new Set(prepared.images.map((image) => image.source))];
   const acquisitions = sources.map((source) => {
     const resolved = context.filePath

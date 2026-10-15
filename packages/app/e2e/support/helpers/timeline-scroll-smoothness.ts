@@ -491,7 +491,7 @@ export async function expectImageSpaceReserved(page: Page, testInfo: TestInfo): 
       await agent.client.waitForFinish(agent.agentId, 15_000);
       await openAgentTimeline(page, agent);
       await expectTimelinePromptVisible(page, "Show the delayed image");
-      const image = page.getByRole("img", { name: "Reserved image" }).first();
+      const image = page.getByRole("button", { name: "Reserved image", exact: true }).first();
       await expect(image).toBeVisible();
       const before = await image.boundingBox();
       await attachTimelineScreenshot(page, testInfo, "image-placeholder");
@@ -508,8 +508,9 @@ export async function expectImageSpaceReserved(page: Page, testInfo: TestInfo): 
         .toBe(240);
       await expect
         .poll(async () => {
-          const box = await image.boundingBox();
-          return box ? Math.round((box.width / box.height) * 100) : 0;
+          return image.evaluate((element: HTMLImageElement) =>
+            Math.round((element.naturalWidth / element.naturalHeight) * 100),
+          );
         })
         .toBe(150);
       const after = await image.boundingBox();

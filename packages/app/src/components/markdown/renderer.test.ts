@@ -128,3 +128,9 @@ it("keeps diagram identity when an earlier workspace image resolves", async () =
   expect(before).toHaveProperty("id");
   expect(after?.id).toBe(before?.id);
 });
+
+it("keeps workspace-relative hover titles on explicit absolute file links", () => {
+  expect(prepareMarkdownSource("[Open](/repo/src/file.ts:42-45)", "/repo").render()).toBe(
+    '[Open](/repo/src/file.ts:42-45 "src/file.ts:42-45")',
+  );
+});

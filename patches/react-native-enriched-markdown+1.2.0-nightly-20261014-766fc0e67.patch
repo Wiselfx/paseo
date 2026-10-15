@@ -1038,9 +1038,18 @@ index 0000000..c04179d
 +//# sourceMappingURL=MarkdownRenderers.js.map
 \ No newline at end of file
 diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js b/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js
-index 2cf2708..cddd7de 100644
+index 2cf2708..8581623 100644
 --- a/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js
 +++ b/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js
+@@ -3,7 +3,7 @@
+ import { useState, useEffect, useMemo, useRef } from 'react';
+ import { normalizeMarkdownStyle } from "../normalizeMarkdownStyle.web.js";
+ import { zeroTrailingMargins, parseErrorFallbackStyle, buildStyles } from "./styles.js";
+-import { parseMarkdown } from "./parseMarkdown.js";
++import { parseMarkdown, parseMarkdownSync } from "./parseMarkdown.js";
+ import { recognizeTextLinks } from "./recognizeTextLinks.js";
+ import { RenderNode } from "./renderers/index.js";
+ import { indexTaskItems, markInlineImages } from "./utils.js";
 @@ -16,6 +16,7 @@ export const EnrichedMarkdownText = ({
    markdownStyle = {},
    md4cFlags = {},
@@ -1058,7 +1067,47 @@ index 2cf2708..cddd7de 100644
    const [katex, setKatex] = useState(null);
    const [parseError, setParseError] = useState(false);
    const {
-@@ -68,7 +69,10 @@ export const EnrichedMarkdownText = ({
+@@ -50,7 +51,39 @@ export const EnrichedMarkdownText = ({
+   linkRecognitionRef.current = linkRecognition;
+   const textLinkKey = linkRecognition?.text?.toString() ?? null;
+   const inlineCodeLinkKey = linkRecognition?.inlineCode?.toString() ?? null;
++
++  // Once WASM is ready, new/virtualized rows must have their text on the first
++  // commit. An effect-only parse briefly measures an empty row and moves readers.
++  const immediate = useMemo(() => {
++    try {
++      const result = parseMarkdownSync(markdown, {
++        underline,
++        latexMath,
++        superscript,
++        subscript,
++        highlight,
++        hardSoftBreaks,
++        preserveBlankLines,
++        admonitions
++      });
++      if (!result) return null;
++      indexTaskItems(result);
++      markInlineImages(result);
++      return {
++        markdown,
++        ast: recognizeTextLinks(result, linkRecognitionRef.current?.text, linkRecognitionRef.current?.inlineCode)
++      };
++    } catch {
++      return {
++        markdown,
++        ast: null
++      };
++    }
++    // Regex keys track ref changes; parsed wakes this memo after WASM initialization.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [markdown, underline, latexMath, superscript, subscript, highlight, hardSoftBreaks, preserveBlankLines, admonitions, textLinkKey, inlineCodeLinkKey, parsed]);
+   useEffect(() => {
++    if (immediate && (!latexMath || katex)) return;
+     let cancelled = false;
+     const katexPromise = latexMath ? loadKaTeX() : Promise.resolve(null);
+     Promise.all([parseMarkdown(markdown, {
+@@ -68,7 +101,10 @@ export const EnrichedMarkdownText = ({
          markInlineImages(result);
          setParseError(false);
          setKatex(katexInstance);
@@ -1070,7 +1119,7 @@ index 2cf2708..cddd7de 100644
        }
      }).catch(error => {
        if (!cancelled) {
-@@ -76,7 +80,7 @@ export const EnrichedMarkdownText = ({
+@@ -76,14 +112,14 @@ export const EnrichedMarkdownText = ({
            console.error('[EnrichedMarkdownText] Parse failed:', error);
          }
          setParseError(true);
@@ -1079,7 +1128,15 @@ index 2cf2708..cddd7de 100644
          setKatex(null);
        }
      });
-@@ -93,8 +97,9 @@ export const EnrichedMarkdownText = ({
+     return () => {
+       cancelled = true;
+     };
+-  }, [markdown, underline, latexMath, superscript, subscript, highlight, hardSoftBreaks, preserveBlankLines, admonitions, textLinkKey, inlineCodeLinkKey]);
++  }, [markdown, underline, latexMath, superscript, subscript, highlight, hardSoftBreaks, preserveBlankLines, admonitions, textLinkKey, inlineCodeLinkKey, immediate, katex]);
+   const callbacks = useMemo(() => ({
+     onLinkPress,
+     onLinkLongPress,
+@@ -93,8 +129,9 @@ export const EnrichedMarkdownText = ({
    }), [onLinkPress, onLinkLongPress, onImagePress, onTaskListItemPress, onCodeBlockPress]);
    const capabilities = useMemo(() => ({
      katex,
@@ -1091,26 +1148,94 @@ index 2cf2708..cddd7de 100644
    const lastChildStyle = useMemo(() => allowTrailingMargin ? normalizedStyle : zeroTrailingMargins(normalizedStyle), [normalizedStyle, allowTrailingMargin]);
    const styles = useMemo(() => buildStyles(normalizedStyle), [normalizedStyle]);
    const lastChildStyles = useMemo(() => buildStyles(lastChildStyle), [lastChildStyle]);
-@@ -123,10 +128,10 @@ export const EnrichedMarkdownText = ({
+@@ -110,7 +147,8 @@ export const EnrichedMarkdownText = ({
+     } : null)
+   }), [containerStyle, selectable, selectionColor]);
+   const domProps = filterNativeOnlyProps(rest);
+-  if (parseError) {
++  const visibleParsed = immediate ?? parsed;
++  if (immediate ? immediate.ast === null : parseError) {
+     return /*#__PURE__*/_jsx("div", {
+       className: ENRM_TEXT_CLASS,
+       style: wrapperStyle,
+@@ -123,10 +161,10 @@ export const EnrichedMarkdownText = ({
        })
      });
    }
 -  if (!ast) return null;
 -  const children = ast.children ?? [];
-+  const children = parsed?.ast.children ?? [];
++  const children = visibleParsed?.ast?.children ?? [];
    const lastIdx = children.length - 1;
    return /*#__PURE__*/_jsx("div", {
-+    "aria-busy": parsed?.markdown !== markdown,
++    "aria-busy": visibleParsed?.markdown !== markdown,
      className: ENRM_TEXT_CLASS,
      style: wrapperStyle,
      dir: dir,
 diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js.map b/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js.map
-index 1c49b41..e5947b1 100644
+index 1c49b41..921a946 100644
 --- a/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js.map
 +++ b/node_modules/react-native-enriched-markdown/lib/module/web/EnrichedMarkdownText.js.map
 @@ -1 +1 @@
 -{"version":3,"names":["useState","useEffect","useMemo","useRef","normalizeMarkdownStyle","zeroTrailingMargins","parseErrorFallbackStyle","buildStyles","parseMarkdown","recognizeTextLinks","RenderNode","indexTaskItems","markInlineImages","loadKaTeX","ENRM_TEXT_CLASS","ENRM_SELECTION_BG_VAR","filterNativeOnlyProps","jsx","_jsx","EnrichedMarkdownText","markdown","markdownStyle","md4cFlags","linkRecognition","onLinkPress","onLinkLongPress","onImagePress","onTaskListItemPress","onCodeBlockPress","enableTaskListItemToggle","allowTrailingMargin","containerStyle","selectable","dir","selectionColor","testID","rest","normalizedStyle","ast","setAst","katex","setKatex","parseError","setParseError","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","linkRecognitionRef","current","textLinkKey","text","toString","inlineCodeLinkKey","inlineCode","cancelled","katexPromise","Promise","resolve","all","then","result","katexInstance","catch","error","__DEV__","console","callbacks","capabilities","lastChildStyle","styles","lastChildStyles","wrapperStyle","display","flexDirection","undefined","userSelect","domProps","className","style","children","lastIdx","length","map","child","index","node","type"],"sourceRoot":"../../../src","sources":["web/EnrichedMarkdownText.tsx"],"mappings":"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","ignoreList":[]}
-+{"version":3,"names":["useState","useEffect","useMemo","useRef","normalizeMarkdownStyle","zeroTrailingMargins","parseErrorFallbackStyle","buildStyles","parseMarkdown","recognizeTextLinks","RenderNode","indexTaskItems","markInlineImages","loadKaTeX","ENRM_TEXT_CLASS","ENRM_SELECTION_BG_VAR","filterNativeOnlyProps","jsx","_jsx","EnrichedMarkdownText","markdown","markdownStyle","md4cFlags","linkRecognition","renderers","onLinkPress","onLinkLongPress","onImagePress","onTaskListItemPress","onCodeBlockPress","enableTaskListItemToggle","allowTrailingMargin","containerStyle","selectable","dir","selectionColor","testID","rest","normalizedStyle","parsed","setParsed","katex","setKatex","parseError","setParseError","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","linkRecognitionRef","current","textLinkKey","text","toString","inlineCodeLinkKey","inlineCode","cancelled","katexPromise","Promise","resolve","all","then","result","katexInstance","ast","catch","error","__DEV__","console","callbacks","capabilities","lastChildStyle","styles","lastChildStyles","wrapperStyle","display","flexDirection","undefined","userSelect","domProps","className","style","children","lastIdx","length","map","child","index","node","type"],"sourceRoot":"../../../src","sources":["web/EnrichedMarkdownText.tsx"],"mappings":"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","ignoreList":[]}
++{"version":3,"names":["useState","useEffect","useMemo","useRef","normalizeMarkdownStyle","zeroTrailingMargins","parseErrorFallbackStyle","buildStyles","parseMarkdown","parseMarkdownSync","recognizeTextLinks","RenderNode","indexTaskItems","markInlineImages","loadKaTeX","ENRM_TEXT_CLASS","ENRM_SELECTION_BG_VAR","filterNativeOnlyProps","jsx","_jsx","EnrichedMarkdownText","markdown","markdownStyle","md4cFlags","linkRecognition","renderers","onLinkPress","onLinkLongPress","onImagePress","onTaskListItemPress","onCodeBlockPress","enableTaskListItemToggle","allowTrailingMargin","containerStyle","selectable","dir","selectionColor","testID","rest","normalizedStyle","parsed","setParsed","katex","setKatex","parseError","setParseError","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","linkRecognitionRef","current","textLinkKey","text","toString","inlineCodeLinkKey","inlineCode","immediate","result","ast","cancelled","katexPromise","Promise","resolve","all","then","katexInstance","catch","error","__DEV__","console","callbacks","capabilities","lastChildStyle","styles","lastChildStyles","wrapperStyle","display","flexDirection","undefined","userSelect","domProps","visibleParsed","className","style","children","lastIdx","length","map","child","index","node","type"],"sourceRoot":"../../../src","sources":["web/EnrichedMarkdownText.tsx"],"mappings":"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","ignoreList":[]}
+diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js b/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js
+index 7052cba..cc1ea0f 100644
+--- a/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js
++++ b/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js
+@@ -2,13 +2,17 @@
+ 
+ // Caching the Promise (not the resolved value) means concurrent callers share
+ // a single WASM initialization — no duplicate loading.
++let readyParser = null;
+ let parserPromise = null;
+ 
+ // SINGLE_FILE=1 inlines the WASM binary as base64 inside md4c.js, so no
+ // network fetch is needed — only a one-time decode + compile on first call.
+ function initializeParser() {
+   if (!parserPromise) {
+-    parserPromise = import('./wasm/md4c').then(module => module.default()).then(wasmModule => wasmModule.cwrap('parseMarkdown', 'string', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'])).catch(error => {
++    parserPromise = import('./wasm/md4c').then(module => module.default()).then(wasmModule => wasmModule.cwrap('parseMarkdown', 'string', ['string', 'number', 'number', 'number', 'number', 'number', 'number', 'number', 'number'])).then(parse => {
++      readyParser = parse;
++      return parse;
++    }).catch(error => {
+       parserPromise = null;
+       throw error;
+     });
+@@ -18,7 +22,7 @@ function initializeParser() {
+ function isASTNode(value) {
+   return typeof value === 'object' && value !== null && 'type' in value && typeof value.type === 'string';
+ }
+-export async function parseMarkdown(markdown, {
++export function parseMarkdownSync(markdown, {
+   underline = false,
+   latexMath = true,
+   superscript = false,
+@@ -28,11 +32,16 @@ export async function parseMarkdown(markdown, {
+   preserveBlankLines = false,
+   admonitions = true
+ } = {}) {
+-  const parse = await initializeParser();
++  const parse = readyParser;
++  if (!parse) return null;
+   const result = JSON.parse(parse(markdown, underline ? 1 : 0, latexMath ? 1 : 0, superscript ? 1 : 0, subscript ? 1 : 0, highlight ? 1 : 0, hardSoftBreaks ? 1 : 0, preserveBlankLines ? 1 : 0, admonitions ? 1 : 0));
+   if (!isASTNode(result)) {
+     throw new Error('WASM parser returned invalid AST');
+   }
+   return result;
+ }
++export async function parseMarkdown(markdown, flags = {}) {
++  await initializeParser();
++  return parseMarkdownSync(markdown, flags);
++}
+ //# sourceMappingURL=parseMarkdown.js.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js.map b/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js.map
+index 250fa18..ea79a10 100644
+--- a/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js.map
++++ b/node_modules/react-native-enriched-markdown/lib/module/web/parseMarkdown.js.map
+@@ -1 +1 @@
+-{"version":3,"names":["parserPromise","initializeParser","then","module","default","wasmModule","cwrap","catch","error","isASTNode","value","type","parseMarkdown","markdown","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","parse","result","JSON","Error"],"sourceRoot":"../../../src","sources":["web/parseMarkdown.ts"],"mappings":";;AAeA;AACA;AACA,IAAIA,aAAsC,GAAG,IAAI;;AAEjD;AACA;AACA,SAASC,gBAAgBA,CAAA,EAAqB;EAC5C,IAAI,CAACD,aAAa,EAAE;IAClBA,aAAa,GAAG,MAAM,CAAC,aAAa,CAAC,CAClCE,IAAI,CAAEC,MAAM,IAAKA,MAAM,CAACC,OAAO,CAAC,CAAC,CAAC,CAClCF,IAAI,CAAEG,UAAU,IACfA,UAAU,CAACC,KAAK,CAAC,eAAe,EAAE,QAAQ,EAAE,CAC1C,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,CACT,CACH,CAAC,CACAC,KAAK,CAAEC,KAAK,IAAK;MAChBR,aAAa,GAAG,IAAI;MACpB,MAAMQ,KAAK;IACb,CAAC,CAAqB;EAC1B;EACA,OAAOR,aAAa;AACtB;AAEA,SAASS,SAASA,CAACC,KAAc,EAAoB;EACnD,OACE,OAAOA,KAAK,KAAK,QAAQ,IACzBA,KAAK,KAAK,IAAI,IACd,MAAM,IAAIA,KAAK,IACf,OAAQA,KAAK,CAAaC,IAAI,KAAK,QAAQ;AAE/C;AAEA,OAAO,eAAeC,aAAaA,CACjCC,QAAgB,EAChB;EACEC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,IAAI;EAChBC,WAAW,GAAG,KAAK;EACnBC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,KAAK;EACjBC,cAAc,GAAG,KAAK;EACtBC,kBAAkB,GAAG,KAAK;EAC1BC,WAAW,GAAG;AACL,CAAC,GAAG,CAAC,CAAC,EACC;EAClB,MAAMC,KAAK,GAAG,MAAMrB,gBAAgB,CAAC,CAAC;EAEtC,MAAMsB,MAAe,GAAGC,IAAI,CAACF,KAAK,CAChCA,KAAK,CACHT,QAAQ,EACRC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,WAAW,GAAG,CAAC,GAAG,CAAC,EACnBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,cAAc,GAAG,CAAC,GAAG,CAAC,EACtBC,kBAAkB,GAAG,CAAC,GAAG,CAAC,EAC1BC,WAAW,GAAG,CAAC,GAAG,CACpB,CACF,CAAC;EAED,IAAI,CAACZ,SAAS,CAACc,MAAM,CAAC,EAAE;IACtB,MAAM,IAAIE,KAAK,CAAC,kCAAkC,CAAC;EACrD;EAEA,OAAOF,MAAM;AACf","ignoreList":[]}
++{"version":3,"names":["readyParser","parserPromise","initializeParser","then","module","default","wasmModule","cwrap","parse","catch","error","isASTNode","value","type","parseMarkdownSync","markdown","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","result","JSON","Error","parseMarkdown","flags"],"sourceRoot":"../../../src","sources":["web/parseMarkdown.ts"],"mappings":";;AAeA;AACA;AACA,IAAIA,WAA2B,GAAG,IAAI;AACtC,IAAIC,aAAsC,GAAG,IAAI;;AAEjD;AACA;AACA,SAASC,gBAAgBA,CAAA,EAAqB;EAC5C,IAAI,CAACD,aAAa,EAAE;IAClBA,aAAa,GAAG,MAAM,CAAC,aAAa,CAAC,CAClCE,IAAI,CAAEC,MAAM,IAAKA,MAAM,CAACC,OAAO,CAAC,CAAC,CAAC,CAClCF,IAAI,CAAEG,UAAU,IACfA,UAAU,CAACC,KAAK,CAAC,eAAe,EAAE,QAAQ,EAAE,CAC1C,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,CACT,CACH,CAAC,CACAJ,IAAI,CAAEK,KAAK,IAAK;MACfR,WAAW,GAAGQ,KAAgB;MAC9B,OAAOA,KAAK;IACd,CAAC,CAAC,CACDC,KAAK,CAAEC,KAAK,IAAK;MAChBT,aAAa,GAAG,IAAI;MACpB,MAAMS,KAAK;IACb,CAAC,CAAqB;EAC1B;EACA,OAAOT,aAAa;AACtB;AAEA,SAASU,SAASA,CAACC,KAAc,EAAoB;EACnD,OACE,OAAOA,KAAK,KAAK,QAAQ,IACzBA,KAAK,KAAK,IAAI,IACd,MAAM,IAAIA,KAAK,IACf,OAAQA,KAAK,CAAaC,IAAI,KAAK,QAAQ;AAE/C;AAEA,OAAO,SAASC,iBAAiBA,CAC/BC,QAAgB,EAChB;EACEC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,IAAI;EAChBC,WAAW,GAAG,KAAK;EACnBC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,KAAK;EACjBC,cAAc,GAAG,KAAK;EACtBC,kBAAkB,GAAG,KAAK;EAC1BC,WAAW,GAAG;AACL,CAAC,GAAG,CAAC,CAAC,EACD;EAChB,MAAMf,KAAK,GAAGR,WAAW;EACzB,IAAI,CAACQ,KAAK,EAAE,OAAO,IAAI;EAEvB,MAAMgB,MAAe,GAAGC,IAAI,CAACjB,KAAK,CAChCA,KAAK,CACHO,QAAQ,EACRC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,WAAW,GAAG,CAAC,GAAG,CAAC,EACnBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,cAAc,GAAG,CAAC,GAAG,CAAC,EACtBC,kBAAkB,GAAG,CAAC,GAAG,CAAC,EAC1BC,WAAW,GAAG,CAAC,GAAG,CACpB,CACF,CAAC;EAED,IAAI,CAACZ,SAAS,CAACa,MAAM,CAAC,EAAE;IACtB,MAAM,IAAIE,KAAK,CAAC,kCAAkC,CAAC;EACrD;EAEA,OAAOF,MAAM;AACf;AAEA,OAAO,eAAeG,aAAaA,CACjCZ,QAAgB,EAChBa,KAAgB,GAAG,CAAC,CAAC,EACH;EAClB,MAAM1B,gBAAgB,CAAC,CAAC;EACxB,OAAOY,iBAAiB,CAACC,QAAQ,EAAEa,KAAK,CAAC;AAC3C","ignoreList":[]}
 diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js b/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js
 index dd70713..ca0385a 100644
 --- a/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js
@@ -1630,13 +1755,34 @@ index 08317a3..d48d3c0 100644
  //# sourceMappingURL=EnrichedMarkdownText.d.ts.map
 \ No newline at end of file
 diff --git a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/EnrichedMarkdownText.d.ts.map b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/EnrichedMarkdownText.d.ts.map
-index 365eb97..9120fbf 100644
+index 365eb97..b357421 100644
 --- a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/EnrichedMarkdownText.d.ts.map
 +++ b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/EnrichedMarkdownText.d.ts.map
 @@ -1 +1 @@
 -{"version":3,"file":"EnrichedMarkdownText.d.ts","sourceRoot":"","sources":["../../../../src/web/EnrichedMarkdownText.tsx"],"names":[],"mappings":"AAOA,OAAO,KAAK,EAAE,yBAAyB,EAAE,MAAM,gCAAgC,CAAC;AAiBhF,eAAO,MAAM,oBAAoB,GAAI,6PAkBlC,yBAAyB,mDAqL3B,CAAC;AAEF,eAAe,oBAAoB,CAAC"}
 \ No newline at end of file
-+{"version":3,"file":"EnrichedMarkdownText.d.ts","sourceRoot":"","sources":["../../../../src/web/EnrichedMarkdownText.tsx"],"names":[],"mappings":"AAOA,OAAO,KAAK,EAAE,yBAAyB,EAAE,MAAM,gCAAgC,CAAC;AAiBhF,eAAO,MAAM,oBAAoB,GAAI,wQAmBlC,yBAAyB,4CAwL3B,CAAC;AAEF,eAAe,oBAAoB,CAAC"}
++{"version":3,"file":"EnrichedMarkdownText.d.ts","sourceRoot":"","sources":["../../../../src/web/EnrichedMarkdownText.tsx"],"names":[],"mappings":"AAOA,OAAO,KAAK,EAAE,yBAAyB,EAAE,MAAM,gCAAgC,CAAC;AAiBhF,eAAO,MAAM,oBAAoB,GAAI,wQAmBlC,yBAAyB,4CAyO3B,CAAC;AAEF,eAAe,oBAAoB,CAAC"}
+\ No newline at end of file
+diff --git a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts
+index 890724b..ff89213 100644
+--- a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts
++++ b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts
+@@ -1,4 +1,5 @@
+ import type { ASTNode } from './types';
+ import type { Md4cFlags } from '../types/MarkdownStyle';
+-export declare function parseMarkdown(markdown: string, { underline, latexMath, superscript, subscript, highlight, hardSoftBreaks, preserveBlankLines, admonitions, }?: Md4cFlags): Promise<ASTNode>;
++export declare function parseMarkdownSync(markdown: string, { underline, latexMath, superscript, subscript, highlight, hardSoftBreaks, preserveBlankLines, admonitions, }?: Md4cFlags): ASTNode | null;
++export declare function parseMarkdown(markdown: string, flags?: Md4cFlags): Promise<ASTNode>;
+ //# sourceMappingURL=parseMarkdown.d.ts.map
+\ No newline at end of file
+diff --git a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts.map b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts.map
+index 877d681..ff2beec 100644
+--- a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts.map
++++ b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/parseMarkdown.d.ts.map
+@@ -1 +1 @@
+-{"version":3,"file":"parseMarkdown.d.ts","sourceRoot":"","sources":["../../../../src/web/parseMarkdown.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,SAAS,CAAC;AACvC,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,wBAAwB,CAAC;AAsDxD,wBAAsB,aAAa,CACjC,QAAQ,EAAE,MAAM,EAChB,EACE,SAAiB,EACjB,SAAgB,EAChB,WAAmB,EACnB,SAAiB,EACjB,SAAiB,EACjB,cAAsB,EACtB,kBAA0B,EAC1B,WAAkB,GACnB,GAAE,SAAc,GAChB,OAAO,CAAC,OAAO,CAAC,CAsBlB"}
+\ No newline at end of file
++{"version":3,"file":"parseMarkdown.d.ts","sourceRoot":"","sources":["../../../../src/web/parseMarkdown.ts"],"names":[],"mappings":"AAAA,OAAO,KAAK,EAAE,OAAO,EAAE,MAAM,SAAS,CAAC;AACvC,OAAO,KAAK,EAAE,SAAS,EAAE,MAAM,wBAAwB,CAAC;AA2DxD,wBAAgB,iBAAiB,CAC/B,QAAQ,EAAE,MAAM,EAChB,EACE,SAAiB,EACjB,SAAgB,EAChB,WAAmB,EACnB,SAAiB,EACjB,SAAiB,EACjB,cAAsB,EACtB,kBAA0B,EAC1B,WAAkB,GACnB,GAAE,SAAc,GAChB,OAAO,GAAG,IAAI,CAuBhB;AAED,wBAAsB,aAAa,CACjC,QAAQ,EAAE,MAAM,EAChB,KAAK,GAAE,SAAc,GACpB,OAAO,CAAC,OAAO,CAAC,CAGlB"}
 \ No newline at end of file
 diff --git a/node_modules/react-native-enriched-markdown/lib/typescript/src/web/renderers/BlockRenderers.d.ts.map b/node_modules/react-native-enriched-markdown/lib/typescript/src/web/renderers/BlockRenderers.d.ts.map
 index 2a61d73..b304c4e 100644
@@ -1806,9 +1952,18 @@ index 9df94ed..c726533 100644
  
  export interface LinkLongPressEvent {
 diff --git a/node_modules/react-native-enriched-markdown/src/web/EnrichedMarkdownText.tsx b/node_modules/react-native-enriched-markdown/src/web/EnrichedMarkdownText.tsx
-index 08dc7df..0bab2bb 100644
+index 08dc7df..11fbd16 100644
 --- a/node_modules/react-native-enriched-markdown/src/web/EnrichedMarkdownText.tsx
 +++ b/node_modules/react-native-enriched-markdown/src/web/EnrichedMarkdownText.tsx
+@@ -12,7 +12,7 @@ import {
+   parseErrorFallbackStyle,
+   buildStyles,
+ } from './styles';
+-import { parseMarkdown } from './parseMarkdown';
++import { parseMarkdown, parseMarkdownSync } from './parseMarkdown';
+ import { recognizeTextLinks } from './recognizeTextLinks';
+ import { RenderNode } from './renderers';
+ import type { ASTNode, RendererCallbacks, RenderCapabilities } from './types';
 @@ -27,6 +27,7 @@ export const EnrichedMarkdownText = ({
    markdownStyle = {},
    md4cFlags = {},
@@ -1829,7 +1984,61 @@ index 08dc7df..0bab2bb 100644
    const [katex, setKatex] = useState<KaTeXInstance | null>(null);
    const [parseError, setParseError] = useState<boolean>(false);
  
-@@ -92,13 +96,14 @@ export const EnrichedMarkdownText = ({
+@@ -67,7 +71,53 @@ export const EnrichedMarkdownText = ({
+   const textLinkKey = linkRecognition?.text?.toString() ?? null;
+   const inlineCodeLinkKey = linkRecognition?.inlineCode?.toString() ?? null;
+ 
++  // Once WASM is ready, new/virtualized rows must have their text on the first
++  // commit. An effect-only parse briefly measures an empty row and moves readers.
++  const immediate = useMemo(() => {
++    try {
++      const result = parseMarkdownSync(markdown, {
++        underline,
++        latexMath,
++        superscript,
++        subscript,
++        highlight,
++        hardSoftBreaks,
++        preserveBlankLines,
++        admonitions,
++      });
++      if (!result) return null;
++      indexTaskItems(result);
++      markInlineImages(result);
++      return {
++        markdown,
++        ast: recognizeTextLinks(
++          result,
++          linkRecognitionRef.current?.text,
++          linkRecognitionRef.current?.inlineCode
++        ),
++      };
++    } catch {
++      return { markdown, ast: null };
++    }
++    // Regex keys track ref changes; parsed wakes this memo after WASM initialization.
++    // eslint-disable-next-line react-hooks/exhaustive-deps
++  }, [
++    markdown,
++    underline,
++    latexMath,
++    superscript,
++    subscript,
++    highlight,
++    hardSoftBreaks,
++    preserveBlankLines,
++    admonitions,
++    textLinkKey,
++    inlineCodeLinkKey,
++    parsed,
++  ]);
++
+   useEffect(() => {
++    if (immediate && (!latexMath || katex)) return;
+     let cancelled = false;
+ 
+     const katexPromise = latexMath ? loadKaTeX() : Promise.resolve(null);
+@@ -92,13 +142,14 @@ export const EnrichedMarkdownText = ({
  
            setParseError(false);
            setKatex(katexInstance);
@@ -1848,7 +2057,7 @@ index 08dc7df..0bab2bb 100644
          }
        })
        .catch((error) => {
-@@ -108,7 +113,7 @@ export const EnrichedMarkdownText = ({
+@@ -108,7 +159,7 @@ export const EnrichedMarkdownText = ({
            }
  
            setParseError(true);
@@ -1857,7 +2066,16 @@ index 08dc7df..0bab2bb 100644
            setKatex(null);
          }
        });
-@@ -148,8 +153,8 @@ export const EnrichedMarkdownText = ({
+@@ -128,6 +179,8 @@ export const EnrichedMarkdownText = ({
+     admonitions,
+     textLinkKey,
+     inlineCodeLinkKey,
++    immediate,
++    katex,
+   ]);
+ 
+   const callbacks = useMemo<RendererCallbacks>(
+@@ -148,8 +201,8 @@ export const EnrichedMarkdownText = ({
    );
  
    const capabilities = useMemo<RenderCapabilities>(
@@ -1868,22 +2086,88 @@ index 08dc7df..0bab2bb 100644
    );
  
    const lastChildStyle = useMemo(
-@@ -196,13 +201,12 @@ export const EnrichedMarkdownText = ({
+@@ -182,7 +235,8 @@ export const EnrichedMarkdownText = ({
+ 
+   const domProps = filterNativeOnlyProps(rest);
+ 
+-  if (parseError) {
++  const visibleParsed = immediate ?? parsed;
++  if (immediate ? immediate.ast === null : parseError) {
+     return (
+       <div
+         className={ENRM_TEXT_CLASS}
+@@ -196,13 +250,12 @@ export const EnrichedMarkdownText = ({
      );
    }
  
 -  if (!ast) return null;
 -
 -  const children = ast.children ?? [];
-+  const children = parsed?.ast.children ?? [];
++  const children = visibleParsed?.ast?.children ?? [];
    const lastIdx = children.length - 1;
  
    return (
      <div
-+      aria-busy={parsed?.markdown !== markdown}
++      aria-busy={visibleParsed?.markdown !== markdown}
        className={ENRM_TEXT_CLASS}
        style={wrapperStyle}
        dir={dir}
+diff --git a/node_modules/react-native-enriched-markdown/src/web/parseMarkdown.ts b/node_modules/react-native-enriched-markdown/src/web/parseMarkdown.ts
+index b94c8d2..73477df 100644
+--- a/node_modules/react-native-enriched-markdown/src/web/parseMarkdown.ts
++++ b/node_modules/react-native-enriched-markdown/src/web/parseMarkdown.ts
+@@ -15,6 +15,7 @@ type ParseFn = (
+ 
+ // Caching the Promise (not the resolved value) means concurrent callers share
+ // a single WASM initialization — no duplicate loading.
++let readyParser: ParseFn | null = null;
+ let parserPromise: Promise<ParseFn> | null = null;
+ 
+ // SINGLE_FILE=1 inlines the WASM binary as base64 inside md4c.js, so no
+@@ -36,6 +37,10 @@ function initializeParser(): Promise<ParseFn> {
+           'number',
+         ])
+       )
++      .then((parse) => {
++        readyParser = parse as ParseFn;
++        return parse;
++      })
+       .catch((error) => {
+         parserPromise = null;
+         throw error;
+@@ -53,7 +58,7 @@ function isASTNode(value: unknown): value is ASTNode {
+   );
+ }
+ 
+-export async function parseMarkdown(
++export function parseMarkdownSync(
+   markdown: string,
+   {
+     underline = false,
+@@ -65,8 +70,9 @@ export async function parseMarkdown(
+     preserveBlankLines = false,
+     admonitions = true,
+   }: Md4cFlags = {}
+-): Promise<ASTNode> {
+-  const parse = await initializeParser();
++): ASTNode | null {
++  const parse = readyParser;
++  if (!parse) return null;
+ 
+   const result: unknown = JSON.parse(
+     parse(
+@@ -88,3 +94,11 @@ export async function parseMarkdown(
+ 
+   return result;
+ }
++
++export async function parseMarkdown(
++  markdown: string,
++  flags: Md4cFlags = {}
++): Promise<ASTNode> {
++  await initializeParser();
++  return parseMarkdownSync(markdown, flags)!;
++}
 diff --git a/node_modules/react-native-enriched-markdown/src/web/renderers/InlineRenderers.tsx b/node_modules/react-native-enriched-markdown/src/web/renderers/InlineRenderers.tsx
 index 091eb19..15a1642 100644
 --- a/node_modules/react-native-enriched-markdown/src/web/renderers/InlineRenderers.tsx

@@ -38,7 +38,7 @@ export interface MarkdownImage {
 }
 
 /** Preserve source spelling; adapt workspace images, spoiler delimiters, and entity text. */
-export function prepareMarkdownSource(source: string) {
+export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
   const images: MarkdownImage[] = [];
   let tree: Root | undefined;
   const getTree = () =>
@@ -47,7 +47,12 @@ export function prepareMarkdownSource(source: string) {
       mdastExtensions: [gfmTableFromMarkdown()],
     }));
   const edits: { start: number; end: number; text: string }[] = [];
-  if (!source.includes("![") && !source.includes("||") && !source.includes("&")) {
+  if (
+    !source.includes("![") &&
+    !source.includes("||") &&
+    !source.includes("&") &&
+    !(workspaceRoot && source.includes("]("))
+  ) {
     return { images, ...linkMetadata(), render: () => source };
   }
 
@@ -61,6 +66,15 @@ export function prepareMarkdownSource(source: string) {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
     if (start !== undefined && end !== undefined) {
+      if (
+        node.type === "link" &&
+        !node.title &&
+        workspaceRoot &&
+        node.url.startsWith(`${workspaceRoot}/`)
+      ) {
+        const title = node.url.slice(workspaceRoot.length + 1);
+        edits.push({ start: end - 1, end: end - 1, text: ` ${JSON.stringify(title)}` });
+      }
       if (node.type === "tableRow") {
         // MD4C's always-enabled spoiler extension otherwise consumes adjacent cell
         // delimiters. Spaces keep empty GFM cells empty without producing spoilers.

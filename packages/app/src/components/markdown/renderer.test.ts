@@ -391,3 +391,18 @@ it("keeps the document's first reference definition across every native Mermaid 
   expect(segments[2].source.endsWith(after)).toBe(true);
   expect(segments[1]).toEqual({ kind: "mermaid", id: "1", source: "graph TD\nA-->B" });
 });
+
+it("reserves pending image geometry until decode succeeds and collapses only confirmed failures", () => {
+  const source = "![Local](shot.png)\n\n![Remote](https://example.com/image.png)";
+  const prepared = prepareMarkdownSource(source);
+  const pending = prepared.render(
+    new Map(),
+    new Set(),
+    new Set(prepared.images.map((image) => image.source)),
+  );
+  expect(pending.match(/!\[/g)).toHaveLength(2);
+  expect(pending).toContain("data:image/gif;base64,");
+  expect(prepared.render(new Map(), new Set(prepared.images.map((image) => image.source)))).toBe(
+    "Local\n\nRemote",
+  );
+});

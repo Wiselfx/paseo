@@ -32,6 +32,10 @@ export function markdownLinkSource(
   return { href: url, text: url };
 }
 
+// A decoded transparent pixel reserves the library's normal block/inline image box.
+export const PENDING_MARKDOWN_IMAGE =
+  "data:image/gif;base64,R0lGODlhAQABAIAAAAAAAP///yH5BAEAAAAALAAAAAABAAEAAAIBRAA7";
+
 export interface MarkdownImage {
   source: string;
   alt: string;
@@ -142,12 +146,15 @@ export function prepareMarkdownSource(
     render(
       urls: ReadonlyMap<string, string> = new Map(),
       unavailableImages: ReadonlySet<string> = new Set(),
+      pendingImages: ReadonlySet<string> = new Set(),
     ) {
       const replacements = [...edits];
       for (const image of images) {
         const unavailable = unavailableImages.has(image.source);
-        if (!unavailable && /^(https?:|data:|blob:)/i.test(image.source)) continue;
-        const url = unavailable ? undefined : urls.get(image.source);
+        const pending = pendingImages.has(image.source);
+        if (!unavailable && !pending && /^(https?:|data:|blob:)/i.test(image.source)) continue;
+        let url = unavailable ? undefined : urls.get(image.source);
+        if (pending && !unavailable) url = PENDING_MARKDOWN_IMAGE;
         replacements.push({
           start: image.start,
           end: image.end,

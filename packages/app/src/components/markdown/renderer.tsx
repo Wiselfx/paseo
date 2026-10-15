@@ -12,6 +12,7 @@ import { isWeb } from "@/constants/platform";
 import { MarkdownRendererFrame } from "./frame";
 import { WEB_RENDERERS } from "./renderers";
 import { createMarkdownStyles } from "./styles";
+import { PENDING_MARKDOWN_IMAGE } from "./source";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
 import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fence/mermaid";
@@ -57,9 +58,9 @@ export const MarkdownRenderer = memo(function MarkdownRenderer({
     if (onLinkPress && !actions.canResolveFile(source)) onLinkPress(url);
     else actions.open(source, "preferred");
   });
-  const pressImage = useStableEvent(({ url }: { url: string }) =>
-    setImage({ type: "uri", uri: url }),
-  );
+  const pressImage = useStableEvent(({ url }: { url: string }) => {
+    if (url !== PENDING_MARKDOWN_IMAGE) setImage({ type: "uri", uri: url });
+  });
   const closeImage = useStableEvent(() => setImage(null));
   const segments = useMemo(
     () =>

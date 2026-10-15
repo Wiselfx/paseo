@@ -56,6 +56,8 @@ test("chat and file preview share the library renderer and resolve file links", 
       "# Nested file\n\nUnicode suffix lookup succeeded.",
     );
     await session.client.waitForFinish(session.agentId, 30_000);
+    // A cold render must work even when a separate parser chunk cannot be fetched.
+    await page.route("**/wasm/md4c.bundle?**", (route) => route.abort("failed"));
     await openAgentRoute(page, session);
     const message = page.getByTestId("assistant-message");
     await expect(message).toHaveCount(1);
@@ -66,6 +68,7 @@ test("chat and file preview share the library renderer and resolve file links", 
     await expect(message.getByRole("cell").nth(0)).toHaveText("Answer");
     await expect(message.getByRole("cell").nth(1)).toHaveText("");
     await expect(message.getByRole("cell").nth(2)).toHaveText("42");
+    await expect(message.locator("p div")).toHaveCount(0);
     await message.getByRole("link", { name: "README.md" }).click();
     const preview = page.getByTestId("markdown-preview-frame");
     await expect(preview.locator(".enrm-text")).toContainText("Second paragraph.");

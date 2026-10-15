@@ -112,12 +112,26 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
     })),
   );
   const unavailableImages = new Set(
-    sources.filter(
-      (_source, index) => displayUrls[index] !== undefined && decoded[index]?.data !== true,
+    sources.filter((_source, index) =>
+      isWeb
+        ? (!acquisitions[index] && displayUrls[index] === undefined) ||
+          results[index]?.isError ||
+          decoded[index]?.isError
+        : displayUrls[index] !== undefined && decoded[index]?.data !== true,
     ),
   );
   return {
-    markdown: prepared.render(resolved, unavailableImages),
+    markdown: prepared.render(
+      resolved,
+      unavailableImages,
+      new Set(
+        isWeb
+          ? sources.filter(
+              (source, index) => !unavailableImages.has(source) && decoded[index]?.data !== true,
+            )
+          : [],
+      ),
+    ),
     linkRecognition: prepared.linkRecognition,
     linkSource: prepared.linkSource,
     imageSources: Object.fromEntries([...resolved].map(([source, url]) => [url, source])),

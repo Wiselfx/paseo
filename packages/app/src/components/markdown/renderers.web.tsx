@@ -1,4 +1,5 @@
-import { Text, View, type ViewStyle } from "react-native";
+import { Text } from "react-native";
+import { forwardRef, type ComponentProps } from "react";
 import type {
   CodeBlockRendererProps,
   LinkRendererProps,
@@ -32,7 +33,7 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
   return (
     <Tooltip delayDuration={400}>
       <TooltipTrigger asChild onHoverIn={onHoverIn}>
-        <View style={INLINE_LINK}>{anchor}</View>
+        <InlineLinkTrigger>{anchor}</InlineLinkTrigger>
       </TooltipTrigger>
       {tooltipPath ? (
         <TooltipContent side="top" align="start" maxWidth={520}>
@@ -44,7 +45,23 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
     </Tooltip>
   );
 }
-const INLINE_LINK: ViewStyle = { display: "inline-flex" as ViewStyle["display"] };
+// TooltipTrigger also supplies native Pressable handlers; forward only DOM events.
+// A View renders a div, which is invalid inside the library's prose paragraphs.
+const InlineLinkTrigger = forwardRef<HTMLSpanElement, ComponentProps<"span">>(
+  function InlineLinkTrigger({ children, onMouseEnter, onMouseLeave, onFocus, onBlur }, ref) {
+    return (
+      <span
+        ref={ref}
+        onMouseEnter={onMouseEnter}
+        onMouseLeave={onMouseLeave}
+        onFocus={onFocus}
+        onBlur={onBlur}
+      >
+        {children}
+      </span>
+    );
+  },
+);
 const styles = StyleSheet.create((theme) => ({
   tooltipPath: {
     color: theme.colors.foreground,

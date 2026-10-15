@@ -1,3 +1,5 @@
+import type { Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
 import { expect, test as base } from "../support/fixtures";
 import {
   appendSettledTimelineTurns,
@@ -323,3 +325,45 @@ test("a later reply reads new bytes at the same workspace image path", async ({
   await expectAssistantImageRendered(page, second);
   await expectAssistantImageRendered(page, first);
 });
+
+test("pending assistant images reserve their decoded height", async ({
+  imageWorkspace: workspace,
+  page,
+}) => {
+  const image = await createSmallAssistantPng(workspace, {
+    alt: "Delayed remote image",
+    fileName: "delayed.png",
+  });
+  const agent = await createSettledMockAgent(workspace, "Pending image geometry");
+  const url = "https://markdown-image.test/delayed.png";
+  const release = await holdRemoteImage(
+    page,
+    url,
+    await readFile(path.join(workspace.repoPath, image.relativePath)),
+  );
+  try {
+    await emitSettledAssistantImage(workspace.client, agent, image, url);
+    await openAssistantImageTimeline(page, agent);
+    const rendered = page.getByRole("button", { name: image.alt }).first();
+    await expect(rendered).toHaveAttribute("src", /^data:image\/gif/);
+    const pendingBox = await rendered.boundingBox();
+    expect(pendingBox?.height).toBe(320);
+    release();
+    await expect(rendered).toHaveAttribute("src", url);
+    expect((await rendered.boundingBox())?.height).toBe(pendingBox?.height);
+  } finally {
+    release();
+  }
+});
+
+async function holdRemoteImage(page: Page, url: string, bytes: Buffer): Promise<() => void> {
+  let release!: () => void;
+  const ready = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  await page.route(url, async (route) => {
+    await ready;
+    await route.fulfill({ contentType: "image/png", body: bytes });
+  });
+  return release;
+}

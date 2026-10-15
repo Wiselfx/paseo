@@ -36,7 +36,7 @@ test("chat and file preview share the library renderer and resolve file links", 
 }, testInfo) => {
   const { writeFile, mkdir } = await import("node:fs/promises");
   const source =
-    "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst answer = 42;\n```\n\n> A quote\n\n| Key || Value |\n| --- | --- | --- |\n| Answer || 42 |\n\nOpen `README.md` or `src/说明.md:2-3`.\n\n[Space file](my%20file.ts) and `my%20file.ts`.";
+    "First paragraph.\n\nSecond paragraph.\n\n```ts\nconst answer = 42;\n```\n\n> A quote\n\n| Key || Value |\n| --- | --- | --- |\n| Answer || 42 |\n\nOpen `README.md` or `src/说明.md:2-3`, or packages/app/src/说明.md:2-3.\n\n[Space file](my%20file.ts) and `my%20file.ts`.";
   const session = await seedMockAgentWorkspace({
     repoPrefix: "shared-markdown-",
     title: "Shared Markdown",
@@ -73,10 +73,13 @@ test("chat and file preview share the library renderer and resolve file links", 
     await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
     await expectFileLinkTooltip(
       page,
-      message.getByRole("link", { name: "src/说明.md:2-3" }),
+      message.getByRole("link", { name: "src/说明.md:2-3", exact: true }),
       "packages/app/src/说明.md:2-3",
     );
-    await message.getByRole("link", { name: "src/说明.md:2-3" }).click();
+    await message.getByRole("link", { name: "src/说明.md:2-3", exact: true }).click();
+    await expect(page.getByText("Unicode suffix lookup succeeded.", { exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
+    await message.getByRole("link", { name: "packages/app/src/说明.md:2-3", exact: true }).click();
     await expect(page.getByText("Unicode suffix lookup succeeded.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
     await message.getByRole("link", { name: "Space file", exact: true }).click();

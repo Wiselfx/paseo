@@ -10,6 +10,14 @@ import {
 const noFiles = () => false;
 describe("source-preserving prose", () => {
   it.each([
+    ["http://[::1]:3000", "<http://[::1]:3000>"],
+    ["[http://[::1]:3000](http://[::1]:3000)", "[http\\://[::1]:3000](<http://[::1]:3000>)"],
+    ["http://[::1]:3000/path?x=[1]", "<http://[::1]:3000/path?x=[1]>"],
+    ["###### &#97;", "###### A"],
+  ])("preserves IPv6 links and decoded heading case: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+  });
+  it.each([
     [
       "https://example.com/?tags[]=a",
       "[https://example.com/?tags[]=a](<https://example.com/?tags%5B%5D=a>)",

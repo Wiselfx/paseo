@@ -132,6 +132,10 @@ function preserveLinkScope(context: InlinePreparation, span: InlineSpan, raw: st
   const end = labelEnd(context, raw, 0);
   protect(context.protectedRanges, { start: span.start + end, end: span.end });
   protect(context.referenceRanges, span);
+  // MD4C's permissive autolink scan otherwise consumes the bracketed host
+  // inside a link label before the explicit link is recognized.
+  const ipv6Label = /^https?:\/\/\[/.exec(raw.slice(1, end));
+  if (ipv6Label) insert(context, span.start + 1 + ipv6Label[0].indexOf(":"), "\\");
   if (raw[end + 1] === "(") {
     decodeDestination(context, span, raw, end, link.attrGet("href")!);
     return;
@@ -158,7 +162,8 @@ function decodeDestination(
   const destination = context.parser.helpers.parseLinkDestination(raw, start, raw.length);
   if (!destination.ok) return;
   const original = raw.slice(start, destination.pos);
-  if (context.parser.utils.unescapeAll(original) === original) return;
+  if (context.parser.utils.unescapeAll(original) === original && !/[[\]]/.test(original)) return;
+  href = href.replace(/^(https?:\/\/)%5B([^/]+)%5D/i, "$1[$2]");
   context.edits.push({
     start: span.start + start,
     end: span.start + destination.pos,
@@ -188,7 +193,8 @@ function entityWhitespace(
 }
 function decodeEntity(context: InlinePreparation, span: InlineSpan, raw: string) {
   // MD4C 1.1.1 drops entity nodes. Decode once without introducing Markdown syntax.
-  const decoded = context.parser.utils.unescapeAll(raw);
+  const value = context.parser.utils.unescapeAll(raw);
+  const decoded = context.uppercase ? value.toUpperCase() : value;
   let text =
     entityWhitespace(context, span, decoded) ??
     decoded.replace(/([\\`*{}[\]()#+.!_<>|~-])/g, "\\$1");
@@ -281,7 +287,7 @@ function prepareLinkifiedLinks(context: InlinePreparation) {
     context.token.children?.filter(
       (child) => child.type === "link_open" && child.markup === "linkify",
     ) ?? [];
-  if (!links.length) return;
+  if (!links.length && !context.source.includes("://[")) return;
   const destinations = new Map(links.map((link) => [link.attrGet("href"), link]));
   const { decoded, positions } = linkifySource(context);
   let cursor = 0;
@@ -295,6 +301,7 @@ function prepareLinkifiedLinks(context: InlinePreparation) {
       offset = decoded.indexOf(text, offset + 1);
     if (offset < 0) continue;
     cursor = offset + text.length;
+    prepareIpv6Links(context, text, offset, positions);
     for (const match of context.parser.linkify.match(text) ?? []) {
       const link = destinations.get(context.parser.normalizeLink(match.url));
       if (!link) continue;
@@ -306,6 +313,28 @@ function prepareLinkifiedLinks(context: InlinePreparation) {
         match.text,
       );
     }
+  }
+}
+/** linkify-it omits bracketed hosts; bind those URLs in plain parser text explicitly. */
+function prepareIpv6Links(
+  context: InlinePreparation,
+  text: string,
+  offset: number,
+  positions: number[],
+) {
+  for (const match of text.matchAll(/https?:\/\/\[[0-9a-f:.]+\](?::\d+)?(?:[/?#][^\s<>]*)?/gi)) {
+    try {
+      if (!new URL(match[0]).hostname.startsWith("[")) continue;
+    } catch {
+      continue;
+    }
+    const start = positions[offset + match.index]!;
+    const end = positions[offset + match.index + match[0].length]!;
+    if (contains(context.referenceRanges, start, end)) continue;
+    protect(context.referenceRanges, { start, end });
+    protect(context.protectedRanges, { start, end });
+    insert(context, start, "<");
+    insert(context, end, ">");
   }
 }
 function wrapLinkifiedMatch(

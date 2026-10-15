@@ -1,7 +1,5 @@
 import { QueryClient } from "@tanstack/react-query";
 import { decodeMarkdownImage } from "./image-decoding";
-import { createElement } from "react";
-import { MarkdownRendererFrame } from "./frame";
 import { describe, expect, it } from "vitest";
 import { darkTheme, lightTheme } from "@/styles/theme";
 import { createMarkdownStyles } from "./styles";
@@ -251,21 +249,6 @@ describe("GitHub comment HTML normalization", () => {
 it("preserves backslashes and decodes entities inside HTML code", () => {
   const source = String.raw`<code>\*literal\* &lt;img&gt;</code>`;
   expect(prepareMarkdownSource(source).render()).toBe("`" + String.raw`\*literal\* <img>` + "`");
-});
-
-it("keeps the renderer root and child identity as workspace images resolve", () => {
-  const child = createElement("span", null, "Selected prose and open diagram");
-  const pending = MarkdownRendererFrame({ imageSources: {}, children: child });
-  const resolved = MarkdownRendererFrame({
-    imageSources: { "blob:resolved": "/repo/image.png" },
-    children: child,
-  });
-  expect(resolved.type).toBe(pending.type);
-  expect(resolved.props.children).toBe(pending.props.children);
-  expect(resolved.props.children).toBe(child);
-  expect(resolved.props.dataSet).toEqual({
-    paseoMarkdownImageSources: JSON.stringify({ "blob:resolved": "/repo/image.png" }),
-  });
 });
 
 it.each([false, true])(

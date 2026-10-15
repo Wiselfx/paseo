@@ -58,6 +58,7 @@ export async function createNearTenMegabyteAssistantPng(
 export async function createSettledMockAgent(
   workspace: SeededWorkspace,
   title: string,
+  markdown?: string,
 ): Promise<ArchiveTabAgent> {
   const agent = await workspace.client.createAgent({
     provider: "mock",
@@ -66,6 +67,7 @@ export async function createSettledMockAgent(
     cwd: workspace.repoPath,
     workspaceId: workspace.workspaceId,
     title,
+    featureValues: markdown === undefined ? undefined : { mockAssistantResponse: markdown },
   });
   await workspace.client.waitForAgentUpsert(
     agent.id,

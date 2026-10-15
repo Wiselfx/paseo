@@ -1,5 +1,12 @@
 import type { Page } from "@playwright/test";
-import { readFile } from "node:fs/promises";
+import { createReadStream } from "node:fs";
+import { createServer } from "node:http";
+import { delayFileReadResponse } from "../support/helpers/file-read-gate";
+import {
+  expectCompletedDiagram,
+  openDiagramFullscreen,
+  expectFullscreenDiagram,
+} from "../support/helpers/diagram";
 import { expect, test as base } from "../support/fixtures";
 import {
   appendSettledTimelineTurns,
@@ -333,37 +340,182 @@ test("pending assistant images reserve their decoded height", async ({
   const image = await createSmallAssistantPng(workspace, {
     alt: "Delayed remote image",
     fileName: "delayed.png",
+    width: 32,
+    height: 24,
   });
   const agent = await createSettledMockAgent(workspace, "Pending image geometry");
-  const url = "https://markdown-image.test/delayed.png";
-  const release = await holdRemoteImage(
-    page,
-    url,
-    await readFile(path.join(workspace.repoPath, image.relativePath)),
-  );
+  const delivery = await serveDelayedImage(path.join(workspace.repoPath, image.relativePath));
+  const { url } = delivery;
   try {
     await emitSettledAssistantImage(workspace.client, agent, image, url);
     await openAssistantImageTimeline(page, agent);
     const rendered = page.getByRole("button", { name: image.alt }).first();
     await expect(rendered).toHaveAttribute("src", /^data:image\/gif/);
+    await delivery.waitUntilRequested();
     const pendingBox = await rendered.boundingBox();
     expect(pendingBox?.height).toBe(320);
-    release();
+    delivery.release();
     await expect(rendered).toHaveAttribute("src", url);
     expect((await rendered.boundingBox())?.height).toBe(pendingBox?.height);
   } finally {
-    release();
+    await delivery.close();
   }
 });
 
-async function holdRemoteImage(page: Page, url: string, bytes: Buffer): Promise<() => void> {
+/** Serve the fixture's real PNG bytes; release controls when the decoder can finish. */
+async function serveDelayedImage(file: string) {
   let release!: () => void;
   const ready = new Promise<void>((resolve) => {
     release = resolve;
   });
-  await page.route(url, async (route) => {
-    await ready;
-    await route.fulfill({ contentType: "image/png", body: bytes });
+  let requested!: () => void;
+  const requestStarted = new Promise<void>((resolve) => {
+    requested = resolve;
   });
-  return release;
+  const server = createServer((_request, response) => {
+    requested();
+    void ready.then(() => {
+      response.writeHead(200, { "Content-Type": "image/png", "Cache-Control": "no-store" });
+      return createReadStream(file).pipe(response);
+    });
+  });
+  await new Promise<void>((resolve) => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address();
+  if (!address || typeof address === "string") throw new Error("Image server did not listen");
+  return {
+    url: `http://127.0.0.1:${address.port}/image.png`,
+    release,
+    waitUntilRequested: () => requestStarted,
+    close: async () => {
+      release();
+      server.closeAllConnections();
+      await new Promise<void>((resolve, reject) => {
+        server.close((error) => {
+          if (error) {
+            reject(error);
+            return;
+          }
+          resolve();
+        });
+      });
+    },
+  };
+}
+
+test("late workspace image completion preserves selected prose", async ({
+  imageWorkspace,
+  page,
+}) => {
+  await withPendingWorkspaceImage(page, imageWorkspace, async (image, release) => {
+    const selected = await selectImageFixtureParagraphs(page);
+    release();
+    await expectAssistantImageRendered(page, image);
+    await expectSelectedParagraphsRetained(page, selected);
+  });
+});
+
+test("late workspace image completion keeps Mermaid fullscreen open", async ({
+  imageWorkspace,
+  page,
+}) => {
+  await withPendingWorkspaceImage(page, imageWorkspace, async (image, release) => {
+    await openDiagramFullscreen(page);
+    await expectFullscreenDiagram(page, ["Start", "Done"]);
+    release();
+    await expectAssistantImageRendered(page, image);
+    await expectFullscreenDiagram(page, ["Start", "Done"]);
+  });
+});
+
+async function withPendingWorkspaceImage(
+  page: Page,
+  workspace: SeededWorkspace,
+  run: (
+    image: Awaited<ReturnType<typeof createSmallAssistantPng>>,
+    release: () => void,
+  ) => Promise<void>,
+) {
+  const image = await createSmallAssistantPng(workspace, {
+    alt: "Late workspace image",
+    fileName: "late.png",
+    width: 32,
+    height: 24,
+  });
+  const source = [
+    "Paragraph one stays selected while the workspace image loads.",
+    "Paragraph two remains in this reply.",
+    "Paragraph three is the selection endpoint.",
+    "```mermaid\nflowchart LR\n Start --> Done\n```",
+    `![${image.alt}](${image.relativePath})`,
+  ].join("\n\n");
+  const agent = await createSettledMockAgent(workspace, "Delayed workspace read", source);
+  await emitSettledAssistantImage(workspace.client, agent, image);
+  const gate = await delayFileReadResponse(page, image.relativePath);
+  let released = false;
+  const release = () => {
+    if (!released) {
+      released = true;
+      gate.release();
+    }
+  };
+  try {
+    await openAssistantImageTimeline(page, agent);
+    await gate.waitUntilHeld();
+    await expectCompletedDiagram(page, ["Start", "Done"]);
+    await run(image, release);
+  } finally {
+    release();
+  }
+}
+
+type SelectionProofWindow = Window & { __lateImageSelection?: { start: Node; end: Node } };
+
+async function selectImageFixtureParagraphs(page: Page): Promise<string> {
+  const message = page.getByTestId("assistant-message");
+  await message
+    .getByText("Paragraph one stays selected while the workspace image loads.", { exact: true })
+    .scrollIntoViewIfNeeded();
+  const bounds = await message.evaluate((root) => {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT);
+    let start: Text | undefined;
+    let end: Text | undefined;
+    while (walker.nextNode()) {
+      const text = walker.currentNode as Text;
+      if (text.data.startsWith("Paragraph one stays")) start = text;
+      if (text.data.startsWith("Paragraph three is")) end = text;
+    }
+    if (!start || !end) throw new Error("Selection paragraphs are missing");
+    (window as SelectionProofWindow).__lateImageSelection = { start, end };
+    const first = document.createRange();
+    first.selectNodeContents(start);
+    const last = document.createRange();
+    last.selectNodeContents(end);
+    return {
+      first: first.getBoundingClientRect().toJSON(),
+      last: last.getBoundingClientRect().toJSON(),
+    };
+  });
+  await page.mouse.move(bounds.first.x + 1, bounds.first.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(bounds.last.right - 1, bounds.last.bottom - 2, { steps: 20 });
+  await page.mouse.up();
+  const selected = await page.evaluate(() => window.getSelection()?.toString() ?? "");
+  expect(selected).toContain("Paragraph one");
+  expect(selected).toContain("Paragraph three");
+  return selected;
+}
+
+async function expectSelectedParagraphsRetained(page: Page, selected: string) {
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const proof = (window as SelectionProofWindow).__lateImageSelection;
+        return {
+          startConnected: proof?.start.isConnected,
+          endConnected: proof?.end.isConnected,
+          text: window.getSelection()?.toString(),
+        };
+      }),
+    )
+    .toEqual({ startConnected: true, endConnected: true, text: selected });
 }

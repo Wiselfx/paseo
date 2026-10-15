@@ -26,6 +26,10 @@ import {
 import { expectAgentReadyToInterrupt } from "../support/helpers/agent-stream";
 import { seedWorkspace, type SeededWorkspace } from "../support/helpers/seed-client";
 import path from "node:path";
+import {
+  rememberTimelineViewport,
+  scrollTimelinePromptIntoView,
+} from "../support/helpers/timeline-pagination";
 
 const test = base.extend<{ imageWorkspace: SeededWorkspace }>({
   imageWorkspace: async ({ page: _page }, provide) => {
@@ -152,123 +156,34 @@ test("reloading a timeline reserves image height without a load-time scroll jump
     fileName: "reload-geometry-image.png",
   });
   const imageAgent = await createSettledMockAgent(workspace, "Reload image geometry");
-  await emitSettledAssistantImage(workspace.client, imageAgent, image);
-  await appendSettledTimelineTurns(workspace.client, imageAgent, 3);
+  const delivery = await serveDelayedImage(path.join(workspace.repoPath, image.relativePath));
+  try {
+    delivery.release();
+    await emitSettledAssistantImage(workspace.client, imageAgent, image, delivery.url);
+    await appendSettledTimelineTurns(workspace.client, imageAgent, 3);
+    await openAssistantImageTimeline(page, imageAgent);
+    await expectAssistantImageRendered(page, image);
 
-  await page.addInitScript(
-    ({ accessibleName }) => {
-      interface ImageGeometryEvent {
-        atMs: number;
-        complete: boolean;
-        height: number;
-        naturalHeight: number;
-        naturalWidth: number;
-        scrollTop: number;
-        width: number;
-      }
-      const state = {
-        accessibleName,
-        events: [] as ImageGeometryEvent[],
-        mutationObserver: null as MutationObserver | null,
-        resizeObserver: null as ResizeObserver | null,
-        target: null as Element | null,
-      };
-      const record = () => {
-        const target = state.target;
-        if (!target) return;
-        const imageElement =
-          target instanceof HTMLImageElement ? target : target.querySelector("img");
-        const scroll = target.closest('[data-testid="agent-chat-scroll"]');
-        const rect = target.getBoundingClientRect();
-        const event: ImageGeometryEvent = {
-          atMs: performance.now(),
-          complete: imageElement?.complete ?? false,
-          height: rect.height,
-          naturalHeight: imageElement?.naturalHeight ?? 0,
-          naturalWidth: imageElement?.naturalWidth ?? 0,
-          scrollTop: scroll instanceof HTMLElement ? scroll.scrollTop : -1,
-          width: rect.width,
-        };
-        const previous = state.events.at(-1);
-        if (
-          !previous ||
-          previous.complete !== event.complete ||
-          previous.height !== event.height ||
-          previous.naturalHeight !== event.naturalHeight ||
-          previous.naturalWidth !== event.naturalWidth ||
-          previous.scrollTop !== event.scrollTop ||
-          previous.width !== event.width
-        ) {
-          state.events.push(event);
-        }
-      };
-      const inspect = () => {
-        const target = Array.from(document.querySelectorAll("img[alt]")).find(
-          (element) => element.getAttribute("alt") === accessibleName,
-        );
-        if (!target || target === state.target) {
-          record();
-          return;
-        }
-        state.target = target;
-        target.addEventListener("load", record, { once: true });
-        state.resizeObserver?.disconnect();
-        state.resizeObserver = new ResizeObserver(record);
-        state.resizeObserver.observe(target);
-        record();
-      };
-      const start = () => {
-        state.mutationObserver = new MutationObserver(inspect);
-        state.mutationObserver.observe(document.documentElement, {
-          attributes: true,
-          attributeFilter: ["src", "style"],
-          childList: true,
-          subtree: true,
-        });
-        inspect();
-      };
-      if (document.readyState === "loading") {
-        document.addEventListener("DOMContentLoaded", start, { once: true });
-      } else {
-        start();
-      }
-      (
-        window as unknown as {
-          __paseoReloadImageGeometry?: typeof state;
-        }
-      ).__paseoReloadImageGeometry = state;
-    },
-    { accessibleName: image.alt },
-  );
+    delivery.holdNextRequest();
+    await page.reload();
+    await delivery.waitUntilRequested();
+    const rendered = page.getByRole("button", { name: image.alt }).first();
+    await expect(rendered).toHaveAttribute("src", /^data:image\/gif/);
+    await scrollTimelinePromptIntoView(
+      page,
+      "image-history-turn-2: emit 1 coalesced agent stream updates",
+    );
+    const beforeLoad = await rememberTimelineViewport(page);
+    const reservedHeight = (await rendered.boundingBox())?.height;
+    expect(reservedHeight).toBe(320);
 
-  await openAssistantImageTimeline(page, imageAgent);
-  await expectAssistantImageRendered(page, image);
-  await page.reload();
-  await expectAssistantImageRendered(page, image);
-
-  const events = await page.evaluate(() => {
-    const state = (
-      window as unknown as {
-        __paseoReloadImageGeometry?: { events: Array<unknown> };
-      }
-    ).__paseoReloadImageGeometry;
-    if (!state) throw new Error("Reload image geometry observer was not installed");
-    return state.events;
-  });
-  const geometryEvents = events as Array<{
-    complete: boolean;
-    height: number;
-    scrollTop: number;
-  }>;
-  const loadedIndex = geometryEvents.findIndex((event) => event.complete && event.height > 0);
-  expect(loadedIndex, JSON.stringify(events)).toBeGreaterThanOrEqual(0);
-  const beforeLoad = geometryEvents[Math.max(0, loadedIndex - 1)]!;
-  const loaded = geometryEvents[loadedIndex]!;
-  expect(
-    new Set(geometryEvents.filter((event) => event.height > 0).map((event) => event.height)).size,
-  ).toBe(1);
-  expect(loaded.height).toBe(beforeLoad.height);
-  expect(loaded.scrollTop).toBe(beforeLoad.scrollTop);
+    delivery.release();
+    await expectAssistantImageRendered(page, image);
+    expect((await rendered.boundingBox())?.height).toBe(reservedHeight);
+    await expect.poll(() => rememberTimelineViewport(page)).toEqual(beforeLoad);
+  } finally {
+    await delivery.close();
+  }
 });
 
 test("a real assistant PNG remains reachable through pagination and remount", async ({
@@ -365,13 +280,18 @@ test("pending assistant images reserve their decoded height", async ({
 /** Serve the fixture's real PNG bytes; release controls when the decoder can finish. */
 async function serveDelayedImage(file: string) {
   let release!: () => void;
-  const ready = new Promise<void>((resolve) => {
-    release = resolve;
-  });
+  let ready: Promise<void>;
   let requested!: () => void;
-  const requestStarted = new Promise<void>((resolve) => {
-    requested = resolve;
-  });
+  let requestStarted: Promise<void>;
+  const holdNextRequest = () => {
+    ready = new Promise<void>((resolve) => {
+      release = resolve;
+    });
+    requestStarted = new Promise<void>((resolve) => {
+      requested = resolve;
+    });
+  };
+  holdNextRequest();
   const server = createServer((_request, response) => {
     requested();
     void ready.then(() => {
@@ -384,7 +304,8 @@ async function serveDelayedImage(file: string) {
   if (!address || typeof address === "string") throw new Error("Image server did not listen");
   return {
     url: `http://127.0.0.1:${address.port}/image.png`,
-    release,
+    release: () => release(),
+    holdNextRequest,
     waitUntilRequested: () => requestStarted,
     close: async () => {
       release();

@@ -21,7 +21,8 @@ Plugins have no WebView primitive (no inline player), can only replace whole tim
 2. `packages/app/src/components/markdown/fence/index.tsx` — one map line registers it. YT fences render as code = this line stale.
 3. `packages/app/src/components/markdown/renderer.tsx` (+ `link-children.ts`) — bare YouTube URLs routed to player. Bare links stay links = regex here.
 4. `packages/app/src/components/ui/context-menu.tsx` — `handleLongPress` opens menu on touch-web (delete the `isWeb` early-return, ~line 157) AND extend `coerceEventPoint` to read `changedTouches[0]` with row-anchor fallback — without this the fix fails silently on touch devices.
-5. `packages/app/src/components/tree-primitives.tsx` — `-webkit-touch-callout: none` + `user-select: none` on `workspaceTreeRowStyles.row`. Safari shows its callout = this style missing.
+5. `packages/app/src/components/tree-primitives.tsx` — `user-select: none` on `workspaceTreeRowStyles.row` (touch-web only, guarded by coarse-pointer check). Safari shows its callout = this style missing.
+6. `packages/app/src/components/markdown/html-ish.ts` (+ `html-ish.test.ts`) — inline `<svg>` blocks rewritten to data-URI images. Scripts dead in image context; unclosed svg and code spans pass through.
 
 ## Failure → culprit
 
@@ -30,7 +31,8 @@ Plugins have no WebView primitive (no inline player), can only replace whole tim
 - Long-press selects only → #4 early-return back, or TouchEvent coercion missing.
 - Safari callout covers menu → #5 styles.
 - Download starts, file broken → `download-store.ts` (upstream).
-- Merge conflict after sync → only possible in files 2–5.
+- Inline svg shows as text → #6 branch (unclosed? oversized? in code span — all intentional fallthroughs).
+- Merge conflict after sync → only possible in files 2–6.
 
 ## Open verifications
 

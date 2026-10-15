@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import {
   prepareProse,
+  createProsePreparer,
   inlineCodeLinkContent,
   proseLinkSource,
   handleProseLinkPress,
@@ -13,7 +14,6 @@ describe("source-preserving prose", () => {
     "# A & B",
     "- A & B",
     "> A & B",
-    "Literal &amp;amp; and &amp;copy;",
     "Escaped \\* and \\|",
     "<https://example.org>",
     "**bold** and *emphasis* and ~~deleted~~",
@@ -31,6 +31,51 @@ describe("source-preserving prose", () => {
     "> Ordinary quote",
   ])("copies unchanged source byte-for-byte: %s", (source) => {
     expect(prepareProse([source], noFiles)).toBe(source);
+  });
+  it("decodes entities outside code", () => {
+    expect(prepareProse(["A &amp; B &#65; &#x41; &copy; `&amp;`"], noFiles)).toBe(
+      "A & B A A © `&amp;`",
+    );
+  });
+  it("decodes entities once, including encoded entity syntax", () => {
+    expect(prepareProse(["Literal &amp;amp; and &amp;copy;"], noFiles)).toBe(
+      "Literal \\&amp; and \\&copy;",
+    );
+  });
+  it.each(["\r", "\r\n"])("normalizes line endings %j", (ending) => {
+    expect(prepareProse([`First${ending}Second ||text||`], noFiles)).toBe(
+      "First\nSecond \\|\\|text\\|\\|",
+    );
+  });
+  it.each([
+    ["See example.com.", "See [example.com](<http://example.com>)."],
+    ["https://example.com/a_(b).", "[https://example.com/a_(b)](<https://example.com/a_(b)>)."],
+    ["https://example.com/a.", "[https://example.com/a](<https://example.com/a>)."],
+  ])("makes linkify destinations explicit: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+  });
+  it("only exempts task markers inside list items", () => {
+    expect(prepareProse(["[x]", "Other\n\n[x]: https://example.com"], noFiles)).toBe(
+      "\\[x]\n\nOther\n\n[x]: https://example.com",
+    );
+    const tasks = "- [x] Task\n- [ ] Pending\n1. [x] Ordered";
+    expect(prepareProse([tasks], noFiles)).toBe(tasks);
+  });
+  it("prepares 30k of inline code in under 10ms warm", () => {
+    const text = "Use `foo` and `bar` here. ".repeat(1300).slice(0, 30000);
+    for (let i = 0; i < 10; i++) prepareProse([text], noFiles);
+    const start = performance.now();
+    for (let i = 0; i < 5; i++) expect(prepareProse([text], noFiles)).toBe(text);
+    expect((performance.now() - start) / 5).toBeLessThan(10);
+  });
+  it("reuses prepared prefixes while completing the visible inline tail", () => {
+    const prepare = createProsePreparer(noFiles);
+    const blocks = ["First &amp; paragraph.", "Use `foo` and **bold** here. ".repeat(30)];
+    const source = blocks.join("\n\n");
+    prepare(blocks, true, source.length);
+    for (let length = 0; length < source.length; length += 7) {
+      expect(prepare(blocks, true, length)).toBe(prepareProse(blocks, noFiles, true, length));
+    }
   });
   it("changes only prose pipes", () => {
     expect(prepareProse(["Keep ||literal|| and `a || b` and [a|b](https://x/a|b)."], noFiles)).toBe(
@@ -55,7 +100,7 @@ describe("source-preserving prose", () => {
         ["###### Small **bold** `lower.ts` [link](https://example.com/lower) &amp;"],
         noFiles,
       ),
-    ).toBe("###### SMALL **BOLD** `lower.ts` [LINK](https://example.com/lower) &amp;");
+    ).toBe("###### SMALL **BOLD** `lower.ts` [LINK](https://example.com/lower) &");
   });
   it.each([
     ["Before **bold", "Before **bold**"],

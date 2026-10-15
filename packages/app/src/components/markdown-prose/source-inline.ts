@@ -5,6 +5,7 @@ export interface InlineSpan {
   start: number;
   end: number;
   tokens: Token[];
+  insideLink: boolean;
 }
 export interface InlineTrace {
   spans: InlineSpan[];
@@ -30,9 +31,14 @@ export function createSourceParser(streaming: boolean) {
     for (const rule of rules) {
       const start = state.pos;
       const count = state.tokens.length;
+      const trace: InlineTrace = state.env[TRACE];
+      const firstNested = trace.spans.length;
       if (rule(state, false)) {
-        const trace: InlineTrace = state.env[TRACE];
-        trace.spans.push({ start, end: state.pos, tokens: state.tokens.slice(count) });
+        const tokens = state.tokens.slice(count);
+        if (tokens.some((token) => token.type === "link_open")) {
+          for (let i = firstNested; i < trace.spans.length; i++) trace.spans[i]!.insideLink = true;
+        }
+        trace.spans.push({ start, end: state.pos, tokens, insideLink: false });
         return true;
       }
     }

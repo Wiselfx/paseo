@@ -34,10 +34,11 @@ So arrival sets a _target_ and the reveal rate is derived from the backlog inste
   display. Native groups adjacent prose into selectable runs; web retains individual blocks.
   Code, tables, images, HTML-like content and blockquotes end a native run. See
   [native text selection](native-text-selection.md) for renderer ownership and library constraints.
-  Completing a reference definition can change an earlier block boundary. Live and history use
-  the same structural parse; unchanged blocks retain their classification and completed rows
-  retain object identity. A source-item cache avoids re-splitting unchanged history. Prose rows
-  retain the original source blocks so native preparation cannot broaden reference scope.
+  Appends reparse the growing last block. A completed reference definition at its start can
+  belong to the preceding block, so that case reparses the full message. Completed rows retain
+  object identity and unchanged history stays cached. Prose rows retain their original source
+  blocks so native preparation cannot broaden reference scope. Paced reveal reuses prepared
+  paragraph prefixes and prepares only the remaining open inline tail.
 - **A row id is never a message id.** Block rows are `${messageId}:block:${n}`; native prose runs use `${messageId}:run:${n}` with
   `blockGroupId = messageId`, including single-row messages. Inline images split a source block into offset-keyed parts, so nothing can come to rely on the two
   being equal. `getStreamItemMessageId` in `presentation.ts` is the only way to go from a row to its

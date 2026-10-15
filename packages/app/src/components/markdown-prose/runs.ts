@@ -3,7 +3,7 @@ import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser
 import type Token from "markdown-it/lib/token.mjs";
 import type { AssistantMessageItem } from "@/types/stream";
 
-const parser = createAssistantMarkdownParser();
+const parser = createAssistantMarkdownParser().set({ html: true });
 const partsByBlock = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>();
 
 function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
@@ -14,11 +14,7 @@ function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   const preserved = tokens.some(
     (token) =>
       ["fence", "code_block", "table_open", "html_block"].includes(token.type) ||
-      token.children?.some(
-        (child) =>
-          child.type === "html_inline" ||
-          (child.type === "text" && /<\/?[A-Za-z][^>]*>/.test(child.content)),
-      ),
+      token.children?.some((child) => child.type === "html_inline"),
   );
   const isQuote = tokens.some((token) => token.type === "blockquote_open");
   const hasImage = tokens.some((token) => token.children?.some((child) => child.type === "image"));

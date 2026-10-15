@@ -124,24 +124,42 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
 }
 
 describe("native prose runs", () => {
-  it("projects a completed streamed reference definition like fresh history", () => {
-    const present = createStreamPresentation({ markdown: "prose-runs" });
-    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
-    for (const text of ["![shot][pic]\n\n[pic]:", " shots/app.png"]) {
-      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
-      present({ ...presentationOptions, ...state, transform: undefined });
-    }
-    const live = present({ ...presentationOptions, ...state, transform: undefined });
-    const history = createStreamPresentation({ markdown: "prose-runs" })({
+  it.each([
+    "<!-- keep this -->\nText.",
+    "<?pi hello?>",
+    "<!DOCTYPE html>",
+    "Text <!-- inline --> after",
+  ])("preserves HTML constructs: %s", (text) => {
+    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
       ...presentationOptions,
-      tail: hydrateStreamState([
-        { event: assistant("![shot][pic]\n\n[pic]: shots/app.png"), timestamp: new Date(1000) },
-      ]),
+      tail: source,
       head: [],
       transform: undefined,
     });
-    expect([...live.tail, ...live.head]).toEqual(history.tail);
+    expect(result.tail).toMatchObject([{ text, markdownKind: "block" }]);
   });
+  it.each(["blocks", "prose-runs"] as const)(
+    "projects a completed streamed reference definition like fresh history in %s",
+    (markdown) => {
+      const present = createStreamPresentation({ markdown });
+      let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+      for (const text of ["![shot][pic]\n\n[pic]:", " shots/app.png"]) {
+        state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
+        present({ ...presentationOptions, ...state, transform: undefined });
+      }
+      const live = present({ ...presentationOptions, ...state, transform: undefined });
+      const history = createStreamPresentation({ markdown })({
+        ...presentationOptions,
+        tail: hydrateStreamState([
+          { event: assistant("![shot][pic]\n\n[pic]: shots/app.png"), timestamp: new Date(1000) },
+        ]),
+        head: [],
+        transform: undefined,
+      });
+      expect([...live.tail, ...live.head]).toEqual(history.tail);
+    },
+  );
   it("keeps file URL images in Paseo's renderer", () => {
     const source = hydrateStreamState([
       {

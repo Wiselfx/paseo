@@ -102,13 +102,24 @@ export function createStreamPresentation({
     if (cached) return cached;
     const previousSource = liveSources.get(item.id);
     const previous = previousSource && blocksBySource.get(previousSource);
-    // Completing a reference definition can join a preceding block. Use the same
-    // structural parse for live and history, then retain unchanged block objects.
-    const parsed = splitMarkdownBlocks(item.text);
-    const textBlocks = parsed.length > 0 ? parsed : [""];
-    const blocks: AssistantMessageItem[] = [];
+    const isAppend = previousSource && item.text.startsWith(previousSource.text);
+    let prefix: AssistantMessageItem[] = [];
+    let growingText = item.text;
+    if (isAppend && previous) {
+      prefix = previous.slice(0, -1);
+      growingText =
+        previous[previous.length - 1]!.text + item.text.slice(previousSource.text.length);
+    }
+    let parsed = splitMarkdownBlocks(growingText);
+    // A definition completed in the last block can now belong to the preceding block.
+    if (prefix.length && /^\s{0,3}\[[^\]]+\]:/.test(parsed[0] ?? growingText)) {
+      prefix = [];
+      parsed = splitMarkdownBlocks(item.text);
+    }
+    const textBlocks = parsed.length + prefix.length > 0 ? parsed : [""];
+    const blocks = [...prefix];
     for (const [offset, text] of textBlocks.entries()) {
-      const index = offset;
+      const index = prefix.length + offset;
       let blockText = text;
       if (offset === textBlocks.length - 1) {
         // The split drops trailing blank lines, including a line break followed only

@@ -1,3 +1,4 @@
+import type { Locator, Page } from "@playwright/test";
 import { expect, test } from "../support/fixtures";
 import { waitForPermissionPrompt } from "../support/helpers/permissions";
 import { openAgentRoute, seedMockAgentWorkspace } from "../support/helpers/mock-agent";
@@ -70,6 +71,11 @@ test("chat and file preview share the library renderer and resolve file links", 
     await expect(preview.locator(".enrm-text")).toContainText("Second paragraph.");
     await expect(preview.getByRole("table")).toContainText("42");
     await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
+    await expectFileLinkTooltip(
+      page,
+      message.getByRole("link", { name: "src/说明.md:2-3" }),
+      "packages/app/src/说明.md:2-3",
+    );
     await message.getByRole("link", { name: "src/说明.md:2-3" }).click();
     await expect(page.getByText("Unicode suffix lookup succeeded.", { exact: true })).toBeVisible();
     await page.getByRole("button", { name: "Shared Markdown", exact: true }).click();
@@ -90,3 +96,8 @@ test("chat and file preview share the library renderer and resolve file links", 
     await session.cleanup();
   }
 });
+
+async function expectFileLinkTooltip(page: Page, link: Locator, path: string) {
+  await link.hover();
+  await expect(page.getByRole("tooltip")).toHaveText(path);
+}

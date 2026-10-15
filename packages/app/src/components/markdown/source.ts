@@ -18,15 +18,17 @@ function linkMetadata() {
         String.raw`^(?:${FILE_PATTERN.source})(?:\(\d+(?:,\d+)?(?:-\d+(?:,\d+)?)?\)| lines? \d+(?:-\d+)?)?$`,
       ),
     },
-    linkSource(
-      url: string,
-      sourceType?: "markdown" | "text" | "inline-code",
-    ): AssistantFileLinkSource {
-      if (sourceType === "inline-code") return { href: url, text: url, sourceType };
-      if (sourceType === "text") return { href: url, text: url, markup: "linkify" };
-      return { href: url, text: url };
-    },
+    linkSource: markdownLinkSource,
   };
+}
+
+export function markdownLinkSource(
+  url: string,
+  sourceType?: "markdown" | "text" | "inline-code",
+): AssistantFileLinkSource {
+  if (sourceType === "inline-code") return { href: url, text: url, sourceType };
+  if (sourceType === "text") return { href: url, text: url, markup: "linkify" };
+  return { href: url, text: url };
 }
 
 export interface MarkdownImage {

@@ -1,21 +1,17 @@
 import { View } from "react-native";
 import { markdownCopyImageSourcesDataSet } from "@/assistant-selection-copy/markup";
 import { memo, useMemo, useState } from "react";
-import {
-  EnrichedMarkdownText,
-  type LinkPressEvent,
-  type CodeBlockRendererProps,
-} from "react-native-enriched-markdown";
+import { EnrichedMarkdownText, type LinkPressEvent } from "react-native-enriched-markdown";
 import { withUnistyles } from "react-native-unistyles";
 import {
   useAssistantFileLinkActions,
   useAssistantFileLinkEnvironment,
 } from "@/assistant-file-links";
 import { useStableEvent } from "@/hooks/use-stable-event";
-import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
+import { WEB_RENDERERS } from "./renderers";
 import { createMarkdownStyles } from "./styles";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
@@ -26,21 +22,7 @@ const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true }
 
 const regularStyle = (theme: Theme) => createMarkdownStyles(theme);
 const compactStyle = (theme: Theme) => createMarkdownStyles(theme, true);
-const ThemedCodeBlock = withUnistyles(HighlightedCodeBlock);
-const codeStyle = (theme: Theme) => ({
-  inheritedStyles: {
-    color: theme.colors.foreground,
-    fontFamily: theme.fontFamily.mono,
-    fontSize: theme.fontSize.code,
-  },
-  textStyle: { backgroundColor: theme.colors.surface2, padding: 12, borderRadius: 8 },
-});
-function WebCodeBlock({ code, language }: CodeBlockRendererProps) {
-  if (language?.toLowerCase() === "mermaid") return <MermaidFence code={code} />;
-  return <ThemedCodeBlock code={code} language={language} uniProps={codeStyle} />;
-}
 const WEB_CONTAINER = { userSelect: "text" as const };
-const WEB_RENDERERS = { codeBlock: WebCodeBlock };
 
 export interface MarkdownRendererProps extends MarkdownImageContext {
   text: string;

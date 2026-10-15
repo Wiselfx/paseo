@@ -9,6 +9,25 @@ const HTML = new RegExp(
   String.raw`(?<!\\)(?:<!--[\s\S]*?-->|<code\b[^>]*>[\s\S]*?<\/code\s*>|${TAG})`,
   "gi",
 );
+const BLOCK_TAGS = new Set([
+  "div",
+  "p",
+  "table",
+  "tr",
+  "h1",
+  "h2",
+  "h3",
+  "h4",
+  "h5",
+  "h6",
+  "section",
+  "article",
+  "ul",
+  "ol",
+  "li",
+  "blockquote",
+  "pre",
+]);
 const EMPHASIS: Readonly<Record<string, string>> = { b: "**", strong: "**", i: "*", em: "*" };
 
 /** Convert comment HTML to Markdown while preserving the original spelling of code. */
@@ -48,11 +67,10 @@ export function normalizeMarkdownHtml(source: string): string {
     const closing = raw.startsWith("</");
     const name = /^<\/?([\w-]+)/.exec(raw)?.[1].toLowerCase() ?? "";
     if (EMPHASIS[name]) return EMPHASIS[name];
-    if (name === "br") return closing ? "" : "  \n";
-    if (name === "summary") return closing ? "**\n\n" : "**";
-    if (name === "details")
-      return (closing ? offset + raw.length === source.length : offset === 0) ? "" : "\n\n";
-    if (name === "a") return markdownAnchor(raw, closing, links);
+    const boundary = layoutBoundary(name, source, raw, offset, closing);
+    if (boundary !== null) return boundary;
+    if (name === "a")
+      return markdownAnchor(raw, closing, links) + inlineBoundary(source, raw, offset, closing);
     if (name === "img" && !closing) {
       const { src, alt = "" } = attributes(raw);
       return src ? `![${alt.replace(/[[\]\\]/g, "\\$&")}](<${markdownUrl(src)}>)` : alt;
@@ -110,4 +128,42 @@ function markdownAnchor(raw: string, closing: boolean, links: (string | undefine
   const { href } = attributes(raw);
   links.push(href);
   return href === undefined ? "" : "[";
+}
+
+function inlineBoundary(source: string, raw: string, offset: number, closing: boolean): string {
+  if (!closing) return "";
+  return /^(?:<[A-Za-z]|[A-Za-z0-9])/.test(source.slice(offset + raw.length)) ? " " : "";
+}
+
+function blockBoundary(source: string, raw: string, offset: number, closing: boolean): string {
+  if (closing) {
+    const following = source.slice(offset + raw.length);
+    if (following.trim() === "" || following.startsWith("\n\n")) return "";
+    const nextClosingTag = /^<\/([\w-]+)/.exec(following.trimStart());
+    if (nextClosingTag && BLOCK_TAGS.has(nextClosingTag[1].toLowerCase())) return "";
+  } else {
+    const preceding = source.slice(0, offset).trimEnd();
+    if (!preceding) return "";
+    const previousTag = /<\/?([\w-]+)[^>]*>$/.exec(preceding);
+    if (previousTag && BLOCK_TAGS.has(previousTag[1].toLowerCase())) return "";
+  }
+  return "\n\n";
+}
+
+function layoutBoundary(
+  name: string,
+  source: string,
+  raw: string,
+  offset: number,
+  closing: boolean,
+): string | null {
+  if (name === "br") return closing ? "" : "  \n";
+  if (name === "summary") return closing ? "**\n\n" : "**";
+  if (name === "details")
+    return (closing ? offset + raw.length === source.length : offset === 0) ? "" : "\n\n";
+  if (BLOCK_TAGS.has(name)) return blockBoundary(source, raw, offset, closing);
+  if ((name === "td" || name === "th") && closing)
+    return /^<t[dh]\b/i.test(source.slice(offset + raw.length)) ? " " : "";
+  if (name === "span") return inlineBoundary(source, raw, offset, closing);
+  return null;
 }

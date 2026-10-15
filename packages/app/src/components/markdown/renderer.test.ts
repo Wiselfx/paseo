@@ -311,3 +311,20 @@ it("uses the first repeated image reference definition", () => {
     "![chart](<blob:first>)\n\n[image]: first.png\n[image]: second.png",
   );
 });
+
+it("keeps Greptile header links and block text separated", () => {
+  const source =
+    '<h2><a href="https://app.greptile.com/api/retrigger?id=81261069"><picture><source media="(prefers-color-scheme: dark)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/RetriggerDark.svg?v=2"><source media="(prefers-color-scheme: light)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/Retrigger.svg?v=2"><img alt="Retrigger" src="https://greptile-static-assets.s3.amazonaws.com/badges/Retrigger.svg?v=2" align="right"></picture></a><a href="https://app.greptile.com/paseo/github/getpaseo/paseo/-/pull/6973"><picture><source media="(prefers-color-scheme: dark)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/ViewInGreptileDark.svg?v=2"><source media="(prefers-color-scheme: light)" srcset="https://greptile-static-assets.s3.amazonaws.com/badges/ViewInGreptile.svg?v=2"><img alt="View in Greptile" src="https://greptile-static-assets.s3.amazonaws.com/badges/ViewInGreptile.svg?v=2" align="right"></picture></a>Confidence Score: 2/5</h2>';
+  const rendered = prepareMarkdownSource(source, undefined, { supportsSvg: false }).render();
+  expect(rendered).toContain(
+    "[Retrigger](<https://app.greptile.com/api/retrigger?id=81261069>) [View in Greptile]",
+  );
+  expect(rendered).toContain(") Confidence Score: 2/5");
+});
+
+it("keeps paragraph, heading and table-row boundaries when stripping HTML", () => {
+  const source =
+    "<div>First</div><p>Second<br>line</p><h3>Heading</h3><table><tr><td>A</td><td>B</td></tr><tr><td>C</td><td>D</td></tr></table>";
+  const rendered = prepareMarkdownSource(source).render();
+  expect(rendered).toBe("First\n\nSecond  \nline\n\nHeading\n\nA B\n\nC D");
+});

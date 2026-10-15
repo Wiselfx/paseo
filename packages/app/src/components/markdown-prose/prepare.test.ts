@@ -105,3 +105,10 @@ it.each([
   expect(streaming).toBe(settled);
   expect(parser.render(settled)).toBe(parser.render(text));
 });
+
+it.each([false, true])("keeps distant reference images literal (streaming=%s)", (streaming) => {
+  const text = "![shot][pic]\n\nOther paragraph.\n\n[pic]: shots/app.png";
+  const prepared = prepareProse(text, noFiles, streaming);
+  expect(parser.render(prepared)).toContain("![shot][pic]");
+  expect(parser.render(prepared)).not.toContain("<img");
+});

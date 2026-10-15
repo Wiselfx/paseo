@@ -1,5 +1,6 @@
 import { ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT } from "@/components/assistant-message-render-limit";
 import MarkdownIt from "markdown-it";
+import type Token from "markdown-it/lib/token.mjs";
 import type { AssistantMessageItem } from "@/types/stream";
 
 const parser = new MarkdownIt({ html: true });
@@ -19,13 +20,7 @@ function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   const hasImage = tokens.some((token) => token.children?.some((child) => child.type === "image"));
   let parts: AssistantMessageItem[];
   // Retain the container and its definitions when splitting would lose image context.
-  if (
-    preserved ||
-    (hasImage &&
-      (isQuote ||
-        environment.references ||
-        tokens.some((token) => token.type === "list_item_open")))
-  ) {
+  if (preserved || (hasImage && (environment.references || !canSplitParagraphImages(tokens)))) {
     parts = [{ ...block, markdownKind: "block" }];
   } else if (hasImage) {
     parts = splitParagraphImages(block);
@@ -34,6 +29,16 @@ function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   }
   partsByBlock.set(block, parts);
   return parts;
+}
+
+function canSplitParagraphImages(tokens: Token[]): boolean {
+  if (tokens.length !== 3 || tokens[0]?.type !== "paragraph_open") return false;
+  let depth = 0;
+  for (const child of tokens[1]!.children ?? []) {
+    if (child.type === "image" && depth !== 0) return false;
+    depth += child.nesting;
+  }
+  return true;
 }
 
 function splitParagraphImages(block: AssistantMessageItem): AssistantMessageItem[] {

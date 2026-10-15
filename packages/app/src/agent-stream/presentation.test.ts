@@ -148,6 +148,10 @@ describe("native prose runs", () => {
 
   it.each([
     "![Screenshot][pic]\n\n[pic]: shots/app.png",
+    "**before ![alt](file.png) after**",
+    "# heading ![alt](file.png) after",
+    "[before ![alt](file.png) after](https://example.com)",
+    "~~before ![alt](file.png) after~~",
     "- parent\n  - before ![x](shots/app.png) after\n  - next",
   ])("keeps image context in Paseo's block renderer: %s", (text) => {
     const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);

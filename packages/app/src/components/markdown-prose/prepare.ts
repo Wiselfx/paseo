@@ -1,4 +1,5 @@
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
+import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
 import type Token from "markdown-it/lib/token.mjs";
 
 const parser = createAssistantMarkdownParser();
@@ -74,6 +75,20 @@ export function prepareProse(
   text: string,
   canResolveCode: (text: string) => boolean,
   streaming = false,
+): string {
+  // Reference definitions have the same scope as Paseo's original block rows.
+  const blocks = splitMarkdownBlocks(text);
+  return blocks
+    .map((block, index) =>
+      prepareBlock(block, canResolveCode, streaming && index === blocks.length - 1),
+    )
+    .join("\n\n");
+}
+
+function prepareBlock(
+  text: string,
+  canResolveCode: (text: string) => boolean,
+  streaming: boolean,
 ): string {
   const tokens = (streaming ? streamingParser : parser).parse(text, {});
   const lines = text.split("\n");

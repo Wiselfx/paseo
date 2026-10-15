@@ -75,7 +75,7 @@ test.each([false, true])(
         worktree: {
           ...(withSetupService ? { setup: `"${process.execPath}" setup.cjs` } : {}),
           terminals: [
-            { name: "preview", command: "echo paseo-auto-terminal > terminal-marker.txt" },
+            { name: "preview", command: "echo paseo-auto-terminal >> terminal-marker.txt" },
           ],
         },
       }),

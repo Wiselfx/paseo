@@ -24,6 +24,7 @@ import Markdown, {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import { MarkdownFenceBlock } from "@/components/markdown/fence";
+import { YouTubeInlinePlayer, youtubeIdForUrl } from "@/components/markdown/fence/youtube";
 import { MarkdownParagraphView, MarkdownTextSpan } from "@/components/markdown-text";
 import { MarkdownTableCellText } from "@/components/markdown-text-selection";
 import { getMarkdownListMarker, getMarkdownListSpacing } from "@/utils/markdown-list";
@@ -470,12 +471,17 @@ function SharedMarkdownLink({
   onLinkPress,
   children,
 }: SharedMarkdownLinkProps) {
+  const youTubeId = useMemo(() => youtubeIdForUrl(href), [href]);
   const handlePress = useCallback(() => {
     if (!href) return;
     if (onLinkPress?.(href) === false) return;
     void openExternalUrl(href);
   }, [href, onLinkPress]);
   const style = useMemo(() => [inheritedStyles, linkStyle], [inheritedStyles, linkStyle]);
+
+  if (youTubeId) {
+    return <YouTubeInlinePlayer videoId={youTubeId} />;
+  }
 
   if (!isNative) {
     return (

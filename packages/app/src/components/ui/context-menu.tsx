@@ -83,6 +83,24 @@ function coerceEventPoint(event: unknown): { pageX: number; pageY: number } | nu
   if (typeof clientX === "number" && typeof clientY === "number") {
     return { pageX: clientX, pageY: clientY };
   }
+  // DOM TouchEvent (touch web, e.g. iOS Safari long-press): coordinates live
+  // on the touch object, not the event itself. Without this the menu silently
+  // never opens on touch devices.
+  const changedTouches = Reflect.get(source, "changedTouches");
+  if (
+    typeof changedTouches === "object" &&
+    changedTouches !== null &&
+    typeof Reflect.get(changedTouches, "length") === "number"
+  ) {
+    const touch = changedTouches[0];
+    if (typeof touch === "object" && touch !== null) {
+      const touchX = Reflect.get(touch, "pageX");
+      const touchY = Reflect.get(touch, "pageY");
+      if (typeof touchX === "number" && typeof touchY === "number") {
+        return { pageX: touchX, pageY: touchY };
+      }
+    }
+  }
   return null;
 }
 
@@ -130,16 +148,18 @@ export function ContextMenuTrigger({
   const openAtEvent = useCallback(
     (event: unknown) => {
       if (!shouldEnableOnThisPlatform || disabled) return;
+      // Anchor is best-effort: compact layouts present a bottom sheet that
+      // needs no anchor, so open anyway when the point is unavailable.
       const point = coerceEventPoint(event);
-      if (!point) return;
-
-      const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
-      ctx.setAnchorRect({
-        x: point.pageX,
-        y: point.pageY + statusBarHeight,
-        width: 0,
-        height: 0,
-      });
+      if (point) {
+        const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
+        ctx.setAnchorRect({
+          x: point.pageX,
+          y: point.pageY + statusBarHeight,
+          width: 0,
+          height: 0,
+        });
+      }
       ctx.setOpen(true);
     },
     [ctx, disabled, shouldEnableOnThisPlatform],
@@ -156,10 +176,8 @@ export function ContextMenuTrigger({
   const propsOnLongPress = props.onLongPress;
   const handleLongPress = useCallback(
     (event: GestureResponderEvent) => {
-      if (isWeb) {
-        propsOnLongPress?.(event);
-        return;
-      }
+      // Touch web (e.g. iOS Safari) has no right-click: long-press is the
+      // only menu gesture, so it opens the menu on every platform.
       openAtEvent(event);
       propsOnLongPress?.(event);
     },

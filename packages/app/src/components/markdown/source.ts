@@ -1,3 +1,4 @@
+import { normalizeMarkdownHtml } from "./html";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { AssistantFileLinkSource } from "@/assistant-file-links";
@@ -49,6 +50,7 @@ function workspaceHoverTitle(link: Link, markup: string, workspaceRoot?: string)
 
 /** Preserve source spelling; adapt workspace images, spoiler delimiters, and entity text. */
 export function prepareMarkdownSource(source: string, workspaceRoot?: string) {
+  source = normalizeMarkdownHtml(source);
   const images: MarkdownImage[] = [];
   let tree: Root | undefined;
   const getTree = () =>

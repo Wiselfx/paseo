@@ -202,3 +202,49 @@ it.each([darkTheme, lightTheme])("supplies the theme selection colour to the ren
     theme.colors.terminal.selectionBackground,
   );
 });
+
+describe("GitHub comment HTML normalization", () => {
+  it.each([
+    [
+      '<img alt="P1" src="https://example.com/p1.svg" align="top">',
+      "![P1](<https://example.com/p1.svg>)",
+    ],
+    ['<a href="https://example.com/review">▶</a>', "[▶](<https://example.com/review>)"],
+    ["Before<br>After<br/>End", "Before  \nAfter  \nEnd"],
+    ["<b>bold</b> and <strong>strong</strong>", "**bold** and **strong**"],
+    ["<i>italic</i> and <em>emphasis</em>", "*italic* and *emphasis*"],
+    ["Use <code>const n = 1</code>.", "Use `const n = 1`."],
+    ["H<sub>2</sub>O and x<sup>2</sup>", "H2O and x2"],
+    [
+      "<details><summary>Review details</summary>Body **stays**.</details>",
+      "**Review details**\n\nBody **stays**.",
+    ],
+    ["Before<!-- private -->After", "BeforeAfter"],
+    ["<div><span>Keep the content</span></div>", "Keep the content"],
+    [
+      '<a href="https://example.com"><strong>Review</strong></a>',
+      "[**Review**](<https://example.com>)",
+    ],
+    ['`<img src="literal.png">` and <b>bold</b>', '`<img src="literal.png">` and **bold**'],
+    [
+      '```html\n<img src="literal.png">\n```\n\n<b>bold</b>',
+      '```html\n<img src="literal.png">\n```\n\n**bold**',
+    ],
+    ['~~~html\n<a href="literal">link</a>\n~~~', '~~~html\n<a href="literal">link</a>\n~~~'],
+    [
+      '<details><summary>Code</summary>\n\n```html\n<img src="literal.png">\n```\n</details>',
+      '**Code**\n\n\n\n```html\n<img src="literal.png">\n```\n',
+    ],
+    [
+      "<https://example.com> and <user@example.com>",
+      "<https://example.com> and <user@example.com>",
+    ],
+  ])("normalizes %s without changing code", (source, expected) => {
+    expect(prepareMarkdownSource(source).render()).toBe(expected);
+  });
+});
+
+it("preserves backslashes and decodes entities inside HTML code", () => {
+  const source = String.raw`<code>\*literal\* &lt;img&gt;</code>`;
+  expect(prepareMarkdownSource(source).render()).toBe("`" + String.raw`\*literal\* <img>` + "`");
+});

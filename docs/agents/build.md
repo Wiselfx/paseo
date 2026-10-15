@@ -4,6 +4,12 @@
 
 - `gh` authed with `repo` scope. Daemon host + live bundle path known. Standing rule: never commit to `main` directly — work on `agent/<date>-<task>`, open a PR, human merges.
 
+## Environment (local builds)
+
+- npm >= 11. System npm (Debian 9.x) fails parsing the lockfile (`Invalid comparator`).
+- Build server outputs before typechecking: `npm run build:server` (or `build:app-deps` for app-only). Without it, desktop/cli typecheck fails on missing `@getpaseo/server/*` modules. Pre-existing, not your code.
+- Pre-commit hooks run lint + format + full workspace typecheck. Blocked commit = fix your files first, then check if the failure is yours.
+
 ## A. Upstream sync
 
 1. `git fetch upstream && git merge upstream/main` on a sync branch (`agent/<date>-sync`).

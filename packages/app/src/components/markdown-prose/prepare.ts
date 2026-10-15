@@ -60,6 +60,15 @@ function renderInline(tokens: Token[], canResolveCode: (text: string) => boolean
     .join("");
 }
 
+function preserveNativeBlockMarker(source: string, rendered: string): string {
+  const marker = source.match(
+    /^\[(?:[ xX]|!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION))\](?=\s|$)/,
+  )?.[0];
+  if (!marker) return rendered;
+  const escaped = escapeText(marker);
+  return rendered.startsWith(escaped) ? marker + rendered.slice(escaped.length) : rendered;
+}
+
 /** Keep the existing inline dialect, including literal pipes and tappable inline paths. */
 export function prepareProse(
   text: string,
@@ -88,7 +97,10 @@ export function prepareProse(
         if (child.type === "text") child.content = child.content.toUpperCase();
       }
     }
-    const rendered = renderInline(token.children, canResolveCode)
+    const rendered = preserveNativeBlockMarker(
+      token.content,
+      renderInline(token.children, canResolveCode),
+    )
       .replace(/ $/, "&#32;")
       .split("\n");
     const replacement = rendered.map(

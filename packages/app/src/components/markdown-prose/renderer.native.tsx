@@ -9,7 +9,7 @@ import type { MarkdownProseProps } from "./props";
 import { inlineCodeLinkContent, prepareProse } from "./prepare";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
-const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: false };
+const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
 
 function proseStyleMapping(theme: Theme): { markdownStyle: MarkdownStyle } {
   const styles = createMarkdownStyles(theme);

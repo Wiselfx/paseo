@@ -91,13 +91,17 @@ it.each([false, true])(
   },
 );
 
-it.each(["- [ ] Task", "- [x] Done", "1. [X] Done", "- parent\n  - [ ] Nested task"])(
-  "keeps task markers literal through streaming and settlement: %s",
-  (text) => {
-    const settled = prepareProse(text, noFiles);
-    const streaming = prepareProse(text, noFiles, true);
-    expect(settled).toMatch(/\\\[/);
-    expect(streaming).toBe(settled);
-    expect(parser.render(settled)).toBe(parser.render(text));
-  },
-);
+it.each([
+  "- [ ] Task",
+  "- [x] Done",
+  "1. [X] Done",
+  "- parent\n  - [ ] Nested task",
+  "> [!NOTE]\n> Keep this note",
+  "> Ordinary quote",
+])("preserves native block markers through streaming and settlement: %s", (text) => {
+  const settled = prepareProse(text, noFiles);
+  const streaming = prepareProse(text, noFiles, true);
+  expect(settled).toBe(text);
+  expect(streaming).toBe(settled);
+  expect(parser.render(settled)).toBe(parser.render(text));
+});

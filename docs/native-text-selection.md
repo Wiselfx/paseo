@@ -15,11 +15,11 @@ commonmark: strike=0 tasks=0 quotes=1 spoilers=1
 github: strike=1 tasks=1 quotes=1 spoilers=1
 ```
 
-Paseo's existing parser does not implement task lists. Escape task markers during inline preparation so `[ ]` and `[x]` remain literal text after a bullet, in both streaming and settled replies. Leave task toggling disabled.
+GitHub flavor renders `[ ]` and `[x]` list items as checkboxes. Toggling is disabled because changes would not persist. Preserve task markers in both streaming and settled replies.
 
 ## Compatibility constraints
 
-- Disable `latexMath`. Dollar-delimited text must stay literal. Disable admonitions too; they would reinterpret existing quote content.
+- Disable `latexMath`. Dollar-delimited text must stay literal. Enable admonitions for `[!NOTE]`-style quotes; they add formatting without hiding the quote content. Ordinary quotes keep the existing blockquote style mapping.
 - Spoilers have no public parser switch in 1.1.1. Prepare inline text with escaped pipes so `||text||` stays visible. Preserve pipes inside code and link destinations.
 - `lineHeight` is a minimum. Use the Markdown theme's line height; font metrics can still increase it.
 - Strikethrough color is iOS-only. Android uses the surrounding text color.

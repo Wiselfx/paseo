@@ -1,3 +1,4 @@
+import { ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT } from "@/components/assistant-message-render-limit";
 import MarkdownIt from "markdown-it";
 import type { AssistantMessageItem } from "@/types/stream";
 
@@ -7,7 +8,8 @@ const partsByBlock = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>()
 function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   const cached = partsByBlock.get(block);
   if (cached) return cached;
-  const tokens = parser.parse(block.text, {});
+  const environment: { references?: unknown } = {};
+  const tokens = parser.parse(block.text, environment);
   const preserved = tokens.some(
     (token) =>
       ["fence", "code_block", "table_open", "html_block"].includes(token.type) ||
@@ -16,7 +18,14 @@ function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   const isQuote = tokens.some((token) => token.type === "blockquote_open");
   const hasImage = tokens.some((token) => token.children?.some((child) => child.type === "image"));
   let parts: AssistantMessageItem[];
-  if (preserved || (isQuote && hasImage)) {
+  // Retain the container and its definitions when splitting would lose image context.
+  if (
+    preserved ||
+    (hasImage &&
+      (isQuote ||
+        environment.references ||
+        tokens.some((token) => token.type === "list_item_open")))
+  ) {
     parts = [{ ...block, markdownKind: "block" }];
   } else if (hasImage) {
     parts = splitParagraphImages(block);
@@ -56,7 +65,11 @@ export function groupMarkdownProse(blocks: AssistantMessageItem[]): AssistantMes
   const rows: AssistantMessageItem[] = [];
   for (const block of blocks.flatMap(splitBlock)) {
     const previous = rows.at(-1);
-    if (block.markdownKind === "prose" && previous?.markdownKind === "prose") {
+    if (
+      block.markdownKind === "prose" &&
+      previous?.markdownKind === "prose" &&
+      previous.text.length + 2 + block.text.length <= ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT
+    ) {
       previous.text += `\n\n${block.text}`;
       continue;
     }

@@ -9,7 +9,7 @@ import {
   type ToolCallDetailLevel,
 } from "@/tool-calls/detail-level/projection";
 
-import { groupMarkdownProse } from "@/components/markdown-prose/runs";
+import { groupMarkdownProse } from "@/components/markdown-prose";
 
 interface PresentationInput {
   tail: StreamItem[];

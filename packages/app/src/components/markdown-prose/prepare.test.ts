@@ -9,6 +9,8 @@ describe("native prose dialect", () => {
   it.each([
     "Literal &amp;amp; and &amp;copy;",
     "# #",
+    "Setext heading\n==============",
+    'A [titled link](https://example.com "A title")',
     "- first\n\tsecond",
     "Blank `   ` code and ` normal ` code",
     "# Heading\n\n- **First**\n- Second\n\n~~Deleted~~",
@@ -77,3 +79,25 @@ it("uppercases heading-six text without changing inline code or link destination
     '<h6>SMALL <strong>BOLD</strong> <code>lower.ts</code> <a href="https://example.com/lower">LINK</a></h6>\n',
   );
 });
+
+it.each([false, true])(
+  "preserves inline semantics and leaves reference definitions untouched (streaming=%s)",
+  (streaming) => {
+    const text =
+      "[foo][ref] <https://example.org> &amp; \\* **bold**  \n[linked `code`](https://example.net)\n\n[ref]: https://example.com";
+    const prepared = prepareProse(text, noFiles, streaming);
+    expect(prepared).toContain("[ref]: https://example.com");
+    expect(parser.render(prepared)).toBe(parser.render(text));
+  },
+);
+
+it.each(["- [ ] Task", "- [x] Done", "1. [X] Done", "- parent\n  - [ ] Nested task"])(
+  "keeps task markers literal through streaming and settlement: %s",
+  (text) => {
+    const settled = prepareProse(text, noFiles);
+    const streaming = prepareProse(text, noFiles, true);
+    expect(settled).toMatch(/\\\[/);
+    expect(streaming).toBe(settled);
+    expect(parser.render(settled)).toBe(parser.render(text));
+  },
+);

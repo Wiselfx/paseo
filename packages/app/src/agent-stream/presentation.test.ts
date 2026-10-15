@@ -124,6 +124,43 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
 }
 
 describe("native prose runs", () => {
+  it("starts another run before combined paragraphs exceed the render cap", () => {
+    const first = "a".repeat(20_000);
+    const second = "b".repeat(20_000);
+    const present = createStreamPresentation({ markdown: "prose-runs" });
+    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+    for (const text of [first, "\n\n" + second.slice(0, 10_000), second.slice(10_000)]) {
+      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
+      present({ ...presentationOptions, ...state, transform: undefined });
+    }
+    const live = present({ ...presentationOptions, ...state, transform: undefined });
+    expect([...live.tail, ...live.head]).toMatchObject([
+      { id: "message-1:run:0", text: first },
+      { id: "message-1:run:1", text: second },
+    ]);
+    const source = hydrateStreamState([
+      { event: assistant(`${first}\n\n${second}`), timestamp: new Date(1000) },
+    ]);
+    expect(
+      present({ ...presentationOptions, tail: source, head: [], transform: undefined }).tail,
+    ).toMatchObject([{ text: first }, { text: second }]);
+  });
+
+  it.each([
+    "![Screenshot][pic]\n\n[pic]: shots/app.png",
+    "- parent\n  - before ![x](shots/app.png) after\n  - next",
+  ])("keeps image context in Paseo's block renderer: %s", (text) => {
+    const source = hydrateStreamState([{ event: assistant(text), timestamp: new Date(1000) }]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toMatchObject([{ text, markdownKind: "block" }]);
+    expect(result.tail).toHaveLength(1);
+  });
+
   it("splits inline workspace images out of prose without mistaking code for images", () => {
     const source = hydrateStreamState([
       {

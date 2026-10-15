@@ -58,8 +58,17 @@ function proseStyleMapping(theme: Theme): { markdownStyle: MarkdownStyle } {
         marginBottom: styles.blockquote.marginVertical,
       },
       link: { color: styles.link.color, underline: false },
-      code: { ...styles.code_inline, borderColor: "transparent" },
-      strong: styles.strong,
+      code: {
+        // RCTFont does not resolve Fabric's ui-monospace alias. An empty family
+        // selects the library's native system-monospace font on iOS.
+        fontFamily:
+          styles.code_inline.fontFamily === "ui-monospace" ? "" : styles.code_inline.fontFamily,
+        fontSize: styles.code_inline.fontSize,
+        color: styles.code_inline.color,
+        backgroundColor: styles.code_inline.backgroundColor,
+        borderColor: "transparent",
+      },
+      strong: { fontWeight: "bold" },
       em: styles.em,
       strikethrough: { color: styles.s.color },
       thematicBreak: {

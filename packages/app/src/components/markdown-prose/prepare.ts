@@ -16,7 +16,7 @@ function escapeText(text: string): string {
 }
 
 function renderInline(tokens: Token[], canResolveCode: (text: string) => boolean): string {
-  const links: string[] = [];
+  const links: { href: string; title: string | null }[] = [];
   return tokens
     .map((token) => {
       switch (token.type) {
@@ -27,10 +27,15 @@ function renderInline(tokens: Token[], canResolveCode: (text: string) => boolean
         case "hardbreak":
           return "  \n";
         case "link_open":
-          links.push(token.attrGet("href") ?? "");
+          links.push({ href: token.attrGet("href") ?? "", title: token.attrGet("title") });
           return "[";
         case "link_close": {
-          return `](<${links.pop() ?? ""}>)`;
+          const link = links.pop()!;
+          const title =
+            link.title === null
+              ? ""
+              : ` "${link.title.replace(/&/g, "&amp;").replace(/"/g, "&quot;")}"`;
+          return `](<${link.href}>${title})`;
         }
         case "code_inline": {
           const needsPadding =
@@ -61,51 +66,21 @@ export function prepareProse(
   canResolveCode: (text: string) => boolean,
   streaming = false,
 ): string {
-  text = prepareBlockInlines(text, canResolveCode, streaming);
-  const state = new parser.inline.State(text, parser, {}, []);
-  let prepared = "";
-  while (state.pos < state.posMax) {
-    const start = state.pos;
-    parser.inline.skipToken(state);
-    const source = text.slice(start, state.pos);
-    // Escapes and entities already protect their contents from delimiter parsing.
-    if (source.startsWith("\\") || source.startsWith("&")) {
-      prepared += source;
-      continue;
-    }
-    const tokens = parser.parseInline(source, {})[0]!.children!;
-    const containsLinkOrCode = tokens.some(
-      (token) => token.type === "code_inline" || token.type === "link_open",
-    );
-    prepared += containsLinkOrCode
-      ? renderInline(tokens, canResolveCode)
-      : source.replace(/\|/g, "\\|");
-  }
-  return prepared;
-}
-
-function prepareBlockInlines(
-  text: string,
-  canResolveCode: (text: string) => boolean,
-  streaming: boolean,
-): string {
   const tokens = (streaming ? streamingParser : parser).parse(text, {});
-  const tail = tokens.findLast((token) => token.nesting !== -1);
   const lines = text.split("\n");
   for (let index = tokens.length - 1; index >= 0; index--) {
     const token = tokens[index]!;
     const uppercase = tokens[index - 1]?.type === "heading_open" && tokens[index - 1]?.tag === "h6";
-    if (
-      token.type !== "inline" ||
-      !token.map ||
-      !token.children ||
-      !(uppercase || (streaming && token === tail))
-    )
-      continue;
-    const [start, end] = token.map;
+    if (token.type !== "inline" || !token.map || !token.children) continue;
+    const [start] = token.map;
     const prefixes = token.content.split("\n").map((content, offset) => {
       const line = lines[start + offset]!;
-      const position = line.indexOf(content);
+      const heading = tokens[index - 1];
+      const headingPrefix =
+        heading?.type === "heading_open" && heading.markup.startsWith("#")
+          ? (line.match(/^(?:\s*>\s*)*\s*#{1,6}\s+/)?.[0].length ?? 0)
+          : 0;
+      const position = line.indexOf(content, headingPrefix);
       return position < 0 ? "" : line.slice(0, position);
     });
     if (uppercase) {
@@ -119,7 +94,7 @@ function prepareBlockInlines(
     const replacement = rendered.map(
       (line, offset) => `${prefixes[offset] ?? prefixes.at(-1) ?? ""}${line}`,
     );
-    lines.splice(start, end - start, ...replacement);
+    lines.splice(start, token.content.split("\n").length, ...replacement);
   }
   return lines.join("\n");
 }

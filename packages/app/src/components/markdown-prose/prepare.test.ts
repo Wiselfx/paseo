@@ -1,114 +1,111 @@
 import { describe, expect, it } from "vitest";
-import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
-import { inlineCodeLinkContent, prepareProse } from "./prepare";
+import {
+  prepareProse,
+  inlineCodeLinkContent,
+  proseLinkSource,
+  handleProseLinkPress,
+} from "./prepare";
 
-const parser = createAssistantMarkdownParser();
 const noFiles = () => false;
-
-describe("native prose dialect", () => {
+describe("source-preserving prose", () => {
   it.each([
+    "A & B",
+    "# A & B",
+    "- A & B",
+    "> A & B",
     "Literal &amp;amp; and &amp;copy;",
+    "Escaped \\* and \\|",
+    "<https://example.org>",
+    "**bold** and *emphasis* and ~~deleted~~",
+    "First  \nSecond",
     "# #",
-    "Setext heading\n==============",
+    "Heading\n=======",
     'A [titled link](https://example.com "A title")',
-    "- first\n\tsecond",
+    "[linked `code`](https://example.net)",
+    "Before ![shot](file:///repo/shots/app.png) after.",
     "Blank `   ` code and ` normal ` code",
-    "# Heading\n\n- **First**\n- Second\n\n~~Deleted~~",
-    "> First paragraph\n>\n> Second paragraph",
-    "A [linked `path.ts`](file:///repo/path.ts)",
-  ])("preserves existing rendered inline content: %s", (text) => {
-    expect(parser.render(prepareProse(text, noFiles))).toBe(parser.render(text));
+    "- first\n\tsecond",
+    "\n\nA paragraph.\n\n",
+    "- [ ] Task\n- [x] Done",
+    "> [!NOTE]\n> Note",
+    "> Ordinary quote",
+  ])("copies unchanged source byte-for-byte: %s", (source) => {
+    expect(prepareProse([source], noFiles)).toBe(source);
   });
-
-  it("escapes spoiler delimiters without changing visible text or inline code", () => {
-    const text = "Keep ||literal||, **bold**, ~~deleted~~ and `a || b`.";
-    const prepared = prepareProse(text, noFiles);
-    expect(prepared).toContain("\\|\\|literal\\|\\|");
-    expect(parser.render(prepared)).toBe(parser.render(text));
+  it("changes only prose pipes", () => {
+    expect(prepareProse(["Keep ||literal|| and `a || b` and [a|b](https://x/a|b)."], noFiles)).toBe(
+      "Keep \\|\\|literal\\|\\| and `a || b` and [a\\|b](https://x/a|b).",
+    );
   });
-
+  it("wraps inline file code without reprinting its source", () => {
+    const source = "[Docs](https://example.com) and `` src/file.ts:12 ``";
+    expect(prepareProse([source], (text) => text === "src/file.ts:12")).toBe(
+      "[Docs](https://example.com) and [`` src/file.ts:12 ``](<paseo-inline-code:src%2Ffile.ts%3A12>)",
+    );
+    expect(inlineCodeLinkContent("paseo-inline-code:src%2Ffile.ts%3A12")).toBe("src/file.ts:12");
+  });
   it("keeps inline-code URLs tappable", () => {
-    expect(parser.render(prepareProse("`https://example.com`", noFiles))).toBe(
-      '<p><a href="https://example.com"><code>https://example.com</code></a></p>\n',
+    expect(prepareProse(["`https://example.com`"], noFiles)).toBe(
+      "[`https://example.com`](<https://example.com>)",
     );
   });
-
-  it("retains links and makes inline workspace paths use the same resolver input", () => {
-    const prepared = prepareProse(
-      "[Docs](https://example.com) and `src/file.ts:12`",
-      (text) => text === "src/file.ts:12",
-    );
-    const tokens = parser.parseInline(prepared, {})[0]!.children!;
-    const hrefs = tokens
-      .filter((token) => token.type === "link_open")
-      .map((token) => token.attrGet("href"));
-    expect(hrefs).toEqual(["https://example.com", "paseo-inline-code:src%2Ffile.ts%3A12"]);
-    expect(inlineCodeLinkContent(hrefs[1]!)).toBe("src/file.ts:12");
+  it("uppercases only h6 text", () => {
+    expect(
+      prepareProse(
+        ["###### Small **bold** `lower.ts` [link](https://example.com/lower) &amp;"],
+        noFiles,
+      ),
+    ).toBe("###### SMALL **BOLD** `lower.ts` [LINK](https://example.com/lower) &amp;");
   });
-
-  it("preserves multiline quotes, literal pipes and code links", () => {
-    const text = "> Before ||literal||\n> after `src/file.ts`";
-    const prepared = prepareProse(text, () => true);
-    expect(prepared).toContain("\\|\\|literal\\|\\|");
-    expect(prepared).toContain("paseo-inline-code:");
-  });
-});
-
-const streamingParser = createAssistantMarkdownParser({ streaming: true });
-describe("streaming prose", () => {
   it.each([
-    "Before **bold",
-    "Before `code",
-    "Before [label](https://exa",
-    "### A **heading",
-    "- First\n- **Second",
-    "> First\n> **Second",
-    "Before **",
-    "Before ~~strike",
-  ])("retains provisional formatting: %s", (text) => {
-    expect(parser.render(prepareProse(text, noFiles, true))).toBe(streamingParser.render(text));
+    ["Before **bold", "Before **bold**"],
+    ["Before `code", "Before `code`"],
+    ["Before [label](https://exa", "Before label"],
+    ["### A **heading", "### A **heading**"],
+    ["- First\n- **Second", "- First\n- **Second**"],
+    ["> First\n> **Second", "> First\n> **Second**"],
+    ["Before **", "Before "],
+    ["Before ~~strike", "Before ~~strike~~"],
+  ])("minimally completes the streaming tail: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles, true)).toBe(expected);
   });
-});
-
-it("uppercases heading-six text without changing inline code or link destinations", () => {
-  expect(
-    parser.render(
-      prepareProse("###### Small **bold** `lower.ts` [link](https://example.com/lower)", noFiles),
-    ),
-  ).toBe(
-    '<h6>SMALL <strong>BOLD</strong> <code>lower.ts</code> <a href="https://example.com/lower">LINK</a></h6>\n',
-  );
-});
-
-it.each([false, true])(
-  "preserves inline semantics and leaves reference definitions untouched (streaming=%s)",
-  (streaming) => {
-    const text =
-      "[foo][ref] <https://example.org> &amp; \\* **bold**  \n[linked `code`](https://example.net)\n\n[ref]: https://example.com";
-    const prepared = prepareProse(text, noFiles, streaming);
-    expect(prepared).toContain("[ref]: https://example.com");
-    expect(parser.render(prepared)).toBe(parser.render(text));
-  },
-);
-
-it.each([
-  "- [ ] Task",
-  "- [x] Done",
-  "1. [X] Done",
-  "- parent\n  - [ ] Nested task",
-  "> [!NOTE]\n> Keep this note",
-  "> Ordinary quote",
-])("preserves native block markers through streaming and settlement: %s", (text) => {
-  const settled = prepareProse(text, noFiles);
-  const streaming = prepareProse(text, noFiles, true);
-  expect(settled).toBe(text);
-  expect(streaming).toBe(settled);
-  expect(parser.render(settled)).toBe(parser.render(text));
-});
-
-it.each([false, true])("keeps distant reference images literal (streaming=%s)", (streaming) => {
-  const text = "![shot][pic]\n\nOther paragraph.\n\n[pic]: shots/app.png";
-  const prepared = prepareProse(text, noFiles, streaming);
-  expect(parser.render(prepared)).toContain("![shot][pic]");
-  expect(parser.render(prepared)).not.toContain("<img");
+  it("prepares source blocks independently, even beside a reference definition", () => {
+    const blocks = ["![shot][pic]", "Other paragraph.\n\n[pic]: shots/app.png"];
+    expect(prepareProse(blocks, noFiles)).toBe(
+      blocks.map((block) => prepareProse([block], noFiles)).join("\n\n"),
+    );
+    expect(prepareProse(blocks, noFiles)).toBe(
+      "!\\[shot]\\[pic]\n\nOther paragraph.\n\n[pic]: shots/app.png",
+    );
+  });
+  it("localizes resolved references before joining blocks with conflicting definitions", () => {
+    const blocks = [
+      "[foo][ref]\n\n[ref]: https://one.example",
+      "[bar][ref]\n\n[ref]: https://two.example",
+    ];
+    expect(prepareProse(blocks, noFiles)).toBe(
+      "[foo](<https://one.example>)\n\n[ref]: https://one.example\n\n[bar](<https://two.example>)\n\n[ref]: https://two.example",
+    );
+  });
+  it("carries a bare filename's text and href through the file action", () => {
+    const prepared = prepareProse(["Open README.md"], (text) => text === "README.md");
+    const source = {
+      href: "http://README.md",
+      text: "README.md",
+      markup: "linkify",
+      sourceInfo: "auto",
+    };
+    const url = `paseo-file-link:${encodeURIComponent(JSON.stringify(source))}`;
+    expect(prepared).toBe(`Open [README.md](<${url}>)`);
+    expect(proseLinkSource(url)).toEqual(source);
+    const opened: unknown[] = [];
+    handleProseLinkPress(
+      url,
+      (value) => opened.push(value),
+      () => {
+        throw new Error("Opened website");
+      },
+    );
+    expect(opened).toEqual([source]);
+  });
 });

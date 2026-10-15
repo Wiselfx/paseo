@@ -754,6 +754,7 @@ export const LiveElapsed = memo(function LiveElapsed({
 
 interface AssistantMessageProps {
   markdownKind?: "prose" | "quote" | "block";
+  markdownProseBlocks?: readonly string[];
   renderFullContent?: boolean;
   occurrenceKey: string;
   message: string;
@@ -1497,6 +1498,7 @@ function MarkdownListView({
 
 export const AssistantMessage = memo(function AssistantMessage({
   markdownKind = "block",
+  markdownProseBlocks,
   renderFullContent = false,
   occurrenceKey,
   message,
@@ -1999,6 +2001,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         streaming={phase === "streaming"}
         kind={markdownKind}
         text={revealedMessage}
+        sourceBlocks={markdownProseBlocks ?? [message]}
         onLinkPress={handleMarkdownLinkPress}
       >
         {keyedBlocks.map(({ key, block }, index) => (

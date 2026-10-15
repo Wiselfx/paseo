@@ -6,7 +6,7 @@ import { useStableEvent } from "@/hooks/use-stable-event";
 import { createMarkdownStyles } from "@/styles/markdown-styles";
 import type { Theme } from "@/styles/theme";
 import type { MarkdownProseProps } from "./props";
-import { inlineCodeLinkContent, prepareProse } from "./prepare";
+import { handleProseLinkPress, prepareProse } from "./prepare";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
@@ -95,6 +95,7 @@ const PROSE_CONTAINER = { marginBottom: -12 };
 
 const NativeProse = memo(function NativeProse({
   text,
+  sourceBlocks,
   streaming,
   kind,
   onLinkPress,
@@ -104,16 +105,11 @@ const NativeProse = memo(function NativeProse({
     actions.canResolveFile({ href: content, text: content, sourceType: "inline-code" }),
   );
   const markdown = useMemo(
-    () => prepareProse(text, canResolveCode, streaming),
-    [text, canResolveCode, streaming],
+    () => prepareProse(sourceBlocks, canResolveCode, streaming, text.length),
+    [text.length, sourceBlocks, canResolveCode, streaming],
   );
   const handleLinkPress = useStableEvent(({ url }: { url: string }) => {
-    const content = inlineCodeLinkContent(url);
-    if (content !== null) {
-      actions.open({ href: content, text: content, sourceType: "inline-code" }, "preferred");
-      return;
-    }
-    onLinkPress(url);
+    handleProseLinkPress(url, (source) => actions.open(source, "preferred"), onLinkPress);
   });
   return (
     <ThemedMarkdown

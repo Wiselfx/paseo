@@ -34,9 +34,10 @@ So arrival sets a _target_ and the reveal rate is derived from the backlog inste
   display. Native groups adjacent prose into selectable runs; web retains individual blocks.
   Code, tables, images, HTML-like content and blockquotes end a native run. See
   [native text selection](native-text-selection.md) for renderer ownership and library constraints.
-  Appends parse only the growing last source block. Completed source blocks retain their parsed
-  classification, completed display rows retain object identity, and a source-item cache avoids
-  re-splitting history. Streamed and fetched messages use the same projection.
+  Completing a reference definition can change an earlier block boundary. Live and history use
+  the same structural parse; unchanged blocks retain their classification and completed rows
+  retain object identity. A source-item cache avoids re-splitting unchanged history. Prose rows
+  retain the original source blocks so native preparation cannot broaden reference scope.
 - **A row id is never a message id.** Block rows are `${messageId}:block:${n}`; native prose runs use `${messageId}:run:${n}` with
   `blockGroupId = messageId`, including single-row messages. Inline images split a source block into offset-keyed parts, so nothing can come to rely on the two
   being equal. `getStreamItemMessageId` in `presentation.ts` is the only way to go from a row to its

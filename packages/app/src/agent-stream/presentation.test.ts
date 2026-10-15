@@ -124,6 +124,44 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
 }
 
 describe("native prose runs", () => {
+  it("projects a completed streamed reference definition like fresh history", () => {
+    const present = createStreamPresentation({ markdown: "prose-runs" });
+    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+    for (const text of ["![shot][pic]\n\n[pic]:", " shots/app.png"]) {
+      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
+      present({ ...presentationOptions, ...state, transform: undefined });
+    }
+    const live = present({ ...presentationOptions, ...state, transform: undefined });
+    const history = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: hydrateStreamState([
+        { event: assistant("![shot][pic]\n\n[pic]: shots/app.png"), timestamp: new Date(1000) },
+      ]),
+      head: [],
+      transform: undefined,
+    });
+    expect([...live.tail, ...live.head]).toEqual(history.tail);
+  });
+  it("keeps file URL images in Paseo's renderer", () => {
+    const source = hydrateStreamState([
+      {
+        event: assistant("Before ![shot](file:///repo/shots/app.png) after."),
+        timestamp: new Date(1000),
+      },
+    ]);
+    const result = createStreamPresentation({ markdown: "prose-runs" })({
+      ...presentationOptions,
+      tail: source,
+      head: [],
+      transform: undefined,
+    });
+    expect(result.tail).toMatchObject([
+      { text: "Before", markdownKind: "prose" },
+      { text: "![shot](file:///repo/shots/app.png)", markdownKind: "block" },
+      { text: "after.", markdownKind: "prose" },
+    ]);
+  });
+
   it("starts another run before combined paragraphs exceed the render cap", () => {
     const first = "a".repeat(20_000);
     const second = "b".repeat(20_000);

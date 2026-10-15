@@ -715,6 +715,7 @@ export interface AssistantMessageItem {
   blockGroupId?: string;
   blockIndex?: number;
   markdownKind?: "prose" | "quote" | "block";
+  markdownProseBlocks?: readonly string[];
 }
 
 export interface TimelinePosition {

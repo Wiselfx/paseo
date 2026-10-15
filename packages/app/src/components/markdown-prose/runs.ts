@@ -1,9 +1,9 @@
 import { ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT } from "@/components/assistant-message-render-limit";
-import MarkdownIt from "markdown-it";
+import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
 import type Token from "markdown-it/lib/token.mjs";
 import type { AssistantMessageItem } from "@/types/stream";
 
-const parser = new MarkdownIt({ html: true });
+const parser = createAssistantMarkdownParser();
 const partsByBlock = new WeakMap<AssistantMessageItem, AssistantMessageItem[]>();
 
 function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
@@ -14,7 +14,11 @@ function splitBlock(block: AssistantMessageItem): AssistantMessageItem[] {
   const preserved = tokens.some(
     (token) =>
       ["fence", "code_block", "table_open", "html_block"].includes(token.type) ||
-      token.children?.some((child) => child.type === "html_inline"),
+      token.children?.some(
+        (child) =>
+          child.type === "html_inline" ||
+          (child.type === "text" && /<\/?[A-Za-z][^>]*>/.test(child.content)),
+      ),
   );
   const isQuote = tokens.some((token) => token.type === "blockquote_open");
   const hasImage = tokens.some((token) => token.children?.some((child) => child.type === "image"));
@@ -76,10 +80,12 @@ export function groupMarkdownProse(blocks: AssistantMessageItem[]): AssistantMes
       previous.text.length + 2 + block.text.length <= ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT
     ) {
       previous.text += `\n\n${block.text}`;
+      previous.markdownProseBlocks = [...previous.markdownProseBlocks!, block.text];
       continue;
     }
     rows.push({
       ...block,
+      markdownProseBlocks: block.markdownKind === "block" ? undefined : [block.text],
       id: block.markdownKind === "prose" ? block.id.replace(":block:", ":run:") : block.id,
     });
   }

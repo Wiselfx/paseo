@@ -27,7 +27,7 @@ export type MarkdownDisplayPart = MarkdownTextPart | MarkdownDetailsPart | Markd
 
 const FENCE_LINE_RE = /^ {0,3}([`~]{3,})[^\n\r]*(?:\r?\n|$)/gm;
 const BACKTICK_RUN_RE = /`+/g;
-const SAFE_IMAGE_SRC_RE = /^(https?:\/\/|data:image\/(?:png|gif|jpe?g);base64,)/i;
+const SAFE_IMAGE_SRC_RE = /^(https?:\/\/|data:image\/(?:svg\+xml,|(?:png|gif|jpe?g);base64,))/i;
 const SAFE_LINK_HREF_RE = /^(https?:\/\/|#(?:$|[\w-]))/i;
 // CommonMark open and closing tags (spec "Raw HTML"); comments are matched separately.
 const HTML_ATTRIBUTE = String.raw`\s+[A-Za-z_:][\w.:-]*(?:\s*=\s*(?:[^\s"'=<>\x60]+|'[^']*'|"[^"]*"))?`;
@@ -114,6 +114,22 @@ function splitHtmlishTokens(tokens: HtmlToken[]): MarkdownDisplayPart[] {
       }
     }
 
+    if (isOpenTag(token, "svg")) {
+      const closeIndex = findMatchingClose(tokens, cursor, "svg");
+      if (closeIndex !== null) {
+        const image = svgTokensToInlineImage(tokens.slice(cursor, closeIndex + 1));
+        if (image) {
+          parts.push(
+            flowsWithFollowingText(tokens, cursor, closeIndex + 1)
+              ? { ...image, flowsWithText: true }
+              : image,
+          );
+          cursor = closeIndex + 1;
+          continue;
+        }
+      }
+    }
+
     const inlineImage = parseInlineImageAt(tokens, cursor);
     if (inlineImage) {
       parts.push(
@@ -144,6 +160,30 @@ function splitHtmlishTokens(tokens: HtmlToken[]): MarkdownDisplayPart[] {
   }
 
   return parts;
+}
+
+const MAX_INLINE_SVG_CHARS = 100 * 1024;
+
+/**
+ * Raw inline <svg> markup → data-URI image. Scripts never execute in image
+ * context, so no sanitizer is needed. Unclosed svg (streaming) falls through
+ * to text via the null closeIndex above. Native renders nothing (same as
+ * remote svg today); web renders the image.
+ */
+function svgTokensToInlineImage(tokens: HtmlToken[]): MarkdownInlineImagePart | null {
+  const raw = tokens
+    .map((token) => {
+      if (token.kind === "text") return token.value;
+      if (token.kind === "tag") return token.raw;
+      return "";
+    })
+    .join("");
+  if (!raw || raw.length > MAX_INLINE_SVG_CHARS) return null;
+  return {
+    kind: "inlineImage",
+    alt: "",
+    src: `data:image/svg+xml,${encodeURIComponent(raw)}`,
+  };
 }
 
 function parseInlineImageAt(tokens: HtmlToken[], start: number): InlineImageParseResult | null {

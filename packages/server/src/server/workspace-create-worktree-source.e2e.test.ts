@@ -75,7 +75,16 @@ test.each([false, true])(
       path.join(repoDir, "paseo.json"),
       JSON.stringify({
         worktree: {
-          ...(withSetupService ? { setup: "node setup.cjs" } : {}),
+          ...(withSetupService
+            ? {
+                // Launch the Windows service asynchronously so it outlives
+                // the setup command instead of holding setup open.
+                setup:
+                  process.platform === "win32"
+                    ? "Start-Process -FilePath node -ArgumentList 'setup.cjs','serve' -WorkingDirectory (Get-Location).Path -WindowStyle Hidden; while (!(Test-Path setup-pid.txt)) { Start-Sleep -Milliseconds 25 }"
+                    : "node setup.cjs",
+              }
+            : {}),
           terminals: [
             { name: "preview", command: "echo paseo-auto-terminal >> terminal-marker.txt" },
           ],
@@ -89,7 +98,7 @@ const fs = require("node:fs");
 if (process.argv[2] === "serve") {
   require("node:net").createServer().listen(Number(process.env.PASEO_WORKTREE_PORT), "127.0.0.1", () => {
     fs.writeFileSync("setup-pid.txt", String(process.pid));
-    process.send("ready");
+    process.send?.("ready");
   });
 } else {
   const child = require("node:child_process").spawn(process.execPath, [__filename, "serve"], {

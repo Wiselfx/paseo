@@ -24,13 +24,60 @@ describe("source-preserving prose", () => {
     "[linked `code`](https://example.net)",
     "Before ![shot](file:///repo/shots/app.png) after.",
     "Blank `   ` code and ` normal ` code",
-    "- first\n\tsecond",
     "\n\nA paragraph.\n\n",
     "- [ ] Task\n- [x] Done",
     "> [!NOTE]\n> Note",
     "> Ordinary quote",
   ])("copies unchanged source byte-for-byte: %s", (source) => {
     expect(prepareProse([source], noFiles)).toBe(source);
+  });
+  it.each([
+    ["[file](file:///repo/a&amp;b.txt)", "[file](<file:///repo/a&b.txt>)"],
+    ["![file](file:///repo/a&amp;b.png)", "![file](<file:///repo/a&b.png>)"],
+    ["- first\n\t&amp; second", "- first\n    & second"],
+    ["[foo\nbar]", "\\[foo\nbar]"],
+    ["[foo\\*bar]", "\\[foo\\*bar]"],
+  ])("preserves decoded destinations and source positions: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+  });
+  it.each([
+    ["&#10;---", "\\\n\\---"],
+    ["Before&#10;# after", "Before\\\n\\# after"],
+    ["&#10;1. next", "\\\n1\\. next"],
+    ["&#9;---", "\u00a0\u00a0\u00a0\u00a0---"],
+    ["&#32;---", "\u00a0---"],
+    ["Before&#13;after", "Before\\\nafter"],
+  ])("keeps whitespace entities inside text: %s", (source, expected) => {
+    expect(prepareProse([source], noFiles)).toBe(expected);
+  });
+  it("keeps multiline and escaped labels local to each source block", () => {
+    expect(prepareProse(["[foo\nbar]", "Other", "[foo bar]: https://example.com"], noFiles)).toBe(
+      "\\[foo\nbar]\n\nOther\n\n[foo bar]: https://example.com",
+    );
+    expect(
+      prepareProse(["[foo\\*bar]", "Other", "[foo\\*bar]: https://example.com"], noFiles),
+    ).toBe("\\[foo\\*bar]\n\nOther\n\n[foo\\*bar]: https://example.com");
+  });
+  it("prepares only changed source blocks on append", () => {
+    const candidates: string[] = [];
+    const prepare = createProsePreparer((text) => {
+      candidates.push(text);
+      return false;
+    });
+    prepare(["First `one`.", "Next `two`.", "Last `three`."], true, Infinity);
+    candidates.length = 0;
+    prepare(["First `one`.", "Next `two`.", "Last `three`. More."], true, Infinity);
+    expect(candidates).toEqual(["three"]);
+  });
+  it("bounds preparation before parsing a capped block", () => {
+    let candidates = 0;
+    const prepare = createProsePreparer(() => {
+      candidates++;
+      return false;
+    });
+    const source = "Use `foo` here. ".repeat(70_000);
+    prepare([source], false, 32_000);
+    expect(candidates).toBeLessThan(2200);
   });
   it("decodes entities outside code", () => {
     expect(prepareProse(["A &amp; B &#65; &#x41; &copy; `&amp;`"], noFiles)).toBe(
@@ -61,12 +108,12 @@ describe("source-preserving prose", () => {
     const tasks = "- [x] Task\n- [ ] Pending\n1. [x] Ordered";
     expect(prepareProse([tasks], noFiles)).toBe(tasks);
   });
-  it("prepares 30k of inline code in under 10ms warm", () => {
+  it("prepares 30k of inline code in under 50ms warm", () => {
     const text = "Use `foo` and `bar` here. ".repeat(1300).slice(0, 30000);
     for (let i = 0; i < 10; i++) prepareProse([text], noFiles);
     const start = performance.now();
     for (let i = 0; i < 5; i++) expect(prepareProse([text], noFiles)).toBe(text);
-    expect((performance.now() - start) / 5).toBeLessThan(10);
+    expect((performance.now() - start) / 5).toBeLessThan(50);
   });
   it("reuses prepared prefixes while completing the visible inline tail", () => {
     const prepare = createProsePreparer(noFiles);

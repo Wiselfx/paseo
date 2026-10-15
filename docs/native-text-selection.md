@@ -14,7 +14,7 @@ Checkbox toggling is disabled because changes would not persist. Admonitions add
 
 ## Compatibility constraints
 
-- The 1.1.1 native parser drops entity nodes. Decode text entities before rendering, retaining literal entities inside code. Its autolinks also disagree with Paseo about bare domains and trailing punctuation, so preserve Paseo’s recognized destinations as explicit links.
+- The 1.1.1 native parser drops entity nodes. Decode text and destination entities before rendering, retaining literal entities inside code. Whitespace entities must remain text instead of creating new Markdown blocks. Its autolinks also disagree with Paseo about bare domains and trailing punctuation, so preserve Paseo’s recognized destinations as explicit links.
 - Keep dollar-delimited text literal with `latexMath: false`; dollar amounts must not become math.
 - Spoilers have no public parser switch in 1.1.1. Escape prose pipes so `||text||` stays visible; code and link destinations retain their pipes.
 - `lineHeight` is a minimum, so font metrics can increase it. Compare spacing on devices.

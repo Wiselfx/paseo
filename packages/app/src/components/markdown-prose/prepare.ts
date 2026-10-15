@@ -87,20 +87,26 @@ interface PreparedBlock {
 
 /** One cache per mounted prose row. Reveal reuses the prepared prefix and parses only its open tail. */
 export function createProsePreparer(canResolveCode: (text: string) => boolean) {
-  let cache = new Map<string, PreparedBlock>();
+  let cache = new Map<string, { source: string; prepared: PreparedBlock }>();
   return (blocks: readonly string[], streaming: boolean, visibleLength: number): string => {
-    const retained = new Map<string, PreparedBlock>();
+    const retained = new Map<string, { source: string; prepared: PreparedBlock }>();
     const result: string[] = [];
     let remaining = visibleLength;
     for (const [index, block] of blocks.entries()) {
-      const live = streaming && index === blocks.length - 1;
+      if (remaining < 0) break;
+      const live = streaming && (index === blocks.length - 1 || remaining < block.length);
       const key = `${live}:${block}`;
-      const prepared = cache.get(key) ?? compileBlock(block, canResolveCode, live);
-      retained.set(key, prepared);
-      if (remaining >= 0) {
-        result.push(revealBlock(block, prepared, remaining, canResolveCode, streaming));
-        remaining -= block.length + 2;
-      }
+      const source = block.slice(0, remaining);
+      const cached = cache.get(key);
+      const entry =
+        cached && cached.source.length >= source.length
+          ? cached
+          : { source, prepared: compileBlock(source, canResolveCode, live) };
+      retained.set(key, entry);
+      result.push(
+        revealBlock(entry.source, entry.prepared, source.length, canResolveCode, streaming),
+      );
+      remaining -= block.length + 2;
     }
     cache = retained;
     return result.join("\n\n");
@@ -187,7 +193,10 @@ function preserveLinkScope(context: InlinePreparation, span: InlineSpan, raw: st
   const end = labelEnd(context, raw, 0);
   protect(context.protectedRanges, { start: span.start + end, end: span.end });
   protect(context.referenceRanges, span);
-  if (raw[end + 1] === "(") return;
+  if (raw[end + 1] === "(") {
+    decodeDestination(context, span, raw, end, link.attrGet("href")!);
+    return;
+  }
   // The native parser sees the joined run; bind reference destinations to their source block.
   const title = link.attrGet("title");
   const quotedTitle =
@@ -198,10 +207,52 @@ function preserveLinkScope(context: InlinePreparation, span: InlineSpan, raw: st
     text: `](<${link.attrGet("href")}>${quotedTitle})`,
   });
 }
+function decodeDestination(
+  context: InlinePreparation,
+  span: InlineSpan,
+  raw: string,
+  label: number,
+  href: string,
+) {
+  if (raw[label + 1] !== "(") return;
+  const start = label + 2 + (raw.slice(label + 2).match(/^\s*/)?.[0].length ?? 0);
+  const destination = context.parser.helpers.parseLinkDestination(raw, start, raw.length);
+  if (!destination.ok) return;
+  const original = raw.slice(start, destination.pos);
+  if (context.parser.utils.unescapeAll(original) === original) return;
+  context.edits.push({
+    start: span.start + start,
+    end: span.start + destination.pos,
+    text: `<${href}>`,
+  });
+}
+function entityWhitespace(
+  context: InlinePreparation,
+  span: InlineSpan,
+  decoded: string,
+): string | null {
+  if (!/^[\t\n\r\f\v ]+$/.test(decoded)) return null;
+  if (!/[\r\n]/.test(decoded))
+    return decoded.replace(/\t/g, "\u00a0\u00a0\u00a0\u00a0").replace(/[\f\v ]/g, "\u00a0");
+  // A text-token newline must not start a block. Backslash breaks also work at
+  // the beginning of a paragraph, where two-space breaks would be trimmed away.
+  const following = context.source.slice(span.end);
+  const marker =
+    /^[ \t]*(?:[-=]+[ \t]*(?:\n|$)|(?:[-*_][ \t]*){3,}(?:\n|$)|#{1,6}(?:[ \t]|$)|>|\d{1,9}[.)][ \t]|[-+*][ \t]|`{3,}|~{3,}|<)/.exec(
+      following,
+    );
+  if (marker) {
+    const punctuation = marker[0].search(/[^ \t\d]/);
+    insert(context, span.end + punctuation, "\\");
+  }
+  return decoded.replace(/\r\n?|\n/g, "\\\n");
+}
 function decodeEntity(context: InlinePreparation, span: InlineSpan, raw: string) {
   // MD4C 1.1.1 drops entity nodes. Decode once without introducing Markdown syntax.
   const decoded = context.parser.utils.unescapeAll(raw);
-  let text = decoded.replace(/([\\`*{}[\]()#+.!_<>|~-])/g, "\\$1");
+  let text =
+    entityWhitespace(context, span, decoded) ??
+    decoded.replace(/([\\`*{}[\]()#+.!_<>|~-])/g, "\\$1");
   if (decoded.endsWith("&") && /^(?:#\w+|\w+);/.test(context.source.slice(span.end)))
     text = text.slice(0, -1) + "\\&";
   context.edits.push({ start: span.start, end: span.end, text });
@@ -212,7 +263,11 @@ function prepareSpan(context: InlinePreparation, span: InlineSpan) {
   const link = span.tokens.find((child) => child.type === "link_open");
   const image = span.tokens.find((child) => child.type === "image");
   const code = span.tokens.find((child) => child.type === "code_inline");
-  if (image || raw.startsWith("\\") || (link && raw.startsWith("<"))) {
+  if (image) {
+    decodeDestination(context, span, raw, labelEnd(context, raw, 1), image.attrGet("src")!);
+    protect(context.protectedRanges, span);
+    protect(context.referenceRanges, span);
+  } else if (raw.startsWith("\\") || (link && raw.startsWith("<"))) {
     protect(context.protectedRanges, span);
     protect(context.referenceRanges, span);
   } else if (/^&(?:#\w+|\w+);$/.test(raw)) {
@@ -232,19 +287,25 @@ function prepareSpan(context: InlinePreparation, span: InlineSpan) {
   }
 }
 function preserveUnresolvedReferences(context: InlinePreparation) {
-  // Unresolved labels stay literal even when another source block defines them.
-  for (const match of context.source.matchAll(/!?\[[^\]\n]+\](?:\[[^\]\n]*\])?/g)) {
-    if (contains(context.referenceRanges, match.index, match.index + match[0].length)) continue;
-    if (/^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/.test(match[0])) continue;
+  // Protect every unresolved label, regardless of CommonMark's case/whitespace
+  // normalization. Escapes inside a label do not make its opening bracket safe.
+  const openings: number[] = [];
+  for (let index = 0; index < context.source.length; index++) {
+    if (contains(context.referenceRanges, index)) continue;
+    if (context.source[index] === "[") openings.push(index);
+    if (context.source[index] !== "]") continue;
+    const start = openings.pop();
+    if (start === undefined) continue;
+    const label = context.source.slice(start, index + 1);
+    if (/^\[!(?:NOTE|TIP|IMPORTANT|WARNING|CAUTION)\]$/.test(label)) continue;
     if (
       context.task &&
-      match.index === 0 &&
-      /^\[[ xX]\]$/.test(match[0]) &&
-      /\s/.test(context.source[match[0].length] ?? "")
+      start === 0 &&
+      /^\[[ xX]\]$/.test(label) &&
+      /\s/.test(context.source[index + 1] ?? "")
     )
       continue;
-    for (let i = 0; i < match[0].length; i++)
-      if (match[0][i] === "[") insert(context, match.index + i, "\\");
+    insert(context, start, "\\");
   }
 }
 function prepareText(context: InlinePreparation) {
@@ -313,8 +374,14 @@ function compileBlock(
   canResolveCode: (text: string) => boolean,
   streaming: boolean,
 ): PreparedBlock {
-  const normalized = !text.includes("\r");
+  const normalized = !/[\r\t]/.test(text);
   text = text.replace(/\r\n?/g, "\n").replaceAll("\0", "\ufffd");
+  text = text.replace(/^[ \t>]*/gm, (prefix) => {
+    let expanded = "";
+    for (const char of prefix)
+      expanded += char === "\t" ? " ".repeat(4 - (expanded.length % 4)) : char;
+    return expanded;
+  });
   const { parser, traces } = streaming ? provisional : settled;
   const env = {};
   const tokens = parser.parse(text, env);

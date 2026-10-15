@@ -151,17 +151,9 @@ export function createStreamPresentation({
     const cached = runsBySource.get(item);
     if (cached) return cached;
     const previousSource = liveSources.get(item.id);
-    const previous = previousSource && runsBySource.get(previousSource);
-    const previousById = new Map(previous?.map((row) => [row.id, row]));
-    const assistantBlocks = blocks.filter(
-      (block): block is AssistantMessageItem => block.kind === "assistant_message",
-    );
-    const runs = groupMarkdownProse(assistantBlocks).map((row) => {
-      const existing = previousById.get(row.id);
-      return existing?.text === row.text && isReusableBlock(existing, item, row.id)
-        ? existing
-        : row;
-    });
+    const previousBlocks = previousSource && blocksBySource.get(previousSource);
+    // nativeBlocks emits only assistant blocks for an assistant source.
+    const runs = groupMarkdownProse(blocks as AssistantMessageItem[], previousBlocks);
     runsBySource.set(item, runs);
     return runs;
   }

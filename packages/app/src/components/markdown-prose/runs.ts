@@ -65,25 +65,103 @@ function splitParagraphImages(block: AssistantMessageItem): AssistantMessageItem
   return parts;
 }
 
-/** Native selection belongs to a text view, so adjacent prose shares one display row. */
-export function groupMarkdownProse(blocks: AssistantMessageItem[]): AssistantMessageItem[] {
-  const rows: AssistantMessageItem[] = [];
-  for (const block of blocks.flatMap(splitBlock)) {
-    const previous = rows.at(-1);
-    if (
-      block.markdownKind === "prose" &&
-      previous?.markdownKind === "prose" &&
-      previous.text.length + 2 + block.text.length <= ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT
-    ) {
-      previous.text += `\n\n${block.text}`;
-      previous.markdownProseBlocks = [...previous.markdownProseBlocks!, block.text];
-      continue;
-    }
+interface GroupedRuns {
+  rows: AssistantMessageItem[];
+  starts: number[];
+  ends: number[];
+}
+const runsByBlocks = new WeakMap<readonly AssistantMessageItem[], GroupedRuns>();
+
+/** Rebuild only the run containing the changed source block; completed runs retain identity. */
+export function groupMarkdownProse(
+  blocks: readonly AssistantMessageItem[],
+  previousBlocks?: readonly AssistantMessageItem[],
+): AssistantMessageItem[] {
+  const cached = runsByBlocks.get(blocks);
+  if (cached) return cached.rows;
+  const previous = previousBlocks && runsByBlocks.get(previousBlocks);
+  const retained = retainedRunCount(blocks, previousBlocks, previous);
+  const start = previous?.starts[retained] ?? 0;
+  const rows = previous?.rows.slice(0, retained) ?? [];
+  const starts = previous?.starts.slice(0, retained) ?? [];
+  const ends = previous?.ends.slice(0, retained) ?? [];
+  let parts: AssistantMessageItem[] = [];
+  let length = 0;
+  let runStart = start;
+  let runEnd = start;
+  function flush() {
+    if (!parts.length) return;
+    const first = parts[0]!;
+    const texts = parts.map((part) => part.text);
     rows.push({
-      ...block,
-      markdownProseBlocks: block.markdownKind === "block" ? undefined : [block.text],
-      id: block.markdownKind === "prose" ? block.id.replace(":block:", ":run:") : block.id,
+      ...first,
+      text: texts.join("\n\n"),
+      markdownProseBlocks: first.markdownKind === "block" ? undefined : texts,
+      id: first.markdownKind === "prose" ? first.id.replace(":block:", ":run:") : first.id,
     });
+    starts.push(runStart);
+    ends.push(runEnd);
+    parts = [];
+    length = 0;
   }
+  for (let index = start; index < blocks.length; index++) {
+    for (const part of splitBlock(blocks[index]!)) {
+      if (
+        parts.length &&
+        (part.markdownKind !== "prose" ||
+          parts[0]!.markdownKind !== "prose" ||
+          length + 2 + part.text.length > ASSISTANT_MESSAGE_RENDER_CHARACTER_LIMIT)
+      )
+        flush();
+      if (!parts.length) runStart = index;
+      length += (parts.length ? 2 : 0) + part.text.length;
+      parts.push(part);
+      runEnd = index;
+    }
+  }
+  flush();
+  reuseUnchangedRows(blocks, previousBlocks, previous, rows, starts, ends, retained);
+  runsByBlocks.set(blocks, { rows, starts, ends });
   return rows;
+}
+
+function retainedRunCount(
+  blocks: readonly AssistantMessageItem[],
+  previousBlocks: readonly AssistantMessageItem[] | undefined,
+  previous: GroupedRuns | undefined,
+): number {
+  if (!previous || !previousBlocks) return 0;
+  let shared = 0;
+  while (shared < blocks.length && blocks[shared] === previousBlocks[shared]) shared++;
+  let retained = 0;
+  // Revisit the boundary run because newly appended prose can join it.
+  while (retained + 1 < previous.rows.length && previous.starts[retained + 1]! < shared) retained++;
+  // Several image parts can originate from one source block. Rebuild them together.
+  while (retained > 0 && previous.ends[retained - 1]! >= previous.starts[retained]!) retained--;
+  return retained;
+}
+function reuseUnchangedRows(
+  blocks: readonly AssistantMessageItem[],
+  previousBlocks: readonly AssistantMessageItem[] | undefined,
+  previous: GroupedRuns | undefined,
+  rows: AssistantMessageItem[],
+  starts: number[],
+  ends: number[],
+  retained: number,
+) {
+  if (!previous || !previousBlocks) return;
+  for (let index = retained; index < rows.length; index++) {
+    const old = previous.rows[index];
+    const row = rows[index]!;
+    if (old?.id !== row.id || old.text !== row.text) continue;
+    const end = ends[index]!;
+    let identical = true;
+    for (let block = starts[index]!; block <= end; block++)
+      if (blocks[block] !== previousBlocks[block]) {
+        identical = false;
+        break;
+      }
+    if (!identical) continue;
+    rows[index] = old;
+  }
 }

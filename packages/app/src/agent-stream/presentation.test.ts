@@ -124,6 +124,59 @@ function rows(result: { tail: StreamItem[]; head: StreamItem[] }): StreamItem[] 
 }
 
 describe("native prose runs", () => {
+  it("retains completed runs and their source arrays while the tail grows", () => {
+    const present = createStreamPresentation({ markdown: "prose-runs" });
+    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+    state = applyStreamEvent({
+      ...state,
+      event: assistant("First.\n\nSecond.\n\n```js\n1\n```\n\nTail."),
+      timestamp: new Date(1000),
+    });
+    const before = rows(present({ ...presentationOptions, ...state, transform: undefined }));
+    state = applyStreamEvent({ ...state, event: assistant(" More."), timestamp: new Date(1000) });
+    const after = rows(present({ ...presentationOptions, ...state, transform: undefined }));
+    expect(after[0]).toBe(before[0]);
+    expect(after[1]).toBe(before[1]);
+    expect(after[2]).not.toBe(before[2]);
+  });
+  it("does not duplicate retained prose around split images on append", () => {
+    const present = createStreamPresentation({ markdown: "prose-runs" });
+    let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+    let combined = "";
+    for (const text of ["First.\n\nBefore ![shot](shots/app.png) after.", "\n\nNext.", " More."]) {
+      combined += text;
+      state = applyStreamEvent({ ...state, event: assistant(text), timestamp: new Date(1000) });
+      const live = rows(present({ ...presentationOptions, ...state, transform: undefined }));
+      const history = createStreamPresentation({ markdown: "prose-runs" })({
+        ...presentationOptions,
+        tail: hydrateStreamState([{ event: assistant(combined), timestamp: new Date(1000) }]),
+        head: [],
+        transform: undefined,
+      });
+      expect(live).toEqual(history.tail);
+    }
+  });
+  it("keeps 600 short-paragraph appends near blocks mode", { retry: 2 }, () => {
+    function measure(markdown: "blocks" | "prose-runs") {
+      const present = createStreamPresentation({ markdown });
+      let state: { tail: StreamItem[]; head: StreamItem[] } = { tail: [], head: [] };
+      const start = performance.now();
+      for (let i = 0; i < 600; i++) {
+        state = applyStreamEvent({
+          ...state,
+          event: assistant("A short paragraph.\n\n".repeat(3).slice(0, 50)),
+          timestamp: new Date(1000),
+        });
+        present({ ...presentationOptions, ...state, transform: undefined });
+      }
+      return performance.now() - start;
+    }
+    measure("blocks");
+    const blocks = measure("blocks");
+    const prose = measure("prose-runs");
+    expect(prose).toBeLessThan(Math.max(300, blocks * 3));
+    expect(prose).toBeLessThan(1500);
+  });
   it.each([
     "<!-- keep this -->\nText.",
     "<?pi hello?>",

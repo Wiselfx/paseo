@@ -1,7 +1,7 @@
 # review.md — reviewer agent rubric. You are not the author. Verify; don't trust the PR description.
 
 ## Mechanical gates (all must pass; all deterministic)
-- Files-touched whitelist: the 5 fork files in `overview.md`, nothing else. Anything else = request changes unless justified in the PR.
+- Files-touched whitelist: the 5 fork files in `docs.md`, nothing else. Anything else = request changes unless justified in the PR.
 - No lockfiles, build artifacts, or unrelated refactors.
 - Build workflow green on the PR ref. `.base-ref` updated on syncs.
 
@@ -14,6 +14,9 @@
 - Re-read the full function around every conflict resolution, not just the hunk.
 - Check platform branches (`isWeb`/`isNative`) and handler ordering (`openAtEvent` vs prop callbacks).
 - Confirm style suppressions (`touch-callout`, `user-select`) survived the merge.
+
+## Language
+Flat and factual. No marketing adjectives, no grand claims, no catchphrases. Short sentences. If unsure how to phrase something, shorten it until only facts remain. Applies to titles, bodies, comments, and code comments.
 
 ## Evidence rule
 Every finding cites `file:line`. No vibes-based approvals.

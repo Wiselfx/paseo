@@ -1,6 +1,15 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { splitVisualizeFences } from "./segments";
-import { buildVizDocument, isVizHeightMessage, VIZ_CSP } from "./document";
+import {
+  buildVizDocument,
+  isVizHeightMessage,
+  isVizLoadMessage,
+  isVizPromptMessage,
+  isVizSaveMessage,
+  VIZ_CSP,
+} from "./document";
+import { sendVizPrompt, vizStateKey, VIZ_STATE_CAP_BYTES } from "./bridges";
+import { useSessionStore } from "@/stores/session-store";
 
 describe("splitVisualizeFences", () => {
   it("extracts visualize fences", () => {
@@ -41,5 +50,52 @@ describe("buildVizDocument", () => {
     expect(isVizHeightMessage({ type: "viz:height", height: -5 })).toBe(false);
     expect(isVizHeightMessage({ type: "other", height: 300 })).toBe(false);
     expect(isVizHeightMessage(null)).toBe(false);
+  });
+
+  it("validates bridge messages", () => {
+    expect(isVizPromptMessage({ type: "viz:prompt", text: "hi" })).toBe(true);
+    expect(isVizPromptMessage({ type: "viz:prompt", text: 5 })).toBe(false);
+    expect(isVizSaveMessage({ type: "viz:save", key: "k", value: "v" })).toBe(true);
+    expect(isVizSaveMessage({ type: "viz:save", key: "k" })).toBe(false);
+    expect(isVizLoadMessage({ type: "viz:load", key: "k", nonce: 1 })).toBe(true);
+    expect(isVizLoadMessage({ type: "viz:load", key: "k", nonce: "1" })).toBe(false);
+  });
+
+  it("namespaces state keys and caps values", () => {
+    expect(vizStateKey("abc")).toBe("vizstate:abc");
+    expect(VIZ_STATE_CAP_BYTES).toBe(64 * 1024);
+  });
+
+  it("sends prompts through the session client with steer", async () => {
+    const sendAgentMessage = vi.fn(
+      async (_agentId: string, _text: string, _opts?: { activeTurnBehavior?: string }) => {},
+    );
+    const prev = useSessionStore.getState();
+    useSessionStore.setState({
+      sessions: {
+        ...prev.sessions,
+        srv1: {
+          ...(prev.sessions.srv1 as object),
+          client: { sendAgentMessage },
+          agentStreamTail: new Map(),
+          agentStreamHead: new Map(),
+          messageSubmissions: new Map(),
+        },
+      },
+    } as unknown as Partial<typeof prev>);
+    const result = await sendVizPrompt("srv1", "agent1", "break it down");
+    expect(result).toBe("sent");
+    expect(sendAgentMessage).toHaveBeenCalledOnce();
+    const [calledAgentId, calledText, calledOpts] = sendAgentMessage.mock.calls[0] ?? [];
+    expect(calledAgentId).toBe("agent1");
+    expect(calledText).toBe("break it down");
+    expect(calledOpts?.activeTurnBehavior).toBe("steer");
+  });
+
+  it("noops prompts without session, agent, or text", async () => {
+    expect(await sendVizPrompt(undefined, "a", "hi")).toBe("noop");
+    expect(await sendVizPrompt("srv1", undefined, "hi")).toBe("noop");
+    expect(await sendVizPrompt("srv1", "a", "  ")).toBe("noop");
+    expect(await sendVizPrompt("nosuch", "a", "hi")).toBe("noop");
   });
 });

@@ -35,6 +35,7 @@ export interface MarkdownRendererProps extends MarkdownImageContext {
   text: string;
   compact?: boolean;
   streaming?: boolean;
+  agentId?: string;
   onLinkPress?: (url: string) => unknown;
 }
 
@@ -61,6 +62,7 @@ const MarkdownPart = memo(function MarkdownPart({
   continues = false,
   compact = false,
   streaming = false,
+  agentId,
   onLinkPress,
   ...imageContext
 }: MarkdownRendererProps & { continues?: boolean }) {
@@ -129,7 +131,12 @@ const MarkdownPart = memo(function MarkdownPart({
             onPress={(url) => pressLink({ url, sourceType: "text" })}
           />
         ) : segment.kind === "viz" ? (
-          <VisualizeFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
+          <VisualizeFence
+            key={`${segment.kind}:${segment.id}`}
+            code={segment.source}
+            serverId={imageContext.serverId}
+            agentId={agentId}
+          />
         ) : (
           <ThemedMarkdown
             key={`${segment.kind}:${segment.id}`}

@@ -715,6 +715,7 @@ interface AssistantMessageProps {
   timestamp: number;
   workspaceRoot?: string;
   serverId?: string;
+  agentId?: string;
   client?: DaemonClient | null;
   spacing?: "default" | "compactTop" | "compactBottom" | "compactBoth";
   phase: MarkdownPhase;
@@ -1134,6 +1135,7 @@ export const AssistantMessage = memo(function AssistantMessage({
   timestamp: _timestamp,
   workspaceRoot,
   serverId,
+  agentId,
   client,
   spacing = "default",
   phase,
@@ -1189,6 +1191,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         client={client}
         workspaceRoot={workspaceRoot}
         serverId={serverId}
+        agentId={agentId}
       />
       {fullMessageByteLength !== null ? (
         <Text

@@ -726,6 +726,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                   timestamp={item.timestamp.getTime()}
                   workspaceRoot={workspaceRoot}
                   serverId={resolvedServerId}
+                  agentId={agentId}
                   client={client}
                   spacing={layoutItem.assistantSpacing}
                   phase={layoutItem.phase}

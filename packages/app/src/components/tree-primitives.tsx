@@ -13,15 +13,6 @@ export const WORKSPACE_FILE_ROW_VERTICAL_PADDING = SPACING[1.5];
 export const WORKSPACE_TREE_ICON_SIZE = 16;
 export const WORKSPACE_TREE_LOADING_ICON_SIZE = 14;
 export const WORKSPACE_TREE_ICON_LABEL_GAP = SPACING[2];
-
-/** True on touch-driven web browsers (phones/tablets). Native apps never hit
- * the Safari touch-callout problem, so they keep default text behavior. */
-const SUPPRESS_TOUCH_CALLOUT =
-  typeof window !== "undefined" &&
-  typeof window.matchMedia === "function" &&
-  window.matchMedia("(pointer: coarse)").matches;
-
-const TOUCH_CALLOUT_SUPPRESSION = SUPPRESS_TOUCH_CALLOUT ? { userSelect: "none" as const } : {};
 /**
  * Trailing glyph rail shared with the explorer X and Changes options chevron.
  * The extra 2px is optical: text ink ends inside its layout box, while the
@@ -60,12 +51,6 @@ export const workspaceTreeRowStyles = StyleSheet.create((theme: Theme) => ({
     justifyContent: "space-between",
     paddingVertical: WORKSPACE_FILE_ROW_VERTICAL_PADDING,
     paddingRight: WORKSPACE_PANE_TRAILING_GLYPH_RAIL,
-    // Touch web (iOS Safari): stop the OS hijacking long-press with its own
-    // callout/magnifier so the gesture reaches the context menu trigger.
-    // (If Safari ever needs the stronger `-webkit-touch-callout: none`, it
-    // has no RN type — add it here via a CSS escape hatch, not this object.)
-    // Desktop keeps text selection; copy remains via the menu everywhere.
-    ...(SUPPRESS_TOUCH_CALLOUT ? TOUCH_CALLOUT_SUPPRESSION : {}),
   },
   active: {
     backgroundColor: theme.colors.surfaceSidebarHover,

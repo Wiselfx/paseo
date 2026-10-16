@@ -74,7 +74,7 @@ import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
 import { useRevealedText } from "@/hooks/use-revealed-text";
 import { colorMarkdownLinkChildren } from "@/components/markdown/link-children";
 import { AssistantLinkCard } from "@/components/markdown/link-card";
-import { isRemoteImageUrl, isSoleParagraphContent } from "@/components/markdown/media-links";
+import { isRemoteImageUrl, isSoleBlockContent } from "@/components/markdown/media-links";
 import { youtubeIdForUrl } from "@/components/markdown/fence/youtube";
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
@@ -1950,7 +1950,7 @@ export const AssistantMessage = memo(function AssistantMessage({
         if (
           source.markup === "linkify" &&
           !youtubeIdForUrl(source.href) &&
-          isSoleParagraphContent(node.key, parent)
+          isSoleBlockContent(node.key, parent)
         ) {
           return (
             <AssistantLinkCard

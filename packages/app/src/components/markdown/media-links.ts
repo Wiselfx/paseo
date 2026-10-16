@@ -44,19 +44,26 @@ export function trimTrailingPunctuation(s: string): string {
   return s.replace(TRAILING_PUNCT_RE, "");
 }
 
+const CARD_CONTAINER_TYPES = new Set(["paragraph", "textgroup"]);
+
 /**
- * True when the link is the paragraph's only meaningful content: every
- * sibling is either the link itself or whitespace (text or line breaks:
- * a trailing newline parses as a softbreak sibling, so standalone links
- * would never qualify without it). Native cards render for standalone
- * bare links; links embedded in prose stay links, so paragraphs never
- * break around a card. The plugin could not do this (raw-text regexes,
- * no AST) and gated on prose length instead.
+ * True when the link is its block's only meaningful content: the nearest
+ * paragraph-like container (paragraph, or the textgroup wrapper the
+ * renderer groups inline runs into — the assistant block pipeline tops
+ * out at textgroup, so a paragraph lookup never matches there) holds
+ * nothing but the link, blank text, and line breaks. Structural parents
+ * opt out: links in list items and headings stay links, and cards never
+ * render inside them.
  */
-export function isSoleParagraphContent(nodeKey: string, parent: ASTNode[]): boolean {
-  const paragraph = parent.find((ancestor) => ancestor?.type === "paragraph");
-  const siblings = paragraph?.children;
-  if (!Array.isArray(siblings) || siblings.length === 0) return false;
+export function isSoleBlockContent(nodeKey: string, parent: ASTNode[]): boolean {
+  if (parent.some((a) => a?.type === "list_item" || (a?.type?.startsWith("heading") ?? false)))
+    return false;
+  const container = parent.find(
+    (a) =>
+      a && CARD_CONTAINER_TYPES.has(a.type) && Array.isArray(a.children) && a.children.length > 0,
+  );
+  const siblings = container?.children;
+  if (!siblings) return false;
   return siblings.every(
     (child) =>
       child?.key === nodeKey ||

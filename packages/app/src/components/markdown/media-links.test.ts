@@ -5,7 +5,7 @@ import {
   isLocalImagePath,
   isLocalPath,
   isRemoteImageUrl,
-  isSoleParagraphContent,
+  isSoleBlockContent,
   matchBareLocalPaths,
 } from "./media-links";
 
@@ -61,29 +61,35 @@ describe("displayUrl / domainForUrl", () => {
   });
 });
 
-describe("isSoleParagraphContent", () => {
+describe("isSoleBlockContent", () => {
   const text = (key: string, content: string) =>
     ({ type: "text", key, content, children: [] }) as never;
   const link = (key: string) => ({ type: "link", key, children: [] }) as never;
-  const para = (children: never[]) => [{ type: "paragraph", key: "p", children }] as never;
+  const wrap = (type: string, children: never[]) => [{ type, key: `${type}-0`, children }] as never;
 
-  it("accepts a lone link", () => {
-    expect(isSoleParagraphContent("l", para([link("l")]))).toBe(true);
+  it("accepts a lone link in a textgroup (assistant block shape)", () => {
+    expect(isSoleBlockContent("l", wrap("textgroup", [link("l")]))).toBe(true);
   });
-  it("accepts a link with whitespace around it", () => {
-    expect(isSoleParagraphContent("l", para([text("a", "  "), link("l"), text("b", "\n")]))).toBe(
-      true,
-    );
+  it("accepts a lone link in a paragraph", () => {
+    expect(isSoleBlockContent("l", wrap("paragraph", [link("l")]))).toBe(true);
   });
-  it("accepts a link with a trailing line break", () => {
+  it("accepts a link with whitespace and line breaks around it", () => {
     const br = (type: string) => ({ type, key: `${type}-1`, content: "", children: [] }) as never;
-    expect(isSoleParagraphContent("l", para([link("l"), br("softbreak")]))).toBe(true);
-    expect(isSoleParagraphContent("l", para([link("l"), br("hardbreak")]))).toBe(true);
+    expect(
+      isSoleBlockContent("l", wrap("textgroup", [text("a", "  "), link("l"), br("softbreak")])),
+    ).toBe(true);
+    expect(isSoleBlockContent("l", wrap("textgroup", [link("l"), br("hardbreak")]))).toBe(true);
   });
   it("rejects links embedded in prose", () => {
-    expect(isSoleParagraphContent("l", para([text("a", "see "), link("l")]))).toBe(false);
+    expect(isSoleBlockContent("l", wrap("textgroup", [text("a", "see "), link("l")]))).toBe(false);
   });
-  it("rejects missing paragraphs", () => {
-    expect(isSoleParagraphContent("l", [])).toBe(false);
+  it("rejects links in list items and headings", () => {
+    const li = { type: "list_item", key: "li", children: [] } as never;
+    const h1 = { type: "heading1", key: "h1", children: [] } as never;
+    expect(isSoleBlockContent("l", [...wrap("textgroup", [link("l")]), li])).toBe(false);
+    expect(isSoleBlockContent("l", [...wrap("textgroup", [link("l")]), h1])).toBe(false);
+  });
+  it("rejects missing containers", () => {
+    expect(isSoleBlockContent("l", [])).toBe(false);
   });
 });

@@ -1,4 +1,11 @@
-import type { ASTNode } from "react-native-markdown-display";
+/** Minimal AST shape for block parents (old react-native-markdown-display
+ * ASTNode; the library is gone upstream, classifiers only need this). */
+interface BlockNode {
+  type: string;
+  key: string;
+  content: string;
+  children: BlockNode[];
+}
 
 /**
  * Native port of the media-cards plugin detectors: same matchers, none of
@@ -55,7 +62,7 @@ const CARD_CONTAINER_TYPES = new Set(["paragraph", "textgroup"]);
  * opt out: links in list items and headings stay links, and cards never
  * render inside them.
  */
-export function isSoleBlockContent(nodeKey: string, parent: ASTNode[]): boolean {
+export function isSoleBlockContent(nodeKey: string, parent: BlockNode[]): boolean {
   if (parent.some((a) => a?.type === "list_item" || (a?.type?.startsWith("heading") ?? false)))
     return false;
   const container = parent.find(

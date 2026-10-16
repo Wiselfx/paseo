@@ -17,6 +17,8 @@ import { splitStreamingMarkdown } from "./streaming";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
 import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fence/mermaid";
+import { YouTubeFence } from "./fence/youtube";
+import { splitYouTubeFences } from "./fence/youtube/segments";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
@@ -81,16 +83,31 @@ const MarkdownPart = memo(function MarkdownPart({
     if (url !== PENDING_MARKDOWN_IMAGE) setImage({ type: "uri", uri: url });
   });
   const closeImage = useStableEvent(() => setImage(null));
-  const segments = useMemo(
-    () =>
-      isWeb ? [{ kind: "markdown", id: "0", source: markdown }] : splitMermaidFences(markdown),
-    [markdown],
-  );
+  // Fork media: YouTube fences + standalone bare YouTube URL lines host the
+  // player between library segments (same pattern as mermaid). Mermaid
+  // splitting stays platform-gated as upstream; YouTube splits everywhere.
+  const segments = useMemo(() => {
+    const mermaid =
+      isWeb
+        ? [{ kind: "markdown" as const, id: "0", source: markdown }]
+        : splitMermaidFences(markdown);
+    const out: { kind: string; id: string; source: string }[] = [];
+    for (const m of mermaid) {
+      if (m.kind !== "markdown") {
+        out.push({ ...m, id: `m${out.length}` });
+        continue;
+      }
+      for (const y of splitYouTubeFences(m.source)) out.push({ ...y, id: `y${out.length}` });
+    }
+    return out;
+  }, [markdown]);
   const content = (
     <MermaidStreamingContext.Provider value={streaming}>
       {segments.map((segment) =>
         segment.kind === "mermaid" ? (
           <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
+        ) : segment.kind === "youtube" ? (
+          <YouTubeFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
         ) : (
           <ThemedMarkdown
             key={`${segment.kind}:${segment.id}`}

@@ -41,7 +41,10 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   // Fork media: raw <svg> blocks hoist to data-URI images before mdast prep
   // so they ride the stock image pipeline. Unclosed svg and code stay text.
   const prepared = useMemo(
-    () => prepareMarkdownSource(hoistRawSvgToImages(text), context.workspaceRoot, { supportsSvg: isWeb }),
+    () =>
+      prepareMarkdownSource(hoistRawSvgToImages(text), context.workspaceRoot, {
+        supportsSvg: isWeb,
+      }),
     [text, context.workspaceRoot],
   );
   const sources = [...new Set(prepared.images.map((image) => image.source))];

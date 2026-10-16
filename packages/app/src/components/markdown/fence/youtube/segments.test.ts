@@ -11,9 +11,7 @@ describe("splitYouTubeFences", () => {
   });
 
   it("extracts standalone bare YouTube URLs", () => {
-    const segments = splitYouTubeFences(
-      "see this\nhttps://youtu.be/4q6UGCyHZCI\nnice",
-    );
+    const segments = splitYouTubeFences("see this\nhttps://youtu.be/4q6UGCyHZCI\nnice");
     expect(segments.map((s) => s.kind)).toEqual(["markdown", "youtube", "markdown"]);
   });
 

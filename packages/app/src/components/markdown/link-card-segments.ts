@@ -32,13 +32,13 @@ export function splitLinkCards(markdown: string): CardSegment[] {
         for (const line of markdown.slice(start, end).split("\n")) {
           const lineEnd = offset + line.length;
           const t = line.trim();
-          if (
-            BARE_URL_RE.test(t) &&
-            !isRemoteImageUrl(t) &&
-            !youtubeIdForUrl(t)
-          ) {
+          if (BARE_URL_RE.test(t) && !isRemoteImageUrl(t) && !youtubeIdForUrl(t)) {
             if (offset > cursor)
-              segments.push({ kind: "markdown", id: String(segments.length), source: markdown.slice(cursor, offset) });
+              segments.push({
+                kind: "markdown",
+                id: String(segments.length),
+                source: markdown.slice(cursor, offset),
+              });
             segments.push({ kind: "card", id: String(segments.length), source: t });
             cursor = lineEnd;
           }
@@ -55,6 +55,10 @@ export function splitLinkCards(markdown: string): CardSegment[] {
   const tree = fromMarkdown(markdown);
   tree.children.forEach((c) => visit(c, false));
   if (cursor < markdown.length || segments.length === 0)
-    segments.push({ kind: "markdown", id: String(segments.length), source: markdown.slice(cursor) });
+    segments.push({
+      kind: "markdown",
+      id: String(segments.length),
+      source: markdown.slice(cursor),
+    });
   return segments;
 }

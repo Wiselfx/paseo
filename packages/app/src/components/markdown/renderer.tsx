@@ -90,10 +90,9 @@ const MarkdownPart = memo(function MarkdownPart({
   // bare links become favicon cards the same way. Mermaid splitting stays
   // platform-gated as upstream; YouTube/card splits run everywhere.
   const segments = useMemo(() => {
-    const mermaid =
-      isWeb
-        ? [{ kind: "markdown" as const, id: "0", source: markdown }]
-        : splitMermaidFences(markdown);
+    const mermaid = isWeb
+      ? [{ kind: "markdown" as const, id: "0", source: markdown }]
+      : splitMermaidFences(markdown);
     const out: { kind: string; id: string; source: string }[] = [];
     const splitCards = (source: string) => {
       for (const c of splitLinkCards(source)) out.push({ ...c, id: `c${out.length}` });

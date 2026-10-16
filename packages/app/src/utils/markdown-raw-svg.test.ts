@@ -19,7 +19,7 @@ describe("hoistRawSvgToImages", () => {
     );
   });
   it("leaves unclosed svg as text for streaming", () => {
-    expect(hoistRawSvgToImages("see <svg width=\"10\"><circle")).toContain("<svg");
+    expect(hoistRawSvgToImages('see <svg width="10"><circle')).toContain("<svg");
   });
   it("leaves fenced and inline code untouched", () => {
     expect(hoistRawSvgToImages(`run \`${svg}\``)).not.toContain("![](");

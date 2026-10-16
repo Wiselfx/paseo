@@ -74,7 +74,7 @@ import { splitMarkdownBlocks } from "@/utils/split-markdown-blocks";
 import { useRevealedText } from "@/hooks/use-revealed-text";
 import { colorMarkdownLinkChildren } from "@/components/markdown/link-children";
 import { AssistantLinkCard } from "@/components/markdown/link-card";
-import { isRemoteImageUrl, isSoleBlockContent } from "@/components/markdown/media-links";
+import { isSoleBlockContent } from "@/components/markdown/media-links";
 import { youtubeIdForUrl } from "@/components/markdown/fence/youtube";
 import { createAssistantMarkdownParser } from "@/utils/assistant-markdown-parser";
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
@@ -1928,23 +1928,9 @@ export const AssistantMessage = memo(function AssistantMessage({
       ),
       link: (node: ASTNode, children: ReactNode[], parent: ASTNode[], styles: MarkdownStyles) => {
         const source = getMarkdownLinkSource(node);
-        // Bare remote image URLs render inline previews (same component as
-        // authored ![images](...)). YouTube stays on the AssistantMarkdownLink
-        // hook, so it is excluded from the card branch below.
-        if (isRemoteImageUrl(source.href)) {
-          return (
-            <AssistantMarkdownImage
-              key={node.key}
-              source={source.href}
-              occurrenceKey={`${occurrenceKey}:${node.key}`}
-              alt={getMarkdownNodeText(node) || undefined}
-              hasLeadingContent={false}
-              client={client}
-              workspaceRoot={workspaceRoot}
-              serverId={serverId}
-            />
-          );
-        }
+        // Bare remote image URLs arrive as image nodes (parser converts
+        // them), so this rule only sees links. YouTube stays on the
+        // AssistantMarkdownLink hook, excluded from cards below.
         // Standalone bare links become favicon cards; links embedded in
         // prose stay links so paragraphs never break around a card.
         // Authored [text](url) links always stay links.

@@ -11,6 +11,8 @@ import {
 import { createAssistantImageAcquisitionCache } from "@/assistant-image/acquisition-cache";
 import { retainAttachmentForGarbageCollection } from "@/attachments/gc-retention";
 import { resolveAssistantImageSource } from "@/utils/assistant-image-source";
+import { hoistBareRemoteImages } from "@/utils/markdown-image-links";
+import { linkifyLocalPaths } from "@/utils/markdown-local-paths";
 import { hoistRawSvgToImages } from "@/utils/markdown-raw-svg";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { AttachmentMetadata } from "@/attachments/types";
@@ -40,11 +42,18 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
   const occurrenceKey = useId();
   // Fork media: raw <svg> blocks hoist to data-URI images before mdast prep
   // so they ride the stock image pipeline. Unclosed svg and code stay text.
+  // Fork media: raw <svg> hoists to data-URI images, bare remote image
+  // URLs become image markdown, bare local paths become images or file
+  // links — all before mdast prep so they ride stock pipelines.
   const prepared = useMemo(
     () =>
-      prepareMarkdownSource(hoistRawSvgToImages(text), context.workspaceRoot, {
-        supportsSvg: isWeb,
-      }),
+      prepareMarkdownSource(
+        linkifyLocalPaths(hoistBareRemoteImages(hoistRawSvgToImages(text))),
+        context.workspaceRoot,
+        {
+          supportsSvg: isWeb,
+        },
+      ),
     [text, context.workspaceRoot],
   );
   const sources = [...new Set(prepared.images.map((image) => image.source))];

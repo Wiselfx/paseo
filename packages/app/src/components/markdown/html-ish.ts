@@ -93,6 +93,10 @@ interface HtmlishTokenParser {
 }
 
 export function splitHtmlishMarkdown(source: string): MarkdownDisplayPart[] {
+  // PROBE-D2 (temporary): log block-input repr for svg blocks.
+  if (/svg/i.test(source)) {
+    console.log(`[probe-d2] ${JSON.stringify(source.slice(0, 200))}`);
+  }
   return splitHtmlishTokens(tokenizeHtmlishMarkdown(source));
 }
 

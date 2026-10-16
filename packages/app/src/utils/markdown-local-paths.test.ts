@@ -24,7 +24,8 @@ describe("bare local paths", () => {
   });
   it("leaves markdown links and http URLs to their own rules", () => {
     expect(render("[t](/tmp/a.png)")).toBe('<a href="/tmp/a.png">t</a>');
-    expect(render("see https://x.test/a.png")).toContain('href="https://x.test/a.png"');
+    // Bare remote image URLs become images via the image-links rule.
+    expect(render("see https://x.test/a.png")).toContain('<img src="https://x.test/a.png"');
   });
   it("ignores slashes mid-word", () => {
     expect(render("a/b")).toBe("a/b");

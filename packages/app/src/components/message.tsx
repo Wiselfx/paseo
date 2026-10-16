@@ -863,6 +863,14 @@ function AssistantMarkdownImage({
   const binding = image.status === "failed" ? null : image.binding;
   const aspectRatio = image.status === "failed" ? null : image.aspectRatio;
   const imageUri = binding?.uri ?? "";
+  // PROBE-SBS (temporary): same-URL authored-vs-bare comparison.
+  // occurrenceKey ends with the node type (link vs image), distinguishing
+  // bare-link mounts from authored-image mounts of identical sources.
+  useEffect(() => {
+    console.log(
+      `[probe-sbs] ${JSON.stringify({ source, status: image.status, uri: imageUri, occ: occurrenceKey, t: Math.round(performance.now()) })}`,
+    );
+  }, [image.status, imageUri, occurrenceKey, source]);
   const imageSource = useMemo(() => ({ uri: imageUri }), [imageUri]);
   const frameStyle = useMemo<StyleProp<ViewStyle>>(
     () => [assistantMessageStylesheet.imageFrame, containerStyle],

@@ -788,11 +788,14 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
     width: "100%",
     minHeight: 160,
     marginHorizontal: -theme.spacing[1],
+    alignItems: "center",
   },
   imageSurface: {
     width: "100%",
+    maxWidth: 520,
     overflow: "hidden",
     position: "relative",
+    borderRadius: 12,
   },
   image: {
     width: "100%",

@@ -862,12 +862,6 @@ function AssistantMarkdownImage({
   const binding = image.status === "failed" ? null : image.binding;
   const aspectRatio = image.status === "failed" ? null : image.aspectRatio;
   const imageUri = binding?.uri ?? "";
-  // PROBE-D3/D4 (temporary): status plus uri plus timestamp per change.
-  useEffect(() => {
-    console.log(
-      `[probe-d3] ${JSON.stringify({ source, status: image.status, uri: imageUri, t: Math.round(performance.now()) })}`,
-    );
-  }, [image.status, imageUri, source]);
   const imageSource = useMemo(() => ({ uri: imageUri }), [imageUri]);
   const frameStyle = useMemo<StyleProp<ViewStyle>>(
     () => [assistantMessageStylesheet.imageFrame, containerStyle],
@@ -1933,16 +1927,6 @@ export const AssistantMessage = memo(function AssistantMessage({
       ),
       link: (node: ASTNode, children: ReactNode[], parent: ASTNode[], styles: MarkdownStyles) => {
         const source = getMarkdownLinkSource(node);
-        // PROBE-D1 (temporary): log markup plus paragraph children shape.
-        console.log(
-          `[probe-d1] ${JSON.stringify({
-            href: source.href,
-            markup: source.markup,
-            para: (parent.find((a) => a?.type === "paragraph")?.children ?? []).map(
-              (c) => `${c?.type}:${c?.key}`,
-            ),
-          })}`,
-        );
         // Bare remote image URLs render inline previews (same component as
         // authored ![images](...)). YouTube stays on the AssistantMarkdownLink
         // hook, so it is excluded from the card branch below.

@@ -1928,19 +1928,10 @@ export const AssistantMessage = memo(function AssistantMessage({
       ),
       link: (node: ASTNode, children: ReactNode[], parent: ASTNode[], styles: MarkdownStyles) => {
         const source = getMarkdownLinkSource(node);
-        // PROBE-BRANCH (temporary): which branch each link takes, plus phase.
-        const probeImage = isRemoteImageUrl(source.href);
-        const probeCard =
-          source.markup === "linkify" &&
-          !youtubeIdForUrl(source.href) &&
-          isSoleBlockContent(node.key, parent);
-        console.log(
-          `[probe-branch] ${JSON.stringify({ href: source.href, markup: source.markup, phase, image: probeImage, card: probeCard })}`,
-        );
         // Bare remote image URLs render inline previews (same component as
         // authored ![images](...)). YouTube stays on the AssistantMarkdownLink
         // hook, so it is excluded from the card branch below.
-        if (probeImage) {
+        if (isRemoteImageUrl(source.href)) {
           return (
             <AssistantMarkdownImage
               key={node.key}
@@ -1957,7 +1948,11 @@ export const AssistantMessage = memo(function AssistantMessage({
         // Standalone bare links become favicon cards; links embedded in
         // prose stay links so paragraphs never break around a card.
         // Authored [text](url) links always stay links.
-        if (probeCard) {
+        if (
+          source.markup === "linkify" &&
+          !youtubeIdForUrl(source.href) &&
+          isSoleBlockContent(node.key, parent)
+        ) {
           return (
             <AssistantLinkCard
               key={node.key}

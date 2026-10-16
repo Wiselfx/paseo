@@ -93,7 +93,7 @@ export function createMarkdownStyles(
         borderColor: theme.colors.foregroundMuted,
       },
       inlineImage: { size: paragraph.lineHeight },
-      image: { height: 320, resizeMode: "contain", borderRadius: 8 },
+      image: { height: 320, resizeMode: "contain", borderRadius: 12 },
       thematicBreak: { color: theme.colors.border, height: 1, marginTop: 12, marginBottom: 12 },
     },
   };

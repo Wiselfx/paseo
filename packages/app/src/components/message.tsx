@@ -816,6 +816,7 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[4],
     paddingVertical: theme.spacing[6],
     gap: theme.spacing[2],
+    backgroundColor: theme.colors.surface2,
   },
   imageErrorText: {
     color: theme.colors.foregroundMuted,

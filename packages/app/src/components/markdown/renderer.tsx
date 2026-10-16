@@ -19,6 +19,8 @@ import { useMarkdownSource, type MarkdownImageContext } from "./images";
 import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fence/mermaid";
 import { YouTubeFence } from "./fence/youtube";
 import { splitYouTubeFences } from "./fence/youtube/segments";
+import { AssistantLinkCard } from "./link-card";
+import { splitLinkCards } from "./link-card-segments";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
@@ -84,20 +86,27 @@ const MarkdownPart = memo(function MarkdownPart({
   });
   const closeImage = useStableEvent(() => setImage(null));
   // Fork media: YouTube fences + standalone bare YouTube URL lines host the
-  // player between library segments (same pattern as mermaid). Mermaid
-  // splitting stays platform-gated as upstream; YouTube splits everywhere.
+  // player between library segments (same pattern as mermaid). Standalone
+  // bare links become favicon cards the same way. Mermaid splitting stays
+  // platform-gated as upstream; YouTube/card splits run everywhere.
   const segments = useMemo(() => {
     const mermaid =
       isWeb
         ? [{ kind: "markdown" as const, id: "0", source: markdown }]
         : splitMermaidFences(markdown);
     const out: { kind: string; id: string; source: string }[] = [];
+    const splitCards = (source: string) => {
+      for (const c of splitLinkCards(source)) out.push({ ...c, id: `c${out.length}` });
+    };
     for (const m of mermaid) {
       if (m.kind !== "markdown") {
         out.push({ ...m, id: `m${out.length}` });
         continue;
       }
-      for (const y of splitYouTubeFences(m.source)) out.push({ ...y, id: `y${out.length}` });
+      for (const y of splitYouTubeFences(m.source)) {
+        if (y.kind !== "markdown") out.push({ ...y, id: `y${out.length}` });
+        else splitCards(y.source);
+      }
     }
     return out;
   }, [markdown]);
@@ -108,6 +117,12 @@ const MarkdownPart = memo(function MarkdownPart({
           <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
         ) : segment.kind === "youtube" ? (
           <YouTubeFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
+        ) : segment.kind === "card" ? (
+          <AssistantLinkCard
+            key={`${segment.kind}:${segment.id}`}
+            url={segment.source}
+            onPress={(url) => pressLink({ url, sourceType: "text" })}
+          />
         ) : (
           <ThemedMarkdown
             key={`${segment.kind}:${segment.id}`}

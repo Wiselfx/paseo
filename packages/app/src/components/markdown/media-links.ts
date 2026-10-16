@@ -46,17 +46,23 @@ export function trimTrailingPunctuation(s: string): string {
 
 /**
  * True when the link is the paragraph's only meaningful content: every
- * sibling is either the link itself or whitespace text. Native cards
- * render for standalone bare links; links embedded in prose stay links,
- * so paragraphs never break around a card. The plugin could not do this
- * (raw-text regexes, no AST) and gated on prose length instead.
+ * sibling is either the link itself or whitespace (text or line breaks:
+ * a trailing newline parses as a softbreak sibling, so standalone links
+ * would never qualify without it). Native cards render for standalone
+ * bare links; links embedded in prose stay links, so paragraphs never
+ * break around a card. The plugin could not do this (raw-text regexes,
+ * no AST) and gated on prose length instead.
  */
 export function isSoleParagraphContent(nodeKey: string, parent: ASTNode[]): boolean {
   const paragraph = parent.find((ancestor) => ancestor?.type === "paragraph");
   const siblings = paragraph?.children;
   if (!Array.isArray(siblings) || siblings.length === 0) return false;
   return siblings.every(
-    (child) => child?.key === nodeKey || (child?.type === "text" && child?.content.trim() === ""),
+    (child) =>
+      child?.key === nodeKey ||
+      (child?.type === "text" && child?.content.trim() === "") ||
+      child?.type === "softbreak" ||
+      child?.type === "hardbreak",
   );
 }
 

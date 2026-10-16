@@ -75,6 +75,11 @@ describe("isSoleParagraphContent", () => {
       true,
     );
   });
+  it("accepts a link with a trailing line break", () => {
+    const br = (type: string) => ({ type, key: `${type}-1`, content: "", children: [] }) as never;
+    expect(isSoleParagraphContent("l", para([link("l"), br("softbreak")]))).toBe(true);
+    expect(isSoleParagraphContent("l", para([link("l"), br("hardbreak")]))).toBe(true);
+  });
   it("rejects links embedded in prose", () => {
     expect(isSoleParagraphContent("l", para([text("a", "see "), link("l")]))).toBe(false);
   });

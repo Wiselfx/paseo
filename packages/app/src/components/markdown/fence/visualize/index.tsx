@@ -14,11 +14,15 @@ export function VisualizeFence({
   code,
   serverId,
   agentId,
+  workspaceId,
 }: {
   code: string;
   serverId?: string;
   agentId?: string;
+  workspaceId?: string;
 }) {
   if (!code.trim()) return null;
-  return <VisualizeStage code={code} serverId={serverId} agentId={agentId} />;
+  return (
+    <VisualizeStage code={code} serverId={serverId} agentId={agentId} workspaceId={workspaceId} />
+  );
 }

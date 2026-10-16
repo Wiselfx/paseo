@@ -23,7 +23,15 @@ Render interactive HTML inline in chat. Explicit fence only.
 - `saveState(key, value)` / `await loadState(key)` persist per fence across reloads. String values, 64KB cap per key. Keys namespace to the fence content.
 - Never exfiltrate: no fetch, no beacons, no external frames. The CSP blocks them; do not work around it.
 
+## Panel tab
+
+## Panel tab
+
+- Expand action on the inline stage opens the fence in a workspace tab (scrollable, uncapped). Same fence reopens the same tab (content-versioned).
+- Tabs persist across reloads. Export button downloads standalone HTML.
+- Same sandbox policy as inline.
+
 ## Negative scope
 
-- No bare-URL detection. No markers. No export button.
+- No bare-URL detection. No markers.
 - Scripts run on every paint, including streaming repaints. Keep them idempotent.

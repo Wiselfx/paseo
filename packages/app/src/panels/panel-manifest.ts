@@ -90,6 +90,14 @@ const manifests = {
     compactSheet: null,
     resourceKey: (target) => target.browserId,
   },
+  viz: {
+    kind: "viz",
+    supportedHosts: ["main"],
+    showCloseButton: true,
+    singleton: false,
+    compactSheet: null,
+    resourceKey: (target) => target.vizId,
+  },
   changes_tree: {
     kind: "changes_tree",
     supportedHosts: ["explorer"],

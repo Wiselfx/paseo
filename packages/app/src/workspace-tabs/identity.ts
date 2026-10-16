@@ -228,6 +228,9 @@ export function buildDeterministicWorkspaceTabId(target: WorkspaceTabTarget): st
       ? `plugin_workspace_${identity}`
       : `plugin_agent_${identity}_${target.agentId.length}_${target.agentId}`;
   }
+  if (target.kind === "viz") {
+    return `viz_${target.vizId.length}_${target.vizId}`;
+  }
   return `file_${target.path}`;
 }
 

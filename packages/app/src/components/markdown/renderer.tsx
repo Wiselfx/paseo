@@ -36,6 +36,7 @@ export interface MarkdownRendererProps extends MarkdownImageContext {
   compact?: boolean;
   streaming?: boolean;
   agentId?: string;
+  workspaceId?: string;
   onLinkPress?: (url: string) => unknown;
 }
 
@@ -63,6 +64,7 @@ const MarkdownPart = memo(function MarkdownPart({
   compact = false,
   streaming = false,
   agentId,
+  workspaceId,
   onLinkPress,
   ...imageContext
 }: MarkdownRendererProps & { continues?: boolean }) {
@@ -136,6 +138,7 @@ const MarkdownPart = memo(function MarkdownPart({
             code={segment.source}
             serverId={imageContext.serverId}
             agentId={agentId}
+            workspaceId={workspaceId}
           />
         ) : (
           <ThemedMarkdown

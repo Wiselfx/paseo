@@ -118,6 +118,9 @@ function getFallbackTabOptionDescription(
   if (tab.target.kind === "plugin") {
     return tab.target.panelId;
   }
+  if (tab.target.kind === "viz") {
+    return "Visualization";
+  }
   return tab.target.path;
 }
 

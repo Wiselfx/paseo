@@ -30,7 +30,15 @@ describe("splitVisualizeFences", () => {
 });
 
 describe("buildVizDocument", () => {
-  it("embeds CSP, theme vars, height reporter, and code intact", () => {
+  it("defines bridges before fence content", () => {
+    const doc = buildVizDocument("<div>hi</div>", "dark");
+    const bridgeAt = doc.indexOf("window.sendPrompt");
+    const codeAt = doc.indexOf("<div>hi</div>");
+    expect(bridgeAt).toBeGreaterThan(-1);
+    expect(codeAt).toBeGreaterThan(-1);
+    expect(bridgeAt).toBeLessThan(codeAt);
+  });
+
     const doc = buildVizDocument("<div>hi</div>", "dark");
     expect(doc).toContain(VIZ_CSP);
     expect(doc).toContain("--viz-accent");

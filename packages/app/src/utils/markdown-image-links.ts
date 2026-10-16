@@ -10,7 +10,8 @@ import { isRemoteImageUrl, trimTrailingPunctuation } from "@/components/markdown
  * `[text](url)` links, code, and non-image URLs stay untouched.
  */
 
-const PROTECTED_RE = /(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`|!\[[^\][\n]*\]\([^()\n]*\)|\[[^\][\n]*\]\([^()\n]*\)|<\S+?>)/g;
+const PROTECTED_RE =
+  /(```[\s\S]*?(?:```|$)|~~~[\s\S]*?(?:~~~|$)|`[^`\n]*`|!\[[^\][\n]*\]\([^()\n]*\)|\[[^\][\n]*\]\([^()\n]*\)|<\S+?>)/g;
 const BARE_URL_RE = /https?:\/\/[^\s<>)\]]+/g;
 
 function hoistInProse(text: string): string {

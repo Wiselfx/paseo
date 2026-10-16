@@ -12,6 +12,7 @@ import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import type { Theme } from "@/styles/theme";
 import { MermaidFence } from "./fence/mermaid";
 import { YouTubeFence } from "./fence/youtube";
+import { VisualizeFence } from "./fence/visualize";
 import { markdownLinkSource } from "./source";
 
 const ThemedCodeBlock = withUnistyles(HighlightedCodeBlock);
@@ -27,6 +28,7 @@ function WebCodeBlock({ code, language }: CodeBlockRendererProps) {
   const lang = language?.toLowerCase();
   if (lang === "mermaid") return <MermaidFence code={code} />;
   if (lang === "youtube") return <YouTubeFence code={code} />;
+  if (lang === "visualize") return <VisualizeFence code={code} />;
   return <ThemedCodeBlock code={code} language={language} uniProps={codeStyle} />;
 }
 

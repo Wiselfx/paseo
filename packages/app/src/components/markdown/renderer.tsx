@@ -21,6 +21,8 @@ import { YouTubeFence } from "./fence/youtube";
 import { splitYouTubeFences } from "./fence/youtube/segments";
 import { AssistantLinkCard } from "./link-card";
 import { splitLinkCards } from "./link-card-segments";
+import { VisualizeFence } from "./fence/visualize";
+import { splitVisualizeFences } from "./fence/visualize/segments";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
@@ -95,7 +97,11 @@ const MarkdownPart = memo(function MarkdownPart({
       : splitMermaidFences(markdown);
     const out: { kind: string; id: string; source: string }[] = [];
     const splitCards = (source: string) => {
-      for (const c of splitLinkCards(source)) out.push({ ...c, id: `c${out.length}` });
+      for (const c of splitLinkCards(source)) {
+        if (c.kind !== "markdown") out.push({ ...c, id: `c${out.length}` });
+        else
+          for (const v of splitVisualizeFences(c.source)) out.push({ ...v, id: `v${out.length}` });
+      }
     };
     for (const m of mermaid) {
       if (m.kind !== "markdown") {
@@ -122,6 +128,8 @@ const MarkdownPart = memo(function MarkdownPart({
             url={segment.source}
             onPress={(url) => pressLink({ url, sourceType: "text" })}
           />
+        ) : segment.kind === "viz" ? (
+          <VisualizeFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
         ) : (
           <ThemedMarkdown
             key={`${segment.kind}:${segment.id}`}

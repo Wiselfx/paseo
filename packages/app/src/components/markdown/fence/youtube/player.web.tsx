@@ -16,7 +16,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
   card: { gap: 6 },
   screen: {
     width: "100%",
-    aspectRatio: 16 / 9,
+    aspectRatio: 4 / 3,
     borderRadius: 8,
     overflow: "hidden",
     backgroundColor: theme.colors.surface2,

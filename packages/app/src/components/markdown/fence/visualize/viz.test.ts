@@ -39,6 +39,7 @@ describe("buildVizDocument", () => {
     expect(bridgeAt).toBeLessThan(codeAt);
   });
 
+  it("embeds CSP, theme vars, height reporter, and code intact", () => {
     const doc = buildVizDocument("<div>hi</div>", "dark");
     expect(doc).toContain(VIZ_CSP);
     expect(doc).toContain("--viz-accent");

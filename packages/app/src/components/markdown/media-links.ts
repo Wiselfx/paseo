@@ -9,9 +9,9 @@ import type { ASTNode } from "react-native-markdown-display";
  * classifiers. YouTube detection stays in fence/youtube (youtubeIdForUrl).
  */
 
-const REMOTE_IMAGE_RE = /\.(png|jpe?g|gif|webp)(?:[?#]\S*)?$/i;
+const REMOTE_IMAGE_RE = /\.(png|jpe?g|gif|webp|svg)(?:[?#]\S*)?$/i;
 
-const LOCAL_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp)$/i;
+const LOCAL_IMAGE_EXT_RE = /\.(png|jpe?g|gif|webp|svg)$/i;
 
 // Bare absolute or home-relative paths: no spaces, no markdown closers.
 // Trailing punctuation is trimmed by trimTrailingPunctuation after matching,

@@ -14,6 +14,7 @@ describe("isRemoteImageUrl", () => {
     expect(isRemoteImageUrl("https://x.test/a.png")).toBe(true);
     expect(isRemoteImageUrl("https://x.test/a.JPEG?w=2")).toBe(true);
     expect(isRemoteImageUrl("https://x.test/a.webp#frag")).toBe(true);
+    expect(isRemoteImageUrl("https://x.test/a.svg")).toBe(true);
   });
   it("rejects pages and non-http schemes", () => {
     expect(isRemoteImageUrl("https://github.com/")).toBe(false);
@@ -27,6 +28,7 @@ describe("isLocalImagePath / isLocalPath", () => {
     expect(isLocalImagePath("/tmp/shot.png")).toBe(true);
     expect(isLocalImagePath("~/pics/a.jpg")).toBe(true);
     expect(isLocalImagePath("/tmp/shot.png.")).toBe(true);
+    expect(isLocalImagePath("/tmp/logo.svg")).toBe(true);
   });
   it("rejects relatives, pages, and non-images", () => {
     expect(isLocalImagePath("tmp/shot.png")).toBe(false);

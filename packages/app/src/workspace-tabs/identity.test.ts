@@ -196,3 +196,19 @@ describe("plugin panel tab identity", () => {
     expect(agent).toBe("plugin_agent_6_review_7_details_7_agent-1");
   });
 });
+
+describe("viz tab identity", () => {
+  it("normalizes viz targets and compares by vizId", () => {
+    expect(normalizeWorkspaceTabTarget({ kind: "viz", vizId: " v1 " })).toEqual({
+      kind: "viz",
+      vizId: "v1",
+    });
+    expect(normalizeWorkspaceTabTarget({ kind: "viz", vizId: "  " })).toBe(null);
+    expect(
+      workspaceTabTargetsEqual({ kind: "viz", vizId: "v1" }, { kind: "viz", vizId: "v1" }),
+    ).toBe(true);
+    expect(
+      workspaceTabTargetsEqual({ kind: "viz", vizId: "v1" }, { kind: "viz", vizId: "v2" }),
+    ).toBe(false);
+  });
+});

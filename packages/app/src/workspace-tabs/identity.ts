@@ -55,6 +55,10 @@ function normalizeSimpleWorkspaceTabTarget(value: WorkspaceTabTarget): Workspace
       const browserId = trimNonEmpty(value.browserId);
       return browserId ? { kind: "browser", browserId } : null;
     }
+    case "viz": {
+      const vizId = trimNonEmpty(value.vizId);
+      return vizId ? { kind: "viz", vizId } : null;
+    }
     case "changes_tree":
     case "files":
     case "pull_request":
@@ -133,6 +137,9 @@ function secondaryWorkspaceTabTargetsEqual(
 ): boolean {
   if (left.kind === "browser" && right.kind === "browser") {
     return left.browserId === right.browserId;
+  }
+  if (left.kind === "viz" && right.kind === "viz") {
+    return left.vizId === right.vizId;
   }
   if (left.kind === "file" && right.kind === "file") {
     return workspaceFileLocationsEqual(left, right);

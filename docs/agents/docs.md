@@ -95,15 +95,15 @@ none` on tree rows, touch web only, coarse-pointer guard.
     (`segments.test.ts`, the cut), `index.tsx` (fence registration).
 18. `packages/app/src/components/markdown/image-paragraphs.ts`, called by
     `source.ts`. Every image gets a paragraph of its own, including one that
-    shares its line with text: the
-    library sizes a text-sharing image as one square the height of a text line.
-    A break splits at a line boundary, or eats the whitespace beside the image
-    within a line, and a break inside a quote re-opens the marker. Two
-    boundaries: an image inside a list item keeps the tile, because a blank line
-    there ends the list; an image that collapses to alt text — unavailable, or
-    an SVG on native — stays where it was, since it occupies no box. Upstream's
-    `docs/markdown-renderer.md` still describes its own inline rule. Upstream's
-    engine fork (`#7240`) moves this rule into C++ and deletes the call.
+    shares its line with text: the library sizes a text-sharing image as one
+    square the height of a text line. A break splits at a line boundary, or eats
+    the whitespace beside the image within a line, and a break inside a quote
+    re-opens the marker. Two boundaries: an image inside a list item keeps the
+    tile, because a blank line there ends the list; an image that collapses to
+    alt text — unavailable, or an SVG on native — stays where it was, since it
+    occupies no box. Upstream's `docs/markdown-renderer.md` still describes its
+    own inline rule. Upstream's engine fork (`#7240`) moves this rule into C++
+    and deletes the call.
 19. `packages/app/src/components/markdown/hosted-segments.ts`
     (`hosted-segments.test.ts`). The one stage table that decides which fence
     kinds the app hosts outside the library — mermaid native-only, then YouTube,

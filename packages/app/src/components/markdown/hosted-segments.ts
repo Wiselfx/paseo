@@ -12,6 +12,7 @@ export interface HostedSegment {
 interface SegmentStage {
   prefix: string;
   split: (markdown: string) => HostedSegment[];
+  nativeOnly?: boolean;
 }
 
 /**
@@ -21,13 +22,13 @@ interface SegmentStage {
  * native-only — the web renderer draws diagrams through the library.
  */
 const HOSTED_SEGMENT_STAGES: readonly SegmentStage[] = [
-  { prefix: "m", split: splitMermaidFences },
+  { prefix: "m", split: splitMermaidFences, nativeOnly: true },
   { prefix: "y", split: splitYouTubeFences },
   { prefix: "c", split: splitLinkCards },
   { prefix: "v", split: splitVisualizeFences },
 ];
 
-const WEB_HOSTED_SEGMENT_STAGES = HOSTED_SEGMENT_STAGES.slice(1);
+const WEB_HOSTED_SEGMENT_STAGES = HOSTED_SEGMENT_STAGES.filter((stage) => !stage.nativeOnly);
 
 /** Library segments are the pieces no stage claimed; their ids come from the last stage. */
 export function splitHostedSegments(markdown: string, platform: "web" | "native"): HostedSegment[] {

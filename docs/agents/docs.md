@@ -43,7 +43,14 @@ none` on tree rows, touch web only, coarse-pointer guard.
     the provider (no ratio computed), rendered as one muted line in
     `context-window-details.tsx` next to session cost. App-only: the data
     already arrives as `lastUsage.cachedInputTokens` / `inputTokens`.
-12. `docs/agents/.base-ref`. Last-merged upstream SHA.
+12. `packages/app/src/components/markdown/styles.fork.test.ts`. Guards the
+    two fork values inside `styles.ts` across upstream merges: block images
+    keep `borderRadius` 12 and `maxHeight` 1200. Everything else in that file
+    is upstream's: since #7298 blocks take one shared gap
+    (`density.blockGap`, 12 compact / 16 desktop) via `...block` and
+    `MarkdownBlockStack`, which replaced `frame.tsx`. Fork fences carry no
+    margins of their own, so they take that single gap.
+13. `docs/agents/.base-ref`. Last-merged upstream SHA.
 
 ## Failure map
 

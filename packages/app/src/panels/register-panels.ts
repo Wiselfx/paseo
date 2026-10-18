@@ -25,6 +25,7 @@ export function ensurePanelsRegistered(): void {
   }
   registerPanel(draftPanelRegistration);
   registerPanel(newTabPanelRegistration);
+  // Fork: visualization panel.
   registerPanel(vizPanelRegistration);
   registerPanel(agentPanelRegistration);
   registerPanel(providerSubagentPanelRegistration);

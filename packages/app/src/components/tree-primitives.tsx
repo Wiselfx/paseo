@@ -14,6 +14,7 @@ export const WORKSPACE_TREE_ICON_SIZE = 16;
 export const WORKSPACE_TREE_LOADING_ICON_SIZE = 14;
 export const WORKSPACE_TREE_ICON_LABEL_GAP = SPACING[2];
 
+// Fork: touch web keeps the menu, so its rows must not select on long-press.
 /** True on touch-driven web browsers (phones/tablets). Native apps never hit
  * the Safari touch-callout problem, so they keep default text behavior. */
 const SUPPRESS_TOUCH_CALLOUT =

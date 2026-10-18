@@ -751,6 +751,7 @@ function maxFiniteNumber(left: number | undefined, right: number): number {
   return left === undefined ? right : Math.max(left, right);
 }
 
+// Fork: the cache figures on AgentUsage are not numbers.
 function assignUsageNumber(
   usage: AgentUsage,
   key: Exclude<keyof AgentUsage, "cacheWaste" | "costByModel">,

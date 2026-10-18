@@ -55,6 +55,7 @@ function normalizeSimpleWorkspaceTabTarget(value: WorkspaceTabTarget): Workspace
       const browserId = trimNonEmpty(value.browserId);
       return browserId ? { kind: "browser", browserId } : null;
     }
+    // Fork: visualization tab targets.
     case "viz": {
       const vizId = trimNonEmpty(value.vizId);
       return vizId ? { kind: "viz", vizId } : null;

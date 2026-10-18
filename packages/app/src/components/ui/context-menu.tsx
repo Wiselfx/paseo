@@ -83,7 +83,7 @@ function coerceEventPoint(event: unknown): { pageX: number; pageY: number } | nu
   if (typeof clientX === "number" && typeof clientY === "number") {
     return { pageX: clientX, pageY: clientY };
   }
-  // DOM TouchEvent (touch web, e.g. iOS Safari long-press): coordinates live
+  // Fork: DOM TouchEvent (touch web, e.g. iOS Safari long-press): coordinates live
   // on the touch object, not the event itself. Without this the menu silently
   // never opens on touch devices.
   const changedTouches = Reflect.get(source, "changedTouches");

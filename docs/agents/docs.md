@@ -22,20 +22,24 @@ downloads in chat. Web UI only. No native builds.
    `changedTouches[0]`; without a point the menu opens unanchored.
 5. `packages/app/src/components/tree-primitives.tsx`. `user-select:
 none` on tree rows, touch web only, coarse-pointer guard.
-6. `packages/app/src/components/markdown/html-ish.ts`
-   (`html-ish.test.ts`). Closed inline `<svg>` blocks become
-   data-URI images. Image context runs no scripts.
+6. `packages/app/src/utils/markdown-raw-svg.ts`
+   (`markdown-raw-svg.test.ts`). Closed inline `<svg>` blocks become
+   data-URI images and ride the image pipeline. Unclosed blocks and
+   code spans pass through. Image context runs no scripts.
 7. `packages/app/src/components/markdown/media-links.ts`
    (`media-links.test.ts`). Link/image classifiers ported from the
    plugin detectors: no prose gates, no card caps, no replacement.
-8. `packages/app/src/utils/markdown-local-paths.ts`
-   (`markdown-local-paths.test.ts`). Core ruler rule linkifies
-   bare `/abs` and `~/` paths (images to image tokens, rest to
-   file:// links). Assistant surfaces only.
+8. `packages/app/src/utils/markdown-local-paths.ts` and
+   `packages/app/src/utils/markdown-image-links.ts`, tested together in
+   `markdown-media-prepass.test.ts`. Source pre-passes before mdast:
+   bare `/abs` and `~/` paths become image or file links, bare remote
+   image URLs become image markdown. Assistant surfaces only.
 9. `packages/app/src/components/markdown/link-card.tsx`
-   (`link-card.test.ts`). Favicon plus domain card for
-   standalone bare links. Wired in `components/message.tsx`
-   link rule with `AssistantMarkdownImage` for bare image URLs.
+   (`link-card.test.tsx`) and `link-card-segments.ts`
+   (`link-card-segments.test.ts`). Favicon plus domain card for
+   standalone bare links; the segment split decides which lines are
+   standalone. Wired in `components/message.tsx` link rule with
+   `AssistantMarkdownImage` for bare image URLs.
 10. `.github/workflows/build.yml`. Manual dispatch. Builds server
     and web UI, asserts fork markers in the bundle, uploads dist.
 11. `packages/app/src/components/context-window-cache.ts`
@@ -77,6 +81,18 @@ none` on tree rows, touch web only, coarse-pointer guard.
     locale's key set against English and refuses strings identical to it. So
     upstream text keeps using `t()`, fork surfaces use this module, and
     translating the fork means translating this one file.
+16. `packages/app/src/components/markdown/fence/visualize/` and
+    `packages/app/src/panels/viz-panel.tsx`. The `visualize` fence: sandboxed
+    stage, per-fence state and prompt bridges, workspace tab, export. Behaviour
+    and protocol in `visualize.md`; the files are `index.tsx` and `segments.ts`
+    (fence and splitting, `viz.test.ts`), `document.ts` (the sandboxed document
+    and its theme vars, `viz.test.ts`), `stage.tsx` / `stage.web.tsx` (WebView
+    and iframe), `bridges.ts` (`bridges.test.ts`), `store.ts` (`store.test.ts`).
+17. `packages/app/src/components/markdown/fence/youtube/`. The player split:
+    `urls.ts` (URL extraction and thumbnail, `urls.test.ts`), `mini.tsx`
+    (`mini.test.tsx`, the inline poster), `player.tsx` / `player.web.tsx`
+    (full-width player, `player.web.test.tsx`), `segments.ts`
+    (`segments.test.ts`, the cut), `index.tsx` (fence registration).
 
 ## Failure map
 

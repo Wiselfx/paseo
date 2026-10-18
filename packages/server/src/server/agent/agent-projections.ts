@@ -444,6 +444,8 @@ function sanitizeMetadataArray(value: unknown): AgentMetadata[] | undefined {
   return sanitized.length > 0 ? sanitized : undefined;
 }
 
+// Fork: the cache figures on AgentUsage are not numbers, so the numeric
+// field union excludes them.
 type UsageNumericField = Exclude<keyof AgentUsage, "cacheWaste" | "costByModel">;
 
 function assignFiniteNumber(

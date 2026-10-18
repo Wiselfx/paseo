@@ -25,6 +25,7 @@ const codeStyle = (theme: Theme) => ({
   textStyle: { backgroundColor: theme.colors.surface2, padding: 12, borderRadius: 8 },
 });
 function WebCodeBlock({ code, language }: CodeBlockRendererProps) {
+  // Fork: youtube and visualize fences; upstream dispatches mermaid only.
   const lang = language?.toLowerCase();
   if (lang === "mermaid") return <MermaidFence code={code} />;
   if (lang === "youtube") return <YouTubeFence code={code} />;

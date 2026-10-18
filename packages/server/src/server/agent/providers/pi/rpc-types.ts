@@ -33,6 +33,7 @@ export interface PiToolCallContent {
 
 export type PiAssistantContent = PiTextContent | PiThinkingContent | PiToolCallContent;
 
+// Fork: per-message usage, which upstream's Pi types omit.
 /**
  * What one request cost, as Pi records it on the assistant message itself.
  * `cacheRead` is the prompt served from cache, `cacheWrite` what was written to

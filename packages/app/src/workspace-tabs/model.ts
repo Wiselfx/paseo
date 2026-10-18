@@ -47,6 +47,7 @@ export type WorkspaceTabTarget =
   | PluginWorkspaceTabTarget
   | { kind: "setup"; workspaceId: string }
   | { kind: "commit_diff"; sha: string }
+  // Fork: visualization tab target.
   | { kind: "viz"; vizId: string };
 
 export interface WorkspaceTab {

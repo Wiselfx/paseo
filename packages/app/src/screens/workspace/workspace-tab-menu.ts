@@ -160,6 +160,7 @@ function getCloseButtonTestId(tab: WorkspaceTabDescriptor): string {
   if (tab.target.kind === "new_tab") {
     return `workspace-new-tab-close-${tab.tabId}`;
   }
+  // Fork: visualization tab test id.
   if (tab.target.kind === "viz") {
     return `workspace-viz-close-${tab.tabId}`;
   }

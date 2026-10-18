@@ -118,6 +118,7 @@ function getFallbackTabOptionDescription(
   if (tab.target.kind === "plugin") {
     return tab.target.panelId;
   }
+  // Fork: visualization tab label.
   if (tab.target.kind === "viz") {
     return "Visualization";
   }

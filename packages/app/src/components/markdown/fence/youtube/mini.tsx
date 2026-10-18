@@ -2,6 +2,7 @@ import { useMemo, useState } from "react";
 import { Image, Pressable, View } from "react-native";
 import { Play } from "lucide-react-native";
 import { StyleSheet } from "react-native-unistyles";
+import { useStableEvent } from "@/hooks/use-stable-event";
 import type { Theme } from "@/styles/theme";
 import { YouTubePlayerScreen } from "./player";
 import { youtubeIdForUrl, youtubeThumbnailUrl } from "./urls";
@@ -43,8 +44,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
 export function YouTubeMiniPlayer({ code }: { code: string }) {
   const videoId = useMemo(() => youtubeIdForUrl(code), [code]);
   const [playing, setPlaying] = useState(false);
-  if (!videoId) return null;
-  const thumbnail = youtubeThumbnailUrl(videoId);
+  const thumbnail = videoId ? youtubeThumbnailUrl(videoId) : null;
+  const posterSource = useMemo(() => ({ uri: thumbnail ?? "" }), [thumbnail]);
+  const startPlaying = useStableEvent(() => setPlaying(true));
+  if (!videoId || !thumbnail) return null;
   return (
     <View style={styles.frame}>
       {playing ? (
@@ -53,16 +56,17 @@ export function YouTubeMiniPlayer({ code }: { code: string }) {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel={`Play YouTube video ${videoId}`}
-          onPress={() => setPlaying(true)}
+          onPress={startPlaying}
           style={styles.poster}
         >
           <Image
             accessibilityIgnoresInvertColors
-            source={{ uri: thumbnail }}
+            source={posterSource}
             style={styles.poster}
             resizeMode="cover"
           />
           <View style={styles.overlay} pointerEvents="none">
+            {/* White in both themes: it sits on a dark scrim over the poster. */}
             <View style={styles.glyph}>
               <Play size={16} color="#fff" />
             </View>

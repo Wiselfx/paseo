@@ -19,11 +19,12 @@ jobs:
       - run: npm ci --no-audit --no-fund
       - run: npm run build:server
       - run: npm run build:daemon-web-ui
-      - name: assert fork markers in web-ui bundle
+      - name: assert fork markers in the build
         run: |
           test -d packages/server/dist/server/web-ui
           grep -rl "youtube-nocookie" packages/server/dist/server/web-ui --include='*.js' | head -n 3
           grep -rl "changedTouches" packages/server/dist/server/web-ui --include='*.js' | head -n 3
+          grep -rl "Cache miss" packages/server/dist/server/agent/providers/pi --include='*.js' | head -n 3
           echo "BUILD_SHA=${GITHUB_SHA}" > packages/server/dist/server/web-ui/FORK_BUILD
           cat packages/server/dist/server/web-ui/FORK_BUILD
       - uses: actions/upload-artifact@v4

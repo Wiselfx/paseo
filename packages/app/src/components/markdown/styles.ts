@@ -93,6 +93,7 @@ export function createMarkdownStyles(
         borderColor: theme.colors.foregroundMuted,
       },
       inlineImage: { size: paragraph.lineHeight },
+      // Fork: radius 12 and a 1200px cap, both pinned by styles.fork.test.ts.
       image: { ...block, height: 320, maxHeight: 1200, resizeMode: "contain", borderRadius: 12 },
       thematicBreak: { ...block, color: theme.colors.border, height: 1 },
     },

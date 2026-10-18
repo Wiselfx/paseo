@@ -25,8 +25,6 @@ Render interactive HTML inline in chat. Explicit fence only.
 
 ## Panel tab
 
-## Panel tab
-
 - Expand action on the inline stage opens the fence in a workspace tab (scrollable, uncapped). Same fence reopens the same tab (content-versioned).
 - Tabs persist across reloads. Export button downloads standalone HTML.
 - Same sandbox policy as inline.

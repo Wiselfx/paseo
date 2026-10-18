@@ -90,6 +90,7 @@ const manifests = {
     compactSheet: null,
     resourceKey: (target) => target.browserId,
   },
+  // Fork: the visualization tab target.
   viz: {
     kind: "viz",
     supportedHosts: ["main"],

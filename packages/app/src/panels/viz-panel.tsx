@@ -1,11 +1,12 @@
 import { useEffect, useState } from "react";
 import { Pressable, ScrollView, Text, View } from "react-native";
 import { Download, LayoutDashboard } from "lucide-react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import invariant from "tiny-invariant";
 import { File, Paths } from "expo-file-system";
 import * as Sharing from "expo-sharing";
 import type { Theme } from "@/styles/theme";
+import { useStableEvent } from "@/hooks/use-stable-event";
 import { usePaneContext } from "@/panels/pane-context";
 import { definePanel, type PanelDescriptor, type PanelIconProps } from "@/panels/panel-registry";
 import { buildVizDocument } from "@/components/markdown/fence/visualize/document";
@@ -29,9 +30,22 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderBottomColor: theme.colors.border,
   },
   title: { color: theme.colors.foreground, fontWeight: "600", fontSize: 13, flex: 1 },
-  exportRow: { flexDirection: "row", alignItems: "center", gap: 6 },
+  // Same pill as the inline stage's expand control, so both ends read as one system.
+  exportRow: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: 6,
+    paddingHorizontal: 8,
+    paddingVertical: 4,
+    borderRadius: 12,
+    backgroundColor: theme.colors.surface2,
+  },
   exportLabel: { color: theme.colors.foregroundMuted, fontSize: 12 },
+  scroll: { flex: 1 },
 }));
+
+const ThemedDownload = withUnistyles(Download);
+const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
 function VizTabIcon({ size, color }: PanelIconProps) {
   return <LayoutDashboard size={size} color={color} />;
@@ -82,11 +96,20 @@ export function VizPanel() {
   const { target } = usePaneContext();
   invariant(target.kind === "viz", "VizPanel requires viz target");
   const [doc, setDoc] = useState<VizDoc | null>(() => readVizDocSync(target.vizId));
+  const onExport = useStableEvent(() => {
+    if (doc) void exportVizDoc(doc).catch(() => {});
+  });
   useEffect(() => {
     let live = true;
-    readVizDoc(target.vizId).then((loaded) => {
-      if (live) setDoc(loaded);
-    });
+    readVizDoc(target.vizId).then(
+      (loaded) => {
+        if (live) {
+          setDoc(loaded);
+        }
+        return undefined;
+      },
+      () => undefined,
+    );
     return () => {
       live = false;
     };
@@ -107,14 +130,14 @@ export function VizPanel() {
         <Pressable
           accessibilityRole="button"
           accessibilityLabel="Export visualization"
-          onPress={() => void exportVizDoc(doc).catch(() => {})}
+          onPress={onExport}
           style={styles.exportRow}
         >
-          <Download size={14} color="#888" />
+          <ThemedDownload size={14} uniProps={mutedColorMapping} />
           <Text style={styles.exportLabel}>Export</Text>
         </Pressable>
       </View>
-      <ScrollView style={{ flex: 1 }}>
+      <ScrollView style={styles.scroll}>
         <VisualizeStage
           code={doc.code}
           serverId={doc.serverId}

@@ -86,6 +86,12 @@ import type {
 } from "./rpc-types.js";
 import { PiUsagePoller, type PiUsagePollScheduler } from "./usage-poller.js";
 import {
+  detectCacheMiss,
+  formatCacheMissNotice,
+  nextRequest,
+  type CacheRequest,
+} from "./cache-miss.js";
+import {
   mapToolDetail,
   parseToolArgs,
   parseToolResult,
@@ -1177,6 +1183,8 @@ export class PiRpcAgentSession implements AgentSession {
   private activeTurnId: string | null = null;
   private activeClientMessageId: string | null = null;
   private activeAssistantMessageId: string | null = null;
+  // Fork: the request before the current one, for prompt-cache miss accounting.
+  private lastCacheRequest: CacheRequest | undefined;
   private activeTurnStarted = false;
   private activeTurnStartedEmitted = false;
   private pendingSettledMessages: PiAgentMessage[] | null = null;
@@ -2228,6 +2236,8 @@ export class PiRpcAgentSession implements AgentSession {
         });
         return;
       case "compaction_end":
+        // Fork: a compacted context is new content, not re-billed content.
+        this.lastCacheRequest = undefined;
         this.emitCompactionTimeline({
           turnId,
           item: {
@@ -2327,6 +2337,54 @@ export class PiRpcAgentSession implements AgentSession {
     this.emit(event);
   }
 
+  /**
+   * Fork: surface a prompt-cache miss the way Pi's TUI does. A compaction resets
+   * the comparison (the context legitimately changed, so the next prompt is new
+   * content rather than re-billed content).
+   */
+  private reportCacheMiss(
+    message: Extract<PiAgentMessage, { role: "assistant" }>,
+    turnId: string | undefined,
+  ): void {
+    const usage = message.usage;
+    if (!usage) {
+      return;
+    }
+    const modelKey = `${message.provider ?? ""}/${message.model ?? ""}`;
+    const timestampMs = Date.now();
+    const miss = detectCacheMiss(this.lastCacheRequest, usage, {
+      modelKey,
+      timestampMs,
+      modelCacheReadPerToken: this.modelCacheReadPerToken(),
+    });
+    this.lastCacheRequest = nextRequest(
+      usage,
+      modelKey,
+      timestampMs,
+      this.lastCacheRequest?.reportedCache ?? false,
+    );
+    if (!miss) {
+      return;
+    }
+    const notice = formatCacheMissNotice(miss);
+    if (!notice) {
+      return;
+    }
+    this.emit({
+      type: "timeline",
+      provider: this.provider,
+      turnId,
+      item: { type: "notification", level: "warning", message: notice },
+    });
+  }
+
+  /** Pi prices in dollars per million tokens; the miss cost needs dollars per token. */
+  private modelCacheReadPerToken(): number | undefined {
+    const cost = this.state.model?.cost;
+    const perMillion = cost?.cacheRead;
+    return typeof perMillion === "number" ? perMillion / 1_000_000 : undefined;
+  }
+
   private handleMessageUpdate(
     event: Extract<PiAgentSessionEvent, { type: "message_update" }>,
     turnId: string | undefined,
@@ -2374,6 +2432,7 @@ export class PiRpcAgentSession implements AgentSession {
   ): void {
     if (event.message.role === "assistant") {
       this.activeAssistantMessageId = null;
+      this.reportCacheMiss(event.message, turnId);
       return;
     }
     if (event.message.role === "custom") {

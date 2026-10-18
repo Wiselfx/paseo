@@ -33,6 +33,27 @@ export interface PiToolCallContent {
 
 export type PiAssistantContent = PiTextContent | PiThinkingContent | PiToolCallContent;
 
+/**
+ * What one request cost, as Pi records it on the assistant message itself.
+ * `cacheRead` is the prompt served from cache, `cacheWrite` what was written to
+ * it, and `input` the rest of the prompt — the three add up to the prompt size.
+ */
+export interface PiMessageUsage {
+  input?: number;
+  output?: number;
+  cacheRead?: number;
+  cacheWrite?: number;
+  reasoning?: number;
+  totalTokens?: number;
+  cost?: {
+    input?: number;
+    output?: number;
+    cacheRead?: number;
+    cacheWrite?: number;
+    total?: number;
+  };
+}
+
 export type PiAgentMessage =
   | {
       role: "user";
@@ -52,6 +73,7 @@ export type PiAgentMessage =
       model?: string;
       responseId?: string;
       responseModel?: string;
+      usage?: PiMessageUsage;
       errorMessage?: string | null;
       stopReason?: string;
     }

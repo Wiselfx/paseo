@@ -142,6 +142,31 @@ function piAssistantEntry(id: string, parentId: string): PiSessionEntry {
   return { type: "message", id, parentId, message: { role: "assistant", content: [] } };
 }
 
+/** An assistant message as Pi records it, priced at $3/M input and $0.30/M cache reads. */
+function assistantWithUsage(input: { input: number; cacheRead: number }) {
+  const inputRate = 3 / 1_000_000;
+  const readRate = 0.3 / 1_000_000;
+  return {
+    role: "assistant" as const,
+    content: [],
+    provider: "anthropic",
+    model: "claude",
+    usage: {
+      input: input.input,
+      cacheRead: input.cacheRead,
+      cacheWrite: 0,
+      output: 10,
+      cost: {
+        input: input.input * inputRate,
+        cacheRead: input.cacheRead * readRate,
+        cacheWrite: 0,
+        output: 0,
+        total: 0,
+      },
+    },
+  };
+}
+
 // Pi's context path: the entries from the root to the leaf.
 function piBranchTo(entries: PiSessionEntry[], leafId: string): PiSessionEntry[] {
   const byId = new Map(entries.map((entry) => [entry.id, entry]));
@@ -1105,6 +1130,54 @@ describe("PiRpcAgentSession", () => {
       },
       { type: "turn_completed" },
     ]);
+  });
+
+  test("reports a prompt-cache miss from the completed assistant message", async () => {
+    const { pi, session, events } = await createSession();
+    const runtime = pi.latestSession();
+
+    await session.startTurn("hello");
+    runtime.emit({ type: "agent_start" });
+    runtime.emit({ type: "turn_start" });
+    runtime.emit({
+      type: "message_end",
+      message: assistantWithUsage({ input: 5_000, cacheRead: 40_000 }),
+    });
+    runtime.emit({
+      type: "message_end",
+      message: assistantWithUsage({ input: 60_000, cacheRead: 5_000 }),
+    });
+    runtime.finishTurn();
+
+    await events.nextTurnCompletion();
+
+    expect(events.timelineItems()).toContainEqual({
+      type: "notification",
+      level: "warning",
+      message: "Cache miss: 40K tokens re-billed (~$0.11)",
+    });
+  });
+
+  test("stays quiet on a turn that reused the cache", async () => {
+    const { pi, session, events } = await createSession();
+    const runtime = pi.latestSession();
+
+    await session.startTurn("hello");
+    runtime.emit({ type: "agent_start" });
+    runtime.emit({ type: "turn_start" });
+    runtime.emit({
+      type: "message_end",
+      message: assistantWithUsage({ input: 5_000, cacheRead: 40_000 }),
+    });
+    runtime.emit({
+      type: "message_end",
+      message: assistantWithUsage({ input: 200, cacheRead: 44_800 }),
+    });
+    runtime.finishTurn();
+
+    await events.nextTurnCompletion();
+
+    expect(events.timelineItems().filter((item) => item.type === "notification")).toEqual([]);
   });
 
   test("settles an autonomous turn triggered by a Pi extension custom message", async () => {

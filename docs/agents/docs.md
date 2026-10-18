@@ -93,15 +93,27 @@ none` on tree rows, touch web only, coarse-pointer guard.
     (`mini.test.tsx`, the inline poster), `player.tsx` / `player.web.tsx`
     (full-width player, `player.web.test.tsx`), `segments.ts`
     (`segments.test.ts`, the cut), `index.tsx` (fence registration).
-18. `packages/app/src/components/markdown/source.ts`. Every image gets a
-    paragraph of its own, including one that shares its line with text: the
+18. `packages/app/src/components/markdown/image-paragraphs.ts`, called by
+    `source.ts`. Every image gets a paragraph of its own, including one that
+    shares its line with text: the
     library sizes a text-sharing image as one square the height of a text line.
     A break splits at a line boundary, or eats the whitespace beside the image
     within a line, and a break inside a quote re-opens the marker. Two
     boundaries: an image inside a list item keeps the tile, because a blank line
     there ends the list; an image that collapses to alt text — unavailable, or
     an SVG on native — stays where it was, since it occupies no box. Upstream's
-    `docs/markdown-renderer.md` still describes its own inline rule.
+    `docs/markdown-renderer.md` still describes its own inline rule. Upstream's
+    engine fork (`#7240`) moves this rule into C++ and deletes the call.
+19. `packages/app/src/components/markdown/hosted-segments.ts`
+    (`hosted-segments.test.ts`). The one stage table that decides which fence
+    kinds the app hosts outside the library — mermaid native-only, then YouTube,
+    cards, visualize — walked depth-first so hosted blocks keep document order.
+    `renderer.tsx` renders whatever the table returns, so a new hosted fence is
+    one stage entry plus a renderer case.
+20. `packages/app/src/components/markdown/test-utils/library-internals.ts`.
+    The app's only import of `react-native-enriched-markdown` private paths,
+    used by `renderer.test.ts`; the one file to rename when the library is
+    replaced.
 
 ## Failure map
 
@@ -123,8 +135,8 @@ none` on tree rows, touch web only, coarse-pointer guard.
 - Image renders as a small tile: it sits inside a list item, or it is acquirable
   but mid-sentence and still pending — the pending placeholder takes a paragraph
   of its own, so the tile is the resolved image's size.
-- Merge conflicts: files 2–6 can produce them. Files 1, 7, 8,
-  9, 10, 11 cannot.
+- Merge conflicts: files 2–6, and the fork calls left in `source.ts` and
+  `renderer.tsx` (#3). New-file items (#18–20) cannot.
 
 ## Needs
 

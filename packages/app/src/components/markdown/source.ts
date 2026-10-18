@@ -1,12 +1,13 @@
 import { classifyAssistantFileLink } from "@/assistant-file-links";
 import { ASSISTANT_FILE_EXTENSIONS } from "@/assistant-file-links/extensions";
 import { normalizeMarkdownHtml } from "./html";
+import { createImageParagraphs } from "./image-paragraphs";
 import { gfmTable } from "micromark-extension-gfm-table";
 import { gfmTableFromMarkdown } from "mdast-util-gfm-table";
 import type { AssistantFileLinkSource } from "@/assistant-file-links";
 import { decodeString } from "micromark-util-decode-string";
 import { fromMarkdown } from "mdast-util-from-markdown";
-import type { Link, Nodes, Paragraph, PhrasingContent, Root } from "mdast";
+import type { Link, Nodes, Root } from "mdast";
 
 // Keep this regex in the syntax shared by JavaScript, ICU and java.util.regex.
 // The Unicode flag makes Metro expand it to escapes rejected by native engines.
@@ -157,103 +158,13 @@ export function prepareMarkdownSource(
         end,
       });
   }
-  // Line boundaries already turned into paragraph breaks, by offset of their newline.
-  const splitBoundaries = new Set<number>();
-  // Mid-line breaks owed to an image, by the image's own start offset. Inserted
-  // when the image renders, so an image that collapses to alt text stays inline.
-  const imageBreaks = new Map<number, { start: number; end: number; text: string }[]>();
-  const inlineBreaks = new Set<number>();
-  // Whitespace a break eats, so text escapes never rewrite the same characters.
-  const trimmedWhitespace: { start: number; end: number }[] = [];
-  function isImageLike(node: PhrasingContent): boolean {
-    if (node.type === "image" || node.type === "imageReference") return true;
-    return (
-      (node.type === "link" || node.type === "linkReference") &&
-      node.children.length === 1 &&
-      isImageLike(node.children[0])
-    );
-  }
-  // An image alone in its paragraph renders as a block; every other image is
-  // sized by the library as one square the height of a text line, which reads as
-  // a tile. So an image gets a paragraph of its own: a shared line is split
-  // around it. Line boundaries split here; a break inside a line is recorded on
-  // the image instead, because it only applies when the image renders. List
-  // items split at line boundaries only, where the following lines keep their
-  // indent; a mid-line break there would leave the rest of the item at column 0.
-  function splitImagesOntoOwnParagraph(
-    paragraph: Paragraph,
-    start: number,
-    end: number,
-    insideListItem: boolean,
-  ) {
-    for (const child of paragraph.children) {
-      const childStart = child.position?.start.offset;
-      const childEnd = child.position?.end.offset;
-      if (childStart === undefined || childEnd === undefined || !isImageLike(child)) continue;
-      const lineStart = source.lastIndexOf("\n", childStart - 1) + 1;
-      const newline = source.indexOf("\n", childEnd);
-      const lineEnd = newline === -1 ? source.length : newline;
-      const prefix = source.slice(lineStart, childStart);
-      const suffix = source.slice(childEnd, lineEnd);
-      const sharesBefore = childStart > start && !/^[\s>]*$/.test(prefix);
-      const sharesAfter = !/^\s*\\?$/.test(suffix);
-      // Continuation lines inside quotes keep their quote markers on the blank line.
-      const blank = prefix.replace(/[^>]/g, " ").trimEnd();
-      const split = (boundary: number) => {
-        if (splitBoundaries.has(boundary)) return;
-        splitBoundaries.add(boundary);
-        // A trailing backslash was a hard break; at a paragraph end it would render literally.
-        const cut = source[boundary - 1] === "\\" ? boundary - 1 : boundary;
-        edits.push({ start: cut, end: boundary + 1, text: `\n${blank}\n` });
-      };
-      const recordBreak = (offset: number, edge: "before" | "after") => {
-        const run = edge === "before" ? /[ \t]*$/.exec(prefix)![0] : /^[ \t]*/.exec(suffix)![0];
-        const from = edge === "before" ? offset - run.length : offset;
-        const to = edge === "before" ? offset : offset + run.length;
-        if (inlineBreaks.has(from)) return;
-        inlineBreaks.add(from);
-        trimmedWhitespace.push({ start: from, end: to });
-        const key = innermostImageStart(child) ?? childStart;
-        const breaks = imageBreaks.get(key) ?? [];
-        breaks.push({ start: from, end: to, text: `\n${blank}\n${blank ? `${blank} ` : ""}` });
-        imageBreaks.set(key, breaks);
-      };
-      if (sharesBefore) {
-        if (!insideListItem) recordBreak(childStart, "before");
-      } else if (lineStart > start) {
-        split(lineStart - 1);
-      }
-      if (sharesAfter) {
-        if (!insideListItem) recordBreak(childEnd, "after");
-      } else if (lineEnd < end) {
-        split(lineEnd);
-      }
-    }
-  }
-  // A break eats the whitespace beside an image; an escape must not rewrite it too.
-  function clipTrimmedWhitespace(start: number, end: number): [number, number] {
-    let [from, to] = [start, end];
-    for (const trim of trimmedWhitespace) {
-      if (trim.end <= from || trim.start >= to) continue;
-      if (trim.start <= from) from = trim.end;
-      else if (trim.end >= to) to = trim.start;
-    }
-    return [from, to];
-  }
-  // A link around an image owns the breaks, but the image is what renders.
-  function innermostImageStart(node: PhrasingContent): number | undefined {
-    if (node.type === "image" || node.type === "imageReference") {
-      return node.position?.start.offset;
-    }
-    return "children" in node && node.children.length === 1
-      ? innermostImageStart(node.children[0])
-      : undefined;
-  }
+  // Fork media: an image that shares its line gets a paragraph of its own.
+  const imageParagraphs = createImageParagraphs(source, edits);
   function visit(node: Nodes, insideListItem = false) {
     const start = node.position?.start.offset;
     const end = node.position?.end.offset;
     if (start !== undefined && end !== undefined) {
-      if (node.type === "paragraph") splitImagesOntoOwnParagraph(node, start, end, insideListItem);
+      if (node.type === "paragraph") imageParagraphs.split(node, start, end, insideListItem);
       if (node.type === "link") {
         const title = workspaceHoverTitle(node, source.slice(start, end), workspaceRoot);
         if (title !== null)
@@ -272,7 +183,7 @@ export function prepareMarkdownSource(
         return;
       }
       if (node.type === "text") {
-        const [from, to] = clipTrimmedWhitespace(start, end);
+        const [from, to] = imageParagraphs.clip(start, end);
         const text = source
           .slice(from, to)
           .replace(/(?<!\\)&(?:#(?:[xX][\da-fA-F]+|\d+)|[a-zA-Z][a-zA-Z\d]+);/g, (entity) =>
@@ -306,7 +217,7 @@ export function prepareMarkdownSource(
         else url = urls.get(image.source);
         if (url !== undefined) {
           // It occupies a box, so it takes the paragraph recorded for it.
-          for (const entry of imageBreaks.get(image.start) ?? []) {
+          for (const entry of imageParagraphs.breaksFor(image.start)) {
             replacements.push({ start: entry.start, end: entry.end, text: entry.text });
           }
         }

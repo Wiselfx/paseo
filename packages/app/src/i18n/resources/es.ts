@@ -2069,6 +2069,12 @@ export const es: TranslationResources = {
     sessionCost: "Costo de la sesión{{cost}}",
     cacheRead: "Lectura de caché {{read}}",
     cacheReadWithInput: "Lectura de caché {{read}} · entrada {{input}}",
+    cacheHit: "Aciertos de caché {{lastTurn}}% en el último turno · {{session}}% en la sesión",
+    cacheHitLastTurn: "Aciertos de caché {{lastTurn}}% en el último turno",
+    cacheHitSession: "Aciertos de caché {{session}}% en la sesión",
+    cacheWaste: "Caché refacturada {{tokens}} tokens ({{cost}})",
+    cacheWasteNoCost: "Caché refacturada {{tokens}} tokens",
+    cacheCostByModel: "Costo por modelo: {{parts}}",
     accessibility: "Ventana de contexto{{percentage}}% utilizada",
   },
   review: {

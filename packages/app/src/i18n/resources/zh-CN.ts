@@ -1999,6 +1999,12 @@ export const zhCN: TranslationResources = {
     sessionCost: "会话费用 {{cost}}",
     cacheRead: "缓存读取 {{read}}",
     cacheReadWithInput: "缓存读取 {{read}} · 输入 {{input}}",
+    cacheHit: "缓存命中 {{lastTurn}}%（上一轮）· {{session}}%（本次会话）",
+    cacheHitLastTurn: "缓存命中 {{lastTurn}}%（上一轮）",
+    cacheHitSession: "缓存命中 {{session}}%（本次会话）",
+    cacheWaste: "缓存重新计费 {{tokens}} tokens（{{cost}}）",
+    cacheWasteNoCost: "缓存重新计费 {{tokens}} tokens",
+    cacheCostByModel: "按模型计费：{{parts}}",
     accessibility: "上下文窗口已使用 {{percentage}}%",
   },
   review: {

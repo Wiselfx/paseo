@@ -39,10 +39,13 @@ none` on tree rows, touch web only, coarse-pointer guard.
 10. `.github/workflows/build.yml`. Manual dispatch. Builds server
     and web UI, asserts fork markers in the bundle, uploads dist.
 11. `packages/app/src/components/context-window-cache.ts`
-    (`context-window-cache.test.ts`). Prompt-cache counters as reported by
-    the provider (no ratio computed), rendered as one muted line in
-    `context-window-details.tsx` next to session cost. App-only: the data
-    already arrives as `lastUsage.cachedInputTokens` / `inputTokens`.
+    (`context-window-cache.test.ts`). Prompt-cache figures as reported by the
+    provider, rendered as muted lines in `context-window-details.tsx` next to
+    session cost: the read and the input it compares against, the hit rate for
+    the last turn and for the session, the tokens re-billed with their cost,
+    and cost with volume per model when a session touched more than one.
+    Nothing is recomputed here — the percentages arrive already computed and are
+    only rounded to Pi's one decimal.
 12. `packages/app/src/components/markdown/styles.fork.test.ts`. Guards the
     two fork values inside `styles.ts` across upstream merges: block images
     keep `borderRadius` 12 and `maxHeight` 1200. Everything else in that file
@@ -51,6 +54,15 @@ none` on tree rows, touch web only, coarse-pointer guard.
     `MarkdownBlockStack`, which replaced `frame.tsx`. Fork fences carry no
     margins of their own, so they take that single gap.
 13. `docs/agents/.base-ref`. Last-merged upstream SHA.
+14. `packages/server/src/server/agent/providers/pi/cache-miss.ts`
+    (`cache-miss.test.ts`) and `cache-stats.ts` (`cache-stats.test.ts`). Pi
+    reports no cache metrics over RPC, so Paseo derives them from what each
+    assistant message already records: a warning when a turn re-bills prompt
+    tokens, at Pi's own thresholds (1024-token noise floor, notice at 20K tokens
+    or $0.10, labelled after a model switch or an idle gap past the cache
+    lifetime), and the figures item 11 renders. History replay re-derives the
+    warnings, so a resumed session keeps them; an idle gap cannot be named on
+    replay, because history carries no timing.
 
 ## Failure map
 
@@ -64,6 +76,9 @@ none` on tree rows, touch web only, coarse-pointer guard.
 - Long-press selects only: #4 handler, or TouchEvent coercion.
 - OS callout covers the menu: #5 styles.
 - Download broken: `download-store.ts` (upstream, untouched).
+- No cache lines: the provider reported no cache reads, or the message predates
+  usage being recorded. A miss warning without its cost means the provider
+  priced nothing.
 - SVG renders as text: #6 fallthroughs (unclosed, oversized,
   code span).
 - Merge conflicts: files 2–6 can produce them. Files 1, 7, 8,

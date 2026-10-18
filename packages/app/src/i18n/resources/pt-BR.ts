@@ -2054,6 +2054,12 @@ export const ptBR: TranslationResources = {
     sessionCost: "Custo da sessão {{cost}}",
     cacheRead: "Leitura de cache {{read}}",
     cacheReadWithInput: "Leitura de cache {{read}} · entrada {{input}}",
+    cacheHit: "Acertos de cache {{lastTurn}}% no último turno · {{session}}% na sessão",
+    cacheHitLastTurn: "Acertos de cache {{lastTurn}}% no último turno",
+    cacheHitSession: "Acertos de cache {{session}}% na sessão",
+    cacheWaste: "Cache recobrado {{tokens}} tokens ({{cost}})",
+    cacheWasteNoCost: "Cache recobrado {{tokens}} tokens",
+    cacheCostByModel: "Custo por modelo: {{parts}}",
     accessibility: "Janela de contexto {{percentage}}% usada",
   },
   review: {

@@ -2031,6 +2031,12 @@ export const ko: TranslationResources = {
     sessionCost: "세션 비용 {{cost}}",
     cacheRead: "캐시 읽기 {{read}}",
     cacheReadWithInput: "캐시 읽기 {{read}} · 입력 {{input}}",
+    cacheHit: "캐시 적중 {{lastTurn}}% (최근 턴) · {{session}}% (세션)",
+    cacheHitLastTurn: "캐시 적중 {{lastTurn}}% (최근 턴)",
+    cacheHitSession: "캐시 적중 {{session}}% (세션)",
+    cacheWaste: "캐시 재과금 {{tokens}} 토큰 ({{cost}})",
+    cacheWasteNoCost: "캐시 재과금 {{tokens}} 토큰",
+    cacheCostByModel: "모델별 비용: {{parts}}",
     accessibility: "컨텍스트 윈도우 {{percentage}}% 사용됨",
   },
   review: {

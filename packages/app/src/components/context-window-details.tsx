@@ -1,11 +1,39 @@
 import { Text, View } from "react-native";
+import type { TFunction } from "i18next";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/shallow";
 import { useSessionStore } from "@/stores/session-store";
 import { AgentUsage } from "@/usage";
-import { cacheReadout } from "./context-window-cache";
+import {
+  cacheHitRates,
+  cacheModelCosts,
+  cacheReadout,
+  cacheWasteReadout,
+  type CacheHitRates,
+} from "./context-window-cache";
 import { formatTokenCount } from "./context-window-meter.utils";
+
+/**
+ * Fork: name the window each rate belongs to. Pi shows the last turn's in its
+ * status line and the session's in `/session`; without the label the two numbers
+ * read as a contradiction.
+ */
+function cacheHitText(hit: CacheHitRates | null, t: TFunction): string | null {
+  if (!hit) {
+    return null;
+  }
+  if (hit.lastTurn && hit.session) {
+    return t("contextWindow.cacheHit", { lastTurn: hit.lastTurn, session: hit.session });
+  }
+  if (hit.lastTurn) {
+    return t("contextWindow.cacheHitLastTurn", { lastTurn: hit.lastTurn });
+  }
+  if (hit.session) {
+    return t("contextWindow.cacheHitSession", { session: hit.session });
+  }
+  return null;
+}
 
 interface ContextWindowDetailsProps {
   serverId: string;
@@ -35,18 +63,22 @@ export function ContextWindowDetails({
   refreshable,
 }: ContextWindowDetailsProps) {
   const { t } = useTranslation();
-  const cache = cacheReadout(
-    useSessionStore(
-      useShallow((state) => {
-        const usage = state.sessions[serverId]?.agents.get(agentId)?.lastUsage;
-        return {
-          cachedInputTokens: usage?.cachedInputTokens ?? null,
-          inputTokens: usage?.inputTokens ?? null,
-        };
-      }),
-    ),
-    formatTokenCount,
+  const lastUsage = useSessionStore(
+    useShallow((state) => state.sessions[serverId]?.agents.get(agentId)?.lastUsage ?? null),
   );
+  const cache = cacheReadout(lastUsage, formatTokenCount);
+  const cacheHit = cacheHitRates(lastUsage);
+  const cacheWaste = cacheWasteReadout(lastUsage, formatTokenCount);
+  const cacheModels = cacheModelCosts(lastUsage, formatTokenCount);
+  const cacheHitLine = cacheHitText(cacheHit, t);
+  const cacheModelLine =
+    cacheModels.length > 1
+      ? t("contextWindow.cacheCostByModel", {
+          parts: cacheModels
+            .map((entry) => `${entry.key} ${entry.cost} (${entry.tokens})`)
+            .join(" · "),
+        })
+      : null;
   return (
     <>
       <View style={styles.summary}>
@@ -77,6 +109,15 @@ export function ContextWindowDetails({
               : t("contextWindow.cacheRead", { read: cache.read })}
           </Text>
         ) : null}
+        {cacheHitLine ? <Text style={styles.detail}>{cacheHitLine}</Text> : null}
+        {cacheWaste ? (
+          <Text style={styles.detail}>
+            {cacheWaste.cost
+              ? t("contextWindow.cacheWaste", { tokens: cacheWaste.tokens, cost: cacheWaste.cost })
+              : t("contextWindow.cacheWasteNoCost", { tokens: cacheWaste.tokens })}
+          </Text>
+        ) : null}
+        {cacheModelLine ? <Text style={styles.detail}>{cacheModelLine}</Text> : null}
       </View>
       <AgentUsage serverId={serverId} agentId={agentId} refreshable={refreshable} />
     </>

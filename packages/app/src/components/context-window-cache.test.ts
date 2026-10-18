@@ -1,5 +1,10 @@
 import { describe, expect, it } from "vitest";
-import { cacheReadout } from "./context-window-cache";
+import {
+  cacheHitRates,
+  cacheModelCosts,
+  cacheReadout,
+  cacheWasteReadout,
+} from "./context-window-cache";
 
 const format = (value: number): string => `${Math.round(value / 1000)}k`;
 
@@ -31,5 +36,83 @@ describe("cacheReadout", () => {
       read: "1k",
       input: null,
     });
+  });
+});
+
+describe("cacheHitRates", () => {
+  it("keeps last turn and session apart, at Pi's one decimal", () => {
+    expect(
+      cacheHitRates({ lastTurnCacheHitRatePct: 34.5234, sessionCacheHitRatePct: 71.25 }),
+    ).toEqual({ lastTurn: "34.5", session: "71.3" });
+  });
+
+  it("reports whichever rate exists on its own", () => {
+    expect(cacheHitRates({ lastTurnCacheHitRatePct: 12.04 })).toEqual({
+      lastTurn: "12.0",
+      session: null,
+    });
+    expect(cacheHitRates({ sessionCacheHitRatePct: 90 })).toEqual({
+      lastTurn: null,
+      session: "90.0",
+    });
+  });
+
+  it("shows nothing when no rate was reported", () => {
+    expect(cacheHitRates(undefined)).toBe(null);
+    expect(cacheHitRates({})).toBe(null);
+    expect(cacheHitRates({ lastTurnCacheHitRatePct: Number.NaN })).toBe(null);
+    expect(cacheHitRates({ sessionCacheHitRatePct: -1 })).toBe(null);
+  });
+});
+
+describe("cacheWasteReadout", () => {
+  it("shows re-billed tokens and their cost", () => {
+    expect(cacheWasteReadout({ cacheWaste: { tokens: 214_388, costUsd: 0.61 } }, format)).toEqual({
+      tokens: "214k",
+      cost: "$0.61",
+    });
+  });
+
+  it("keeps a sub-cent cost visible in thousandths", () => {
+    expect(cacheWasteReadout({ cacheWaste: { tokens: 40_000, costUsd: 0.0054 } }, format)).toEqual({
+      tokens: "40k",
+      cost: "$0.005",
+    });
+  });
+
+  it("drops the cost when the provider priced nothing", () => {
+    expect(cacheWasteReadout({ cacheWaste: { tokens: 40_000, costUsd: 0 } }, format)).toEqual({
+      tokens: "40k",
+      cost: null,
+    });
+  });
+
+  it("shows nothing without waste", () => {
+    expect(cacheWasteReadout(undefined, format)).toBe(null);
+    expect(cacheWasteReadout({ cacheWaste: { tokens: 0, costUsd: 0.2 } }, format)).toBe(null);
+  });
+});
+
+describe("cacheModelCosts", () => {
+  it("formats each model's cost and volume", () => {
+    expect(
+      cacheModelCosts(
+        {
+          costByModel: [
+            { key: "openai/gpt-5", costUsd: 1.52, tokens: 612_000 },
+            { key: "anthropic/claude", costUsd: 0.32, tokens: 94_000 },
+          ],
+        },
+        format,
+      ),
+    ).toEqual([
+      { key: "openai/gpt-5", cost: "$1.52", tokens: "612k" },
+      { key: "anthropic/claude", cost: "$0.32", tokens: "94k" },
+    ]);
+  });
+
+  it("shows nothing when no model was reported", () => {
+    expect(cacheModelCosts(undefined, format)).toEqual([]);
+    expect(cacheModelCosts({ costByModel: [{ key: "" }] }, format)).toEqual([]);
   });
 });

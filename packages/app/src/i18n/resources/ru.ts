@@ -2054,6 +2054,12 @@ export const ru: TranslationResources = {
     sessionCost: "Стоимость сессии: {{cost}}",
     cacheRead: "Чтение кэша {{read}}",
     cacheReadWithInput: "Чтение кэша {{read}} · ввод {{input}}",
+    cacheHit: "Попадания в кэш {{lastTurn}}% за последний ход · {{session}}% за сессию",
+    cacheHitLastTurn: "Попадания в кэш {{lastTurn}}% за последний ход",
+    cacheHitSession: "Попадания в кэш {{session}}% за сессию",
+    cacheWaste: "Повторно оплачено {{tokens}} токенов ({{cost}})",
+    cacheWasteNoCost: "Повторно оплачено {{tokens}} токенов",
+    cacheCostByModel: "Стоимость по моделям: {{parts}}",
     accessibility: "Использовано {{percentage}}% контекстного окна",
   },
   review: {

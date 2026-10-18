@@ -2046,6 +2046,12 @@ export const en = {
     sessionCost: "Session cost {{cost}}",
     cacheRead: "Cache read {{read}}",
     cacheReadWithInput: "Cache read {{read}} · input {{input}}",
+    cacheHit: "Cache hit {{lastTurn}}% last turn · {{session}}% session",
+    cacheHitLastTurn: "Cache hit {{lastTurn}}% last turn",
+    cacheHitSession: "Cache hit {{session}}% session",
+    cacheWaste: "Cache re-billed {{tokens}} tokens ({{cost}})",
+    cacheWasteNoCost: "Cache re-billed {{tokens}} tokens",
+    cacheCostByModel: "Cost by model: {{parts}}",
     accessibility: "Context window {{percentage}}% used",
   },
   review: {

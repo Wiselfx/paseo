@@ -2041,6 +2041,12 @@ export const ja: TranslationResources = {
     sessionCost: "セッションコスト: {{cost}}",
     cacheRead: "キャッシュ読み取り {{read}}",
     cacheReadWithInput: "キャッシュ読み取り {{read}} · 入力 {{input}}",
+    cacheHit: "キャッシュヒット {{lastTurn}}%（直前のターン） · {{session}}%（セッション）",
+    cacheHitLastTurn: "キャッシュヒット {{lastTurn}}%（直前のターン）",
+    cacheHitSession: "キャッシュヒット {{session}}%（セッション）",
+    cacheWaste: "キャッシュ再課金 {{tokens}} トークン（{{cost}}）",
+    cacheWasteNoCost: "キャッシュ再課金 {{tokens}} トークン",
+    cacheCostByModel: "モデル別コスト: {{parts}}",
     accessibility: "コンテキストウィンドウ{{percentage}}%使用",
   },
   review: {

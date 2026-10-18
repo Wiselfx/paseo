@@ -1,10 +1,5 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
-import { toNativeLinkRecognition } from "react-native-enriched-markdown/src/utils/regexParser";
-import { parseMarkdown } from "react-native-enriched-markdown/src/web/parseMarkdown";
-import { recognizeTextLinks } from "react-native-enriched-markdown/src/web/recognizeTextLinks";
 import { classifyAssistantFileLink } from "@/assistant-file-links";
-import { markInlineImages } from "react-native-enriched-markdown/src/web/utils";
-import type { ASTNode } from "react-native-enriched-markdown/src/web/types";
 import { QueryClient } from "@tanstack/react-query";
 import { decodeMarkdownImage, getMarkdownImageStatus } from "./image-decoding";
 import { describe, expect, it } from "vitest";
@@ -12,6 +7,13 @@ import { darkTheme, lightTheme } from "@/styles/theme";
 import { createMarkdownStyles } from "./styles";
 import { prepareMarkdownSource, PENDING_MARKDOWN_IMAGE } from "./source";
 import { normalizeMarkdownHtml } from "./html";
+import {
+  markInlineImages,
+  parseMarkdown,
+  recognizeTextLinks,
+  toNativeLinkRecognition,
+  type ASTNode,
+} from "./test-utils/library-internals";
 
 describe("shared Markdown source adaptation", () => {
   it("keeps paragraphs, fences and quotes together for the library", () => {

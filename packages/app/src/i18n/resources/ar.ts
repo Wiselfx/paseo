@@ -2019,6 +2019,8 @@ export const ar: TranslationResources = {
     used: "تم استخدام{{percentage}}%",
     tokens: "رموز{{used}}/{{max}}",
     sessionCost: "تكلفة الجلسة{{cost}}",
+    cacheRead: "قراءة الذاكرة المؤقتة {{read}}",
+    cacheReadWithInput: "قراءة الذاكرة المؤقتة {{read}} · الإدخال {{input}}",
     accessibility: "تم استخدام نافذة السياق{{percentage}}%",
   },
   review: {

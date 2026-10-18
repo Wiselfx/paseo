@@ -2039,6 +2039,8 @@ export const ja: TranslationResources = {
     used: "{{percentage}}%使用",
     tokens: "{{used}} / {{max}}トークン",
     sessionCost: "セッションコスト: {{cost}}",
+    cacheRead: "キャッシュ読み取り {{read}}",
+    cacheReadWithInput: "キャッシュ読み取り {{read}} · 入力 {{input}}",
     accessibility: "コンテキストウィンドウ{{percentage}}%使用",
   },
   review: {

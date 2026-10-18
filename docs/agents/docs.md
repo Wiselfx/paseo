@@ -38,7 +38,12 @@ none` on tree rows, touch web only, coarse-pointer guard.
    link rule with `AssistantMarkdownImage` for bare image URLs.
 10. `.github/workflows/build.yml`. Manual dispatch. Builds server
     and web UI, asserts fork markers in the bundle, uploads dist.
-11. `docs/agents/.base-ref`. Last-merged upstream SHA.
+11. `packages/app/src/components/context-window-cache.ts`
+    (`context-window-cache.test.ts`). Prompt-cache counters as reported by
+    the provider (no ratio computed), rendered as one muted line in
+    `context-window-details.tsx` next to session cost. App-only: the data
+    already arrives as `lastUsage.cachedInputTokens` / `inputTokens`.
+12. `docs/agents/.base-ref`. Last-merged upstream SHA.
 
 ## Failure map
 

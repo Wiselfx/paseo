@@ -2067,6 +2067,8 @@ export const es: TranslationResources = {
     used: "{{percentage}}% utilizado",
     tokens: "Fichas{{used}}/{{max}}",
     sessionCost: "Costo de la sesión{{cost}}",
+    cacheRead: "Lectura de caché {{read}}",
+    cacheReadWithInput: "Lectura de caché {{read}} · entrada {{input}}",
     accessibility: "Ventana de contexto{{percentage}}% utilizada",
   },
   review: {

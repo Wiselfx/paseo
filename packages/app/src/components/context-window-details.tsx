@@ -1,7 +1,10 @@
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
+import { useShallow } from "zustand/shallow";
+import { useSessionStore } from "@/stores/session-store";
 import { AgentUsage } from "@/usage";
+import { cacheReadout } from "./context-window-cache";
 import { formatTokenCount } from "./context-window-meter.utils";
 
 interface ContextWindowDetailsProps {
@@ -32,6 +35,18 @@ export function ContextWindowDetails({
   refreshable,
 }: ContextWindowDetailsProps) {
   const { t } = useTranslation();
+  const cache = cacheReadout(
+    useSessionStore(
+      useShallow((state) => {
+        const usage = state.sessions[serverId]?.agents.get(agentId)?.lastUsage;
+        return {
+          cachedInputTokens: usage?.cachedInputTokens ?? null,
+          inputTokens: usage?.inputTokens ?? null,
+        };
+      }),
+    ),
+    formatTokenCount,
+  );
   return (
     <>
       <View style={styles.summary}>
@@ -53,6 +68,14 @@ export function ContextWindowDetails({
         )}
         {sessionCost ? (
           <Text style={styles.detail}>{t("contextWindow.sessionCost", { cost: sessionCost })}</Text>
+        ) : null}
+        {/* Fork: the provider's own prompt-cache counters, displayed as reported. */}
+        {cache ? (
+          <Text style={styles.detail}>
+            {cache.input
+              ? t("contextWindow.cacheReadWithInput", { read: cache.read, input: cache.input })
+              : t("contextWindow.cacheRead", { read: cache.read })}
+          </Text>
         ) : null}
       </View>
       <AgentUsage serverId={serverId} agentId={agentId} refreshable={refreshable} />

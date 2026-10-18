@@ -2052,6 +2052,8 @@ export const ptBR: TranslationResources = {
     used: "{{percentage}}% usado",
     tokens: "{{used}} / {{max}} tokens",
     sessionCost: "Custo da sessão {{cost}}",
+    cacheRead: "Leitura de cache {{read}}",
+    cacheReadWithInput: "Leitura de cache {{read}} · entrada {{input}}",
     accessibility: "Janela de contexto {{percentage}}% usada",
   },
   review: {

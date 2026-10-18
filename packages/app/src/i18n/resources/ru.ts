@@ -2052,6 +2052,8 @@ export const ru: TranslationResources = {
     used: "Использовано: {{percentage}}%",
     tokens: "Токены: {{used}} / {{max}}",
     sessionCost: "Стоимость сессии: {{cost}}",
+    cacheRead: "Чтение кэша {{read}}",
+    cacheReadWithInput: "Чтение кэша {{read}} · ввод {{input}}",
     accessibility: "Использовано {{percentage}}% контекстного окна",
   },
   review: {

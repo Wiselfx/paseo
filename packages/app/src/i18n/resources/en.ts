@@ -2044,6 +2044,8 @@ export const en = {
     used: "{{percentage}}% used",
     tokens: "{{used}} / {{max}} tokens",
     sessionCost: "Session cost {{cost}}",
+    cacheRead: "Cache read {{read}}",
+    cacheReadWithInput: "Cache read {{read}} · input {{input}}",
     accessibility: "Context window {{percentage}}% used",
   },
   review: {

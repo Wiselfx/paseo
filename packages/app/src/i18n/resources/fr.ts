@@ -2065,6 +2065,8 @@ export const fr: TranslationResources = {
     used: "{{percentage}} % utilisés",
     tokens: "{{used}} / {{max}} tokens",
     sessionCost: "Coût de la session : {{cost}}",
+    cacheRead: "Lecture du cache {{read}}",
+    cacheReadWithInput: "Lecture du cache {{read}} · entrée {{input}}",
     accessibility: "Fenêtre de contexte : {{percentage}} % utilisés",
   },
   review: {

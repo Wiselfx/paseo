@@ -1997,6 +1997,8 @@ export const zhCN: TranslationResources = {
     used: "已使用 {{percentage}}%",
     tokens: "{{used}} / {{max}} tokens",
     sessionCost: "会话费用 {{cost}}",
+    cacheRead: "缓存读取 {{read}}",
+    cacheReadWithInput: "缓存读取 {{read}} · 输入 {{input}}",
     accessibility: "上下文窗口已使用 {{percentage}}%",
   },
   review: {

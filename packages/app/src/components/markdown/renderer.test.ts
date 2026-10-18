@@ -49,8 +49,29 @@ describe("shared Markdown source adaptation", () => {
       ).render(),
     ).toBe("Line one\n\n[![Linked](https://x/a.png)](https://x)\n\nLine three");
   });
-  it("keeps images that share a line with text inline", () => {
-    const source = "Icon ![i](https://x/i.png) in text\n![a](https://x/a.png) caption\nNext line";
+  it("gives an image that shares its line with text a paragraph of its own", () => {
+    expect(prepareMarkdownSource("Icon ![i](https://x/i.png) in text").render()).toBe(
+      "Icon\n\n![i](https://x/i.png)\n\nin text",
+    );
+    expect(prepareMarkdownSource("![a](https://x/a.png) caption").render()).toBe(
+      "![a](https://x/a.png)\n\ncaption",
+    );
+    expect(prepareMarkdownSource("Lead\nx ![i](https://x/i.png)\nTail").render()).toBe(
+      "Lead\nx\n\n![i](https://x/i.png)\n\nTail",
+    );
+  });
+  it("gives a linked image that shares its line a paragraph of its own", () => {
+    expect(prepareMarkdownSource("See [![Linked](https://x/a.png)](https://x) now").render()).toBe(
+      "See\n\n[![Linked](https://x/a.png)](https://x)\n\nnow",
+    );
+  });
+  it("keeps a split image inside its quote", () => {
+    expect(prepareMarkdownSource("> Quote ![i](https://x/i.png) more").render()).toBe(
+      "> Quote\n>\n> ![i](https://x/i.png)\n>\n> more",
+    );
+  });
+  it("leaves an image inside a list item alone", () => {
+    const source = "- Item ![i](https://x/i.png) more";
     expect(prepareMarkdownSource(source).render()).toBe(source);
   });
   it("splits own-line images inside quotes and list items without ending the container", () => {
@@ -64,7 +85,7 @@ describe("shared Markdown source adaptation", () => {
       "- ![Shot](https://x/a.png)\n\n  Caption line",
     );
   });
-  it("renders own-line images as blocks through the library parser", async () => {
+  it("renders every image as a block through the library parser", async () => {
     const source =
       "Before:\n![Shot](https://x/a.png)\nIcon ![i](https://x/i.png) in text\n> Quoted\n> ![Q](https://x/q.png)";
     const tree = await parseMarkdown(prepareMarkdownSource(source).render(), {
@@ -82,7 +103,7 @@ describe("shared Markdown source adaptation", () => {
       images.map((image) => [image.attributes?.url, image.attributes?.isInline === true]),
     ).toEqual([
       ["https://x/a.png", false],
-      ["https://x/i.png", true],
+      ["https://x/i.png", false],
       ["https://x/q.png", false],
     ]);
   });
@@ -461,7 +482,7 @@ it("preserves angle-bracket image destinations and authored link titles during H
   );
   expect(prepared.images.map((image) => image.source)).toEqual(["my file.png"]);
   expect(prepared.render(new Map([["my file.png", "blob:shot"]]))).toBe(
-    '![shot](<blob:shot>) and [open](<my file.png> "<b>literal title</b>")',
+    '![shot](<blob:shot>)\n\nand [open](<my file.png> "<b>literal title</b>")',
   );
 });
 
@@ -670,16 +691,11 @@ it.each([undefined, "file:///cache/shot.png"])(
       supportsSvg: false,
     });
     const rendered = prepared.render(new Map(), new Set(), new Set(["shot.png"]));
-    expect(rendered).toBe(`Before ![image](<${PENDING_MARKDOWN_IMAGE}>) after`);
+    expect(rendered).toBe(`Before\n\n![image](<${PENDING_MARKDOWN_IMAGE}>)\n\nafter`);
     expect(fromMarkdown(rendered).children).toMatchObject([
-      {
-        type: "paragraph",
-        children: [
-          { type: "text", value: "Before " },
-          { type: "image", url: PENDING_MARKDOWN_IMAGE },
-          { type: "text", value: " after" },
-        ],
-      },
+      { type: "paragraph", children: [{ type: "text", value: "Before" }] },
+      { type: "paragraph", children: [{ type: "image", url: PENDING_MARKDOWN_IMAGE }] },
+      { type: "paragraph", children: [{ type: "text", value: "after" }] },
     ]);
   },
 );

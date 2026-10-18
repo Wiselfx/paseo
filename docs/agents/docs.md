@@ -93,6 +93,15 @@ none` on tree rows, touch web only, coarse-pointer guard.
     (`mini.test.tsx`, the inline poster), `player.tsx` / `player.web.tsx`
     (full-width player, `player.web.test.tsx`), `segments.ts`
     (`segments.test.ts`, the cut), `index.tsx` (fence registration).
+18. `packages/app/src/components/markdown/source.ts`. Every image gets a
+    paragraph of its own, including one that shares its line with text: the
+    library sizes a text-sharing image as one square the height of a text line.
+    A break splits at a line boundary, or eats the whitespace beside the image
+    within a line, and a break inside a quote re-opens the marker. Two
+    boundaries: an image inside a list item keeps the tile, because a blank line
+    there ends the list; an image that collapses to alt text — unavailable, or
+    an SVG on native — stays where it was, since it occupies no box. Upstream's
+    `docs/markdown-renderer.md` still describes its own inline rule.
 
 ## Failure map
 
@@ -111,6 +120,9 @@ none` on tree rows, touch web only, coarse-pointer guard.
   priced nothing.
 - SVG renders as text: #6 fallthroughs (unclosed, oversized,
   code span).
+- Image renders as a small tile: it sits inside a list item, or it is acquirable
+  but mid-sentence and still pending — the pending placeholder takes a paragraph
+  of its own, so the tile is the resolved image's size.
 - Merge conflicts: files 2–6 can produce them. Files 1, 7, 8,
   9, 10, 11 cannot.
 

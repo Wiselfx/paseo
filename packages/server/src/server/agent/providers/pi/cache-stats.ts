@@ -47,11 +47,12 @@ type AssistantMessage = Extract<PiAgentMessage, { role: "assistant" }>;
 
 export interface PiCacheAccumulatorOptions {
   /**
-   * The model's cache-read price per token, used when a message reports no cache
-   * reads at all — the total-miss case, where the message's own breakdown cannot
-   * say what a cache read would have cost.
+   * The cache-read price per token for the given model, used when a message
+   * reports no cache reads at all — the total-miss case, where the message's own
+   * breakdown cannot say what a cache read would have cost. Return undefined when
+   * that model's price is not known.
    */
-  readRatePerToken?: () => number | undefined;
+  readRatePerToken?: (modelKey: string) => number | undefined;
 }
 
 export class PiCacheAccumulator {
@@ -76,7 +77,7 @@ export class PiCacheAccumulator {
     const miss = detectCacheMiss(this.previous, usage, {
       modelKey,
       timestampMs,
-      modelCacheReadPerToken: this.options.readRatePerToken?.(),
+      modelCacheReadPerToken: this.options.readRatePerToken?.(modelKey),
     });
     this.previous =
       nextRequest(usage, modelKey, timestampMs, this.previous?.reportedCache ?? false) ??
@@ -89,7 +90,10 @@ export class PiCacheAccumulator {
     // Totals count every miss above the noise floor, as Pi's own session waste
     // does; the notice is the stricter display gate on top of that.
     this.waste.tokens += miss.missedTokens;
-    this.waste.costUsd += miss.missedCostUsd;
+    // An unpriced miss still counts, it just cannot add to the cost total.
+    if (miss.missedCostUsd !== null) {
+      this.waste.costUsd += miss.missedCostUsd;
+    }
     this.waste.missCount += 1;
     return formatCacheMissNotice(miss);
   }

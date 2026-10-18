@@ -57,7 +57,9 @@ describe("Pi cache stats", () => {
     ];
     const scan = scanPiCache(messages);
     expect(scan.waste).toMatchObject({ missCount: 1, tokens: 40_000 });
-    expect(scan.notices.get(messages[1]!)).toBe("Cache miss: 40K tokens re-billed (~$0.11)");
+    expect(scan.notices.get(messages[1]!)).toBe(
+      "Cache miss · 40K of a 65K prompt re-billed (~$0.11)",
+    );
   });
 
   it("reports the last turn's hit rate, not the session's", () => {
@@ -86,13 +88,13 @@ describe("Pi cache stats", () => {
     ]);
   });
 
-  it("cannot name an idle gap from history", () => {
+  it("cannot report a gap from history", () => {
     const messages = [
       assistant({ input: 5_000, cacheRead: 40_000 }),
       assistant({ input: 60_000, cacheRead: 5_000 }),
     ];
     const scan = scanPiCache(messages);
-    expect(scan.notices.get(messages[1]!)).not.toContain("idle");
+    expect(scan.notices.get(messages[1]!)).not.toContain("since the last turn");
   });
 
   it("names a model switch without timestamps", () => {
@@ -100,14 +102,16 @@ describe("Pi cache stats", () => {
       assistant({ input: 5_000, cacheRead: 40_000 }),
       assistant({ input: 60_000, cacheRead: 5_000, provider: "openai", model: "gpt" }),
     ];
-    expect(scanPiCache(messages).notices.get(messages[1]!)).toContain("after model switch");
+    expect(scanPiCache(messages).notices.get(messages[1]!)).toContain(
+      "model anthropic/claude → openai/gpt",
+    );
   });
 
   it("keeps accumulating across live turns with their own timing", () => {
     const accumulator = new PiCacheAccumulator({ readRatePerToken: () => readRate });
     accumulator.observe(assistant({ input: 5_000, cacheRead: 40_000 }), 1_000);
     expect(accumulator.observe(assistant({ input: 60_000, cacheRead: 5_000 }), 7 * 60_000)).toBe(
-      "Cache miss after 7m idle: 40K tokens re-billed (~$0.11)",
+      "Cache miss · 40K of a 65K prompt re-billed (~$0.11) · 7m since the last turn",
     );
     expect(accumulator.stats().waste).toMatchObject({ missCount: 1, tokens: 40_000 });
   });

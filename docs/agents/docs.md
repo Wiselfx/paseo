@@ -59,10 +59,18 @@ none` on tree rows, touch web only, coarse-pointer guard.
     reports no cache metrics over RPC, so Paseo derives them from what each
     assistant message already records: a warning when a turn re-bills prompt
     tokens, at Pi's own thresholds (1024-token noise floor, notice at 20K tokens
-    or $0.10, labelled after a model switch or an idle gap past the cache
-    lifetime), and the figures item 11 renders. History replay re-derives the
-    warnings, so a resumed session keeps them; an idle gap cannot be named on
-    replay, because history carries no timing.
+    or $0.10), and the figures item 11 renders. History replay re-derives the
+    warnings, so a resumed session keeps them.
+
+    The notice states measurements rather than diagnosing: `Cache miss` followed
+    only by facts the provider's numbers support — how much was billed against
+    the prompt it came from, a model change, a prompt that lost content, nothing
+    served from cache, a previous turn that cached nothing, and the gap since the
+    last turn. A clause appears only when it is true, so a fact the numbers cannot
+    support (a cost the message does not price, a gap history cannot measure) is
+    left out rather than guessed. Pi names a reason only for model switches and
+    idle gaps; this format says what happened in every case.
+
 15. `packages/app/src/components/fork-strings.ts`. Where fork-only UI text lives,
     as plain literals. Adding one key to the locale resources obliges all nine
     languages to carry a translation — `i18n/resources.test.ts` compares every

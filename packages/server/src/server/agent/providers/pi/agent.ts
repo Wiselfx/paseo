@@ -1198,7 +1198,10 @@ export class PiRpcAgentSession implements AgentSession {
   // Fork: session prompt-cache figures, seeded by history and extended by every
   // assistant message.
   private readonly cacheStats = new PiCacheAccumulator({
-    readRatePerToken: () => this.modelCacheReadPerToken(),
+    // A message's cache-read price is only knowable while it is still the model in
+    // use; after a switch the catalog price on hand belongs to a different model.
+    readRatePerToken: (modelKey) =>
+      modelKey === modelToId(this.state.model) ? this.modelCacheReadPerToken() : undefined,
   });
   private activeTurnStarted = false;
   private activeTurnStartedEmitted = false;

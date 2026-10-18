@@ -1154,7 +1154,9 @@ describe("PiRpcAgentSession", () => {
     expect(events.timelineItems()).toContainEqual({
       type: "notification",
       level: "warning",
-      message: "Cache miss: 40K tokens re-billed (~$0.11)",
+      message: expect.stringMatching(
+        /^Cache miss · 40K of a 65K prompt re-billed \(~\$0\.11\) · \d+s since the last turn$/,
+      ),
     });
   });
 

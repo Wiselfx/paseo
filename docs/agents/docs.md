@@ -63,6 +63,12 @@ none` on tree rows, touch web only, coarse-pointer guard.
     lifetime), and the figures item 11 renders. History replay re-derives the
     warnings, so a resumed session keeps them; an idle gap cannot be named on
     replay, because history carries no timing.
+15. `packages/app/src/components/fork-strings.ts`. Where fork-only UI text lives,
+    as plain literals. Adding one key to the locale resources obliges all nine
+    languages to carry a translation — `i18n/resources.test.ts` compares every
+    locale's key set against English and refuses strings identical to it. So
+    upstream text keeps using `t()`, fork surfaces use this module, and
+    translating the fork means translating this one file.
 
 ## Failure map
 

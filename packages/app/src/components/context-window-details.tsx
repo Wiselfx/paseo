@@ -1,5 +1,4 @@
 import { Text, View } from "react-native";
-import type { TFunction } from "i18next";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import { useShallow } from "zustand/shallow";
@@ -12,6 +11,7 @@ import {
   cacheWasteReadout,
   type CacheHitRates,
 } from "./context-window-cache";
+import { forkText } from "./fork-strings";
 import { formatTokenCount } from "./context-window-meter.utils";
 
 /**
@@ -19,18 +19,18 @@ import { formatTokenCount } from "./context-window-meter.utils";
  * status line and the session's in `/session`; without the label the two numbers
  * read as a contradiction.
  */
-function cacheHitText(hit: CacheHitRates | null, t: TFunction): string | null {
+function cacheHitText(hit: CacheHitRates | null): string | null {
   if (!hit) {
     return null;
   }
   if (hit.lastTurn && hit.session) {
-    return t("contextWindow.cacheHit", { lastTurn: hit.lastTurn, session: hit.session });
+    return forkText.cacheHit(hit.lastTurn, hit.session);
   }
   if (hit.lastTurn) {
-    return t("contextWindow.cacheHitLastTurn", { lastTurn: hit.lastTurn });
+    return forkText.cacheHitLastTurn(hit.lastTurn);
   }
   if (hit.session) {
-    return t("contextWindow.cacheHitSession", { session: hit.session });
+    return forkText.cacheHitSession(hit.session);
   }
   return null;
 }
@@ -70,14 +70,12 @@ export function ContextWindowDetails({
   const cacheHit = cacheHitRates(lastUsage);
   const cacheWaste = cacheWasteReadout(lastUsage, formatTokenCount);
   const cacheModels = cacheModelCosts(lastUsage, formatTokenCount);
-  const cacheHitLine = cacheHitText(cacheHit, t);
+  const cacheHitLine = cacheHitText(cacheHit);
   const cacheModelLine =
     cacheModels.length > 1
-      ? t("contextWindow.cacheCostByModel", {
-          parts: cacheModels
-            .map((entry) => `${entry.key} ${entry.cost} (${entry.tokens})`)
-            .join(" · "),
-        })
+      ? forkText.cacheCostByModel(
+          cacheModels.map((entry) => `${entry.key} ${entry.cost} (${entry.tokens})`).join(" · "),
+        )
       : null;
   return (
     <>
@@ -105,16 +103,16 @@ export function ContextWindowDetails({
         {cache ? (
           <Text style={styles.detail}>
             {cache.input
-              ? t("contextWindow.cacheReadWithInput", { read: cache.read, input: cache.input })
-              : t("contextWindow.cacheRead", { read: cache.read })}
+              ? forkText.cacheReadWithInput(cache.read, cache.input)
+              : forkText.cacheRead(cache.read)}
           </Text>
         ) : null}
         {cacheHitLine ? <Text style={styles.detail}>{cacheHitLine}</Text> : null}
         {cacheWaste ? (
           <Text style={styles.detail}>
             {cacheWaste.cost
-              ? t("contextWindow.cacheWaste", { tokens: cacheWaste.tokens, cost: cacheWaste.cost })
-              : t("contextWindow.cacheWasteNoCost", { tokens: cacheWaste.tokens })}
+              ? forkText.cacheWaste(cacheWaste.tokens, cacheWaste.cost)
+              : forkText.cacheWasteNoCost(cacheWaste.tokens)}
           </Text>
         ) : null}
         {cacheModelLine ? <Text style={styles.detail}>{cacheModelLine}</Text> : null}

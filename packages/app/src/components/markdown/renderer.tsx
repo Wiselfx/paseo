@@ -17,13 +17,11 @@ import { PENDING_MARKDOWN_IMAGE } from "./source";
 import { splitStreamingMarkdown } from "./streaming";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
-import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fence/mermaid";
+import { MermaidFence, MermaidStreamingContext } from "./fence/mermaid";
 import { YouTubeFence, YouTubeMiniPlayer } from "./fence/youtube";
-import { splitYouTubeFences } from "./fence/youtube/segments";
 import { AssistantLinkCard } from "./link-card";
-import { splitLinkCards } from "./link-card-segments";
 import { VisualizeFence } from "./fence/visualize";
-import { splitVisualizeFences } from "./fence/visualize/segments";
+import { splitHostedSegments, type HostedSegment } from "./hosted-segments";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
@@ -94,36 +92,13 @@ const MarkdownPart = memo(function MarkdownPart({
     if (url !== PENDING_MARKDOWN_IMAGE) setImage({ type: "uri", uri: url });
   });
   const closeImage = useStableEvent(() => setImage(null));
-  // Fork media: YouTube fences + standalone bare YouTube URL lines host the
-  // player between library segments (same pattern as mermaid). Standalone
-  // bare links become favicon cards the same way. Mermaid splitting stays
-  // platform-gated as upstream; YouTube/card splits run everywhere.
-  const segments = useMemo(() => {
-    const mermaid = isWeb
-      ? [{ kind: "markdown" as const, id: "0", source: markdown }]
-      : splitMermaidFences(markdown);
-    const out: { kind: string; id: string; source: string }[] = [];
-    const splitCards = (source: string) => {
-      for (const c of splitLinkCards(source)) {
-        if (c.kind !== "markdown") out.push({ ...c, id: `c${out.length}` });
-        else
-          for (const v of splitVisualizeFences(c.source)) out.push({ ...v, id: `v${out.length}` });
-      }
-    };
-    for (const m of mermaid) {
-      if (m.kind !== "markdown") {
-        out.push({ ...m, id: `m${out.length}` });
-        continue;
-      }
-      for (const y of splitYouTubeFences(m.source)) {
-        if (y.kind !== "markdown") out.push({ ...y, id: `y${out.length}` });
-        else splitCards(y.source);
-      }
-    }
-    return out;
-  }, [markdown]);
+  // Fork media: fence kinds the app hosts outside the library, in document order.
+  const segments = useMemo(
+    () => splitHostedSegments(markdown, isWeb ? "web" : "native"),
+    [markdown],
+  );
   const pressCardLink = useStableEvent((url: string) => pressLink({ url, sourceType: "text" }));
-  const renderSegment = (segment: { kind: string; id: string; source: string }) => {
+  const renderSegment = (segment: HostedSegment) => {
     const key = `${segment.kind}:${segment.id}`;
     switch (segment.kind) {
       case "mermaid":

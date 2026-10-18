@@ -11,6 +11,7 @@ import {
   type AgentCapabilityFlags,
   type AgentClient,
   type AgentFeature,
+  type AgentUsage,
   type AgentLaunchContext,
   type AgentMetadata,
   type AgentMode,
@@ -85,12 +86,7 @@ import type {
   PiThinkingLevel,
 } from "./rpc-types.js";
 import { PiUsagePoller, type PiUsagePollScheduler } from "./usage-poller.js";
-import {
-  detectCacheMiss,
-  formatCacheMissNotice,
-  nextRequest,
-  type CacheRequest,
-} from "./cache-miss.js";
+import { PiCacheAccumulator } from "./cache-stats.js";
 import {
   mapToolDetail,
   parseToolArgs,
@@ -824,6 +820,22 @@ function modelToId(model: PiModel | null | undefined): string | null {
   return model?.provider && model.id ? `${model.provider}/${model.id}` : null;
 }
 
+/**
+ * Fork: Pi's session hit rate — cache reads over the whole prompt volume,
+ * counted the way its `/session` panel counts them. Absent until the session
+ * reports cache activity, so a provider without prompt caching shows nothing.
+ */
+function sessionCacheHitRate(usage: AgentUsage): Pick<AgentUsage, "sessionCacheHitRatePct"> {
+  const input = usage.inputTokens ?? 0;
+  const cached = usage.cachedInputTokens ?? 0;
+  const written = usage.cacheWriteTokens ?? 0;
+  const promptTokens = input + cached + written;
+  if (promptTokens <= 0 || (cached <= 0 && written <= 0)) {
+    return {};
+  }
+  return { sessionCacheHitRatePct: (cached / promptTokens) * 100 };
+}
+
 function piAssistantText(message: Extract<PiAgentMessage, { role: "assistant" }>): string | null {
   const text = message.content
     .flatMap((part) => {
@@ -1183,8 +1195,11 @@ export class PiRpcAgentSession implements AgentSession {
   private activeTurnId: string | null = null;
   private activeClientMessageId: string | null = null;
   private activeAssistantMessageId: string | null = null;
-  // Fork: the request before the current one, for prompt-cache miss accounting.
-  private lastCacheRequest: CacheRequest | undefined;
+  // Fork: session prompt-cache figures, seeded by history and extended by every
+  // assistant message.
+  private readonly cacheStats = new PiCacheAccumulator({
+    readRatePerToken: () => this.modelCacheReadPerToken(),
+  });
   private activeTurnStarted = false;
   private activeTurnStartedEmitted = false;
   private pendingSettledMessages: PiAgentMessage[] | null = null;
@@ -1243,6 +1258,7 @@ export class PiRpcAgentSession implements AgentSession {
     this.usagePoller = new PiUsagePoller({
       scheduler: options.usagePollScheduler,
       readStats: () => this.runtimeSession.getSessionStats(),
+      decorate: (usage) => this.decorateUsage(usage),
       onUsage: (usage, turnId) => {
         this.emit({
           type: "usage_updated",
@@ -1420,11 +1436,16 @@ export class PiRpcAgentSession implements AgentSession {
 
   async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
     await this.requestEntryCapture("history");
+    const messages = await this.runtimeSession.getMessages();
+    // Fork: seed the cache figures from the transcript being replayed, so a
+    // resumed session shows the same numbers and keeps the same warnings.
+    this.cacheStats.reset();
+    const cacheNotices = this.cacheStats.observeAll(messages);
     yield* streamPiHistory(
       this.provider,
-      await this.runtimeSession.getMessages(),
+      messages,
       this.contextUserEntries,
-      {},
+      { mapAssistantNotice: (message) => cacheNotices.get(message) },
       // At most eight 2 MiB child files per replay; later cards retain their summaries.
       createPiExtensionHost(this.logger, undefined, 16 * 1024 * 1024),
       this.closeController.signal,
@@ -2237,7 +2258,7 @@ export class PiRpcAgentSession implements AgentSession {
         return;
       case "compaction_end":
         // Fork: a compacted context is new content, not re-billed content.
-        this.lastCacheRequest = undefined;
+        this.cacheStats.forgetPrevious();
         this.emitCompactionTimeline({
           turnId,
           item: {
@@ -2338,44 +2359,38 @@ export class PiRpcAgentSession implements AgentSession {
   }
 
   /**
-   * Fork: surface a prompt-cache miss the way Pi's TUI does. A compaction resets
-   * the comparison (the context legitimately changed, so the next prompt is new
-   * content rather than re-billed content).
+   * Fork: surface a prompt-cache miss the way Pi's TUI does, and keep the
+   * session's cache figures current for the context panel.
    */
   private reportCacheMiss(
     message: Extract<PiAgentMessage, { role: "assistant" }>,
     turnId: string | undefined,
   ): void {
-    const usage = message.usage;
-    if (!usage) {
-      return;
+    const notice = this.cacheStats.observe(message, Date.now());
+    if (notice) {
+      this.emit({
+        type: "timeline",
+        provider: this.provider,
+        turnId,
+        item: { type: "notification", level: "warning", message: notice },
+      });
     }
-    const modelKey = `${message.provider ?? ""}/${message.model ?? ""}`;
-    const timestampMs = Date.now();
-    const miss = detectCacheMiss(this.lastCacheRequest, usage, {
-      modelKey,
-      timestampMs,
-      modelCacheReadPerToken: this.modelCacheReadPerToken(),
-    });
-    this.lastCacheRequest = nextRequest(
-      usage,
-      modelKey,
-      timestampMs,
-      this.lastCacheRequest?.reportedCache ?? false,
-    );
-    if (!miss) {
-      return;
-    }
-    const notice = formatCacheMissNotice(miss);
-    if (!notice) {
-      return;
-    }
-    this.emit({
-      type: "timeline",
-      provider: this.provider,
-      turnId,
-      item: { type: "notification", level: "warning", message: notice },
-    });
+    // Waste and the last turn's rate move without the session totals moving.
+    this.usagePoller.publishCurrent(turnId);
+  }
+
+  /** Fork: attach the session's prompt-cache figures to every usage update. */
+  private decorateUsage(usage: AgentUsage): AgentUsage {
+    const stats = this.cacheStats.stats();
+    return {
+      ...usage,
+      ...sessionCacheHitRate(usage),
+      ...(stats.lastTurnHitRatePct === undefined
+        ? {}
+        : { lastTurnCacheHitRatePct: stats.lastTurnHitRatePct }),
+      cacheWaste: stats.waste,
+      ...(stats.costByModel.length > 0 ? { costByModel: stats.costByModel } : {}),
+    };
   }
 
   /** Pi prices in dollars per million tokens; the miss cost needs dollars per token. */

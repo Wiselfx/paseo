@@ -9,6 +9,12 @@ interface PiUsagePollerOptions {
   readStats(): Promise<PiSessionStats>;
   onUsage(usage: AgentUsage, turnId?: string): void;
   onPollError(error: unknown): void;
+  /**
+   * Fork: adds figures the session statistics do not carry (prompt-cache waste,
+   * per-model cost). Applied when usage is published, never when deciding whether
+   * it changed, so decoration cannot cause churn.
+   */
+  decorate?(usage: AgentUsage): AgentUsage;
   scheduler?: PiUsagePollScheduler;
 }
 
@@ -24,25 +30,32 @@ function createScheduler(): PiUsagePollScheduler {
 function toAgentUsage(stats: PiSessionStats): AgentUsage | undefined {
   const inputTokens = stats.tokens?.input ?? 0;
   const cachedInputTokens = stats.tokens?.cacheRead ?? 0;
+  const cacheWriteTokens = stats.tokens?.cacheWrite ?? 0;
   const outputTokens = stats.tokens?.output ?? 0;
   const totalCostUsd = stats.cost ?? 0;
   const contextWindowMaxTokens = stats.contextUsage?.contextWindow ?? undefined;
   const contextWindowUsedTokens = stats.contextUsage?.tokens ?? undefined;
 
-  if (
-    inputTokens === 0 &&
-    cachedInputTokens === 0 &&
-    outputTokens === 0 &&
-    totalCostUsd === 0 &&
-    contextWindowMaxTokens === undefined &&
-    contextWindowUsedTokens === undefined
-  ) {
+  // Nothing to report until the session has counted something.
+  const reported = [
+    inputTokens,
+    cachedInputTokens,
+    cacheWriteTokens,
+    outputTokens,
+    totalCostUsd,
+    contextWindowMaxTokens,
+    contextWindowUsedTokens,
+  ];
+  if (reported.every((value) => value === undefined || value === 0)) {
     return undefined;
   }
 
   return {
     inputTokens,
     cachedInputTokens,
+    // Omitted when the provider reports no cache writes, so usage stays the shape
+    // it had before caching was reported at all.
+    ...(cacheWriteTokens > 0 ? { cacheWriteTokens } : {}),
     outputTokens,
     totalCostUsd,
     ...(typeof contextWindowMaxTokens === "number" ? { contextWindowMaxTokens } : {}),
@@ -54,6 +67,7 @@ function isSameUsage(left: AgentUsage, right: AgentUsage): boolean {
   return (
     left.inputTokens === right.inputTokens &&
     left.cachedInputTokens === right.cachedInputTokens &&
+    left.cacheWriteTokens === right.cacheWriteTokens &&
     left.outputTokens === right.outputTokens &&
     left.totalCostUsd === right.totalCostUsd &&
     left.contextWindowMaxTokens === right.contextWindowMaxTokens &&
@@ -163,7 +177,22 @@ export class PiUsagePoller {
   private publishUsage(usage: AgentUsage | undefined, turnId?: string): void {
     const changedUsage = this.takeChangedUsage(usage);
     if (changedUsage) {
-      this.options.onUsage(changedUsage, turnId);
+      this.options.onUsage(this.decorate(changedUsage), turnId);
     }
+  }
+
+  /**
+   * Republishes the current usage without waiting for a change, for figures that
+   * moved without the session totals moving (a cache miss, for instance).
+   */
+  publishCurrent(turnId?: string): void {
+    if (this.closed || !this.lastUsage) {
+      return;
+    }
+    this.options.onUsage(this.decorate({ ...this.lastUsage }), turnId);
+  }
+
+  private decorate(usage: AgentUsage): AgentUsage {
+    return this.options.decorate ? this.options.decorate(usage) : usage;
   }
 }

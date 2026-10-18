@@ -7,15 +7,42 @@ import type { PiAgentMessage } from "./rpc-types.js";
 async function collectHistory(
   messages: PiAgentMessage[],
   userEntries: PiCapturedUserMessageEntry[] = [],
+  hooks: Parameters<typeof streamPiHistory>[3] = {},
 ): Promise<AgentStreamEvent[]> {
   const events: AgentStreamEvent[] = [];
-  for await (const event of streamPiHistory("pi", messages, userEntries)) {
+  for await (const event of streamPiHistory("pi", messages, userEntries, hooks)) {
     events.push(event);
   }
   return events;
 }
 
 describe("Pi history mapper", () => {
+  test("emits a prompt-cache notice directly after the message it belongs to", async () => {
+    const messages: PiAgentMessage[] = [
+      { role: "user", content: "hello" },
+      { role: "assistant", content: [{ type: "text", text: "first" }] },
+      { role: "assistant", content: [{ type: "text", text: "second" }] },
+    ];
+    const events = await collectHistory(messages, [], {
+      mapAssistantNotice: (message) =>
+        message.content[0]?.type === "text" && message.content[0].text === "second"
+          ? "Cache miss: 40K tokens re-billed (~$0.11)"
+          : undefined,
+    });
+
+    expect(
+      events.map((event) => (event.type === "timeline" ? event.item.type : event.type)),
+    ).toEqual(["user_message", "assistant_message", "assistant_message", "notification"]);
+    expect(events.at(-1)).toMatchObject({
+      type: "timeline",
+      item: {
+        type: "notification",
+        level: "warning",
+        message: "Cache miss: 40K tokens re-billed (~$0.11)",
+      },
+    });
+  });
+
   test("renders visible custom messages as completed tools and hides private context", async () => {
     const events = await collectHistory([
       {

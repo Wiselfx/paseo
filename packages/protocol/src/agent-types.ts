@@ -192,10 +192,37 @@ export interface AgentRunOptions {
 export interface AgentUsage {
   inputTokens?: number;
   cachedInputTokens?: number;
+  /** Tokens this session wrote to the provider's prompt cache, where reported. */
+  cacheWriteTokens?: number;
   outputTokens?: number;
   totalCostUsd?: number;
   contextWindowMaxTokens?: number;
   contextWindowUsedTokens?: number;
+  /**
+   * Fork: prompt-cache figures the provider or its harness computed. Pi reports
+   * the session-wide hit rate on its `/session` panel and the last turn's on its
+   * status line, and both are passed through here rather than recomputed by the
+   * client, so Paseo shows the same numbers Pi does.
+   */
+  sessionCacheHitRatePct?: number;
+  lastTurnCacheHitRatePct?: number;
+  /** Prompt tokens this session paid for again, and what that cost. */
+  cacheWaste?: AgentCacheWaste;
+  /** Session cost and tokens per provider/model, when more than one was used. */
+  costByModel?: readonly AgentModelCost[];
+}
+
+export interface AgentCacheWaste {
+  tokens: number;
+  costUsd: number;
+  missCount: number;
+}
+
+export interface AgentModelCost {
+  /** `provider/model` as the provider reported it. */
+  key: string;
+  costUsd: number;
+  tokens: number;
 }
 
 export const TOOL_CALL_ICON_NAMES = [

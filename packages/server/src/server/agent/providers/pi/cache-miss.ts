@@ -26,7 +26,8 @@ export function promptTokens(usage: PiMessageUsage): number {
 export interface CacheRequest {
   promptTokens: number;
   modelKey: string;
-  timestampMs: number;
+  /** Absent for requests recovered from history, where timing is unknown. */
+  timestampMs?: number;
   /** Whether any request in this session has reported cache activity yet. */
   reportedCache: boolean;
 }
@@ -41,7 +42,7 @@ export interface CacheMiss {
 export function nextRequest(
   usage: PiMessageUsage,
   modelKey: string,
-  timestampMs: number,
+  timestampMs: number | undefined,
   reportedCache: boolean,
 ): CacheRequest | undefined {
   const tokens = promptTokens(usage);
@@ -51,14 +52,15 @@ export function nextRequest(
   return {
     promptTokens: tokens,
     modelKey,
-    timestampMs,
+    ...(timestampMs === undefined ? {} : { timestampMs }),
     reportedCache: reportedCache || (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0) > 0,
   };
 }
 
 export interface CacheMissContext {
   modelKey: string;
-  timestampMs: number;
+  /** Absent for a message recovered from history, where timing is unknown. */
+  timestampMs?: number;
   /**
    * The model's cache-read price per token, used when the message reports no
    * cache reads at all — the total-miss case, where the message's own breakdown
@@ -88,21 +90,40 @@ export function detectCacheMiss(
   if (missedTokens <= NOISE_FLOOR_TOKENS) {
     return undefined;
   }
-  // Missed tokens can only land in the input or cacheWrite buckets, so the paid
-  // rate comes straight from this message's own breakdown.
+  return {
+    missedTokens,
+    missedCostUsd: missedCostUsd(usage, missedTokens, context.modelCacheReadPerToken),
+    idleMs: idleGapMs(previous, context.timestampMs),
+    modelChanged: `${context.modelKey}` !== previous.modelKey,
+  };
+}
+
+/**
+ * Extra cost = missed tokens billed at the actual paid rate (input and cache
+ * writes, including the write premium) instead of the cache-read rate. Missed
+ * tokens can only land in those two buckets, so the paid rate comes straight
+ * from this message's own breakdown.
+ */
+function missedCostUsd(
+  usage: PiMessageUsage,
+  missedTokens: number,
+  fallbackReadRatePerToken: number | undefined,
+): number {
   const paidTokens = (usage.input ?? 0) + (usage.cacheWrite ?? 0);
   const paidCost = (usage.cost?.input ?? 0) + (usage.cost?.cacheWrite ?? 0);
   const paidPerToken = paidTokens > 0 ? paidCost / paidTokens : 0;
+  const cacheRead = usage.cacheRead ?? 0;
   const readPerToken =
-    cacheRead > 0
-      ? (usage.cost?.cacheRead ?? 0) / cacheRead
-      : (context.modelCacheReadPerToken ?? 0);
-  return {
-    missedTokens,
-    missedCostUsd: missedTokens * Math.max(0, paidPerToken - readPerToken),
-    idleMs: Math.max(0, context.timestampMs - previous.timestampMs),
-    modelChanged: `${context.modelKey}` !== previous.modelKey,
-  };
+    cacheRead > 0 ? (usage.cost?.cacheRead ?? 0) / cacheRead : (fallbackReadRatePerToken ?? 0);
+  return missedTokens * Math.max(0, paidPerToken - readPerToken);
+}
+
+/** Without both timestamps there is no gap to name, and history carries no timing. */
+function idleGapMs(previous: CacheRequest, timestampMs: number | undefined): number {
+  if (timestampMs === undefined || previous.timestampMs === undefined) {
+    return 0;
+  }
+  return Math.max(0, timestampMs - previous.timestampMs);
 }
 
 /** The notice Pi's TUI would show, or undefined when the miss is not worth one. */

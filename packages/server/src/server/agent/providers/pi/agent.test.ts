@@ -2329,6 +2329,40 @@ describe("PiRpcAgentSession", () => {
     expect(events.turnCompletedEvents()).toHaveLength(1);
   });
 
+  test("carries the session's prompt-cache figures on usage updates", async () => {
+    const scheduler = new ManualUsagePollScheduler();
+    const { pi, session, events } = await createSession(new FakePi(), scheduler);
+    const fakeSession = pi.latestSession();
+    fakeSession.stats = {
+      tokens: { input: 60_000, cacheRead: 5_000, output: 100 },
+      cost: 0.19,
+      contextUsage: { contextWindow: 200_000, tokens: 70_000 },
+    };
+
+    await session.startTurn("hello");
+    fakeSession.emit({ type: "agent_start" });
+    fakeSession.emit({ type: "turn_start" });
+    fakeSession.emit({
+      type: "message_end",
+      message: assistantWithUsage({ input: 5_000, cacheRead: 40_000 }),
+    });
+    fakeSession.emit({
+      type: "message_end",
+      message: assistantWithUsage({ input: 60_000, cacheRead: 5_000 }),
+    });
+    scheduler.poll();
+    await flushTurnScheduling();
+
+    const usage = events.usageUpdatedEvents().at(-1)?.usage;
+    expect(usage).toMatchObject({
+      cacheWaste: { missCount: 1, tokens: 40_000 },
+      lastTurnCacheHitRatePct: expect.closeTo((5_000 / 65_000) * 100, 6),
+      sessionCacheHitRatePct: expect.closeTo((5_000 / 65_000) * 100, 6),
+      costByModel: [expect.objectContaining({ key: "anthropic/claude" })],
+    });
+    expect(usage?.cacheWaste?.costUsd).toBeGreaterThan(0.1);
+  });
+
   test("emits usage_updated during an active turn and with the turn id at completion", async () => {
     const scheduler = new ManualUsagePollScheduler();
     const { pi, session, events } = await createSession(new FakePi(), scheduler);

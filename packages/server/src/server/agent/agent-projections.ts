@@ -444,7 +444,7 @@ function sanitizeMetadataArray(value: unknown): AgentMetadata[] | undefined {
   return sanitized.length > 0 ? sanitized : undefined;
 }
 
-type UsageNumericField = Exclude<keyof AgentUsage, never>;
+type UsageNumericField = Exclude<keyof AgentUsage, "cacheWaste" | "costByModel">;
 
 function assignFiniteNumber(
   source: { [key: string]: JsonValue },

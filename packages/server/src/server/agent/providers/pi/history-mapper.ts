@@ -25,6 +25,14 @@ export interface PiHistoryMapperHooks {
     text: string,
     provider: string,
   ) => Extract<AgentStreamEvent, { type: "timeline" }> | null;
+  /**
+   * Fork: the prompt-cache notice the given assistant message earned, emitted
+   * directly after it so a replayed transcript keeps the warnings the live turn
+   * showed.
+   */
+  mapAssistantNotice?: (
+    message: Extract<PiAgentMessage, { role: "assistant" }>,
+  ) => string | undefined;
   resolveToolCallId?: (toolCallId: string, toolCall: PiTrackedToolCall) => string;
   mapToolDetail?: (
     toolCall: PiTrackedToolCall,
@@ -84,6 +92,7 @@ export class PiHistoryMapper {
           break;
         case "assistant":
           events.push(...this.mapAssistantMessage(message));
+          events.push(...this.mapAssistantNotice(message));
           break;
         case "toolResult": {
           events.push(...this.mapToolResultMessage(message));
@@ -100,6 +109,22 @@ export class PiHistoryMapper {
 
   async hydrate(): Promise<AgentStreamEvent[]> {
     return (await Promise.all(this.hydrations)).flat();
+  }
+
+  private mapAssistantNotice(
+    message: Extract<PiAgentMessage, { role: "assistant" }>,
+  ): AgentStreamEvent[] {
+    const notice = this.hooks.mapAssistantNotice?.(message);
+    if (!notice) {
+      return [];
+    }
+    return [
+      {
+        type: "timeline",
+        provider: this.provider,
+        item: { type: "notification", level: "warning", message: notice },
+      },
+    ];
   }
 
   private mapUserMessage(message: Extract<PiAgentMessage, { role: "user" }>): AgentStreamEvent[] {

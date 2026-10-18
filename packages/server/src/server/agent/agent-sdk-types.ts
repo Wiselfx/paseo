@@ -217,10 +217,34 @@ export interface SteerActiveTurnOptions extends AgentSteerOptions {
 export interface AgentUsage {
   inputTokens?: number;
   cachedInputTokens?: number;
+  /** Tokens this session wrote to the provider's prompt cache, where reported. */
+  cacheWriteTokens?: number;
   outputTokens?: number;
   totalCostUsd?: number;
   contextWindowMaxTokens?: number;
   contextWindowUsedTokens?: number;
+  /**
+   * Fork: prompt-cache figures the provider or its harness computed, passed
+   * through rather than recomputed by the client. Mirrors the same fork fields on
+   * `@getpaseo/protocol`'s `AgentUsage`, which this package keeps its own copy of.
+   */
+  sessionCacheHitRatePct?: number;
+  lastTurnCacheHitRatePct?: number;
+  cacheWaste?: AgentCacheWaste;
+  costByModel?: readonly AgentModelCost[];
+}
+
+export interface AgentCacheWaste {
+  tokens: number;
+  costUsd: number;
+  missCount: number;
+}
+
+export interface AgentModelCost {
+  /** `provider/model` as the provider reported it. */
+  key: string;
+  costUsd: number;
+  tokens: number;
 }
 
 export const TOOL_CALL_ICON_NAMES = [

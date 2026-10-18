@@ -9,7 +9,8 @@ import { useStableEvent } from "@/hooks/use-stable-event";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
-import { MarkdownRendererFrame } from "./frame";
+import { density, resolveDensity } from "@/styles/density";
+import { MarkdownBlockStack } from "./block-stack";
 import { WEB_RENDERERS } from "./renderers";
 import { createMarkdownStyles } from "./styles";
 import { PENDING_MARKDOWN_IMAGE } from "./source";
@@ -27,8 +28,11 @@ import { splitVisualizeFences } from "./fence/visualize/segments";
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
 
-const regularStyle = (theme: Theme) => createMarkdownStyles(theme);
-const compactStyle = (theme: Theme) => createMarkdownStyles(theme, true);
+// Reading the breakpoint here makes Unistyles restyle the text when the layout crosses it.
+const markdownStyle = (compact: boolean) => (theme: Theme, rt: { breakpoint?: string }) =>
+  createMarkdownStyles(theme, { compact, blockGap: resolveDensity(rt, density.blockGap) });
+const regularStyle = markdownStyle(false);
+const compactStyle = markdownStyle(true);
 const WEB_CONTAINER = { userSelect: "text" as const };
 
 export interface MarkdownRendererProps extends MarkdownImageContext {
@@ -51,23 +55,22 @@ export const MarkdownRenderer = memo(function MarkdownRenderer(props: MarkdownRe
   );
   if (!streaming || boundary === 0) return <MarkdownPart {...props} />;
   return (
-    <>
-      <MarkdownPart {...props} text={props.text.slice(0, boundary)} continues />
+    <MarkdownBlockStack>
+      <MarkdownPart {...props} text={props.text.slice(0, boundary)} />
       <MarkdownPart {...props} text={props.text.slice(boundary)} />
-    </>
+    </MarkdownBlockStack>
   );
 });
 
 const MarkdownPart = memo(function MarkdownPart({
   text,
-  continues = false,
   compact = false,
   streaming = false,
   agentId,
   workspaceId,
   onLinkPress,
   ...imageContext
-}: MarkdownRendererProps & { continues?: boolean }) {
+}: MarkdownRendererProps) {
   const environment = useAssistantFileLinkEnvironment();
   const actions = useAssistantFileLinkActions();
   const client =
@@ -119,38 +122,37 @@ const MarkdownPart = memo(function MarkdownPart({
     }
     return out;
   }, [markdown]);
-  const content = (
-    <MermaidStreamingContext.Provider value={streaming}>
-      {segments.map((segment) =>
-        segment.kind === "mermaid" ? (
-          <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
-        ) : segment.kind === "youtube" ? (
-          <YouTubeFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
-        ) : segment.kind === "youtube-inline" ? (
-          <YouTubeMiniPlayer key={`${segment.kind}:${segment.id}`} code={segment.source} />
-        ) : segment.kind === "card" ? (
-          <AssistantLinkCard
-            key={`${segment.kind}:${segment.id}`}
-            url={segment.source}
-            onPress={(url) => pressLink({ url, sourceType: "text" })}
-          />
-        ) : segment.kind === "viz" ? (
+  const pressCardLink = useStableEvent((url: string) => pressLink({ url, sourceType: "text" }));
+  const renderSegment = (segment: { kind: string; id: string; source: string }) => {
+    const key = `${segment.kind}:${segment.id}`;
+    switch (segment.kind) {
+      case "mermaid":
+        return <MermaidFence key={key} code={segment.source} />;
+      case "youtube":
+        return <YouTubeFence key={key} code={segment.source} />;
+      case "youtube-inline":
+        return <YouTubeMiniPlayer key={key} code={segment.source} />;
+      case "card":
+        return <AssistantLinkCard key={key} url={segment.source} onPress={pressCardLink} />;
+      case "viz":
+        return (
           <VisualizeFence
-            key={`${segment.kind}:${segment.id}`}
+            key={key}
             code={segment.source}
             serverId={imageContext.serverId}
             agentId={agentId}
             workspaceId={workspaceId}
           />
-        ) : (
+        );
+      default:
+        return (
           <ThemedMarkdown
-            key={`${segment.kind}:${segment.id}`}
+            key={key}
             markdown={segment.source}
             containerStyle={isWeb ? WEB_CONTAINER : undefined}
             uniProps={compact ? compactStyle : regularStyle}
             flavor="github"
             selectable
-            allowTrailingMargin={continues && segment === segments[segments.length - 1]}
             md4cFlags={MD4C_FLAGS}
             linkRecognition={linkRecognition}
             enableTaskListItemToggle={false}
@@ -162,10 +164,16 @@ const MarkdownPart = memo(function MarkdownPart({
             onImagePress={pressImage}
             renderers={isWeb ? WEB_RENDERERS : undefined}
           />
-        ),
-      )}
+        );
+    }
+  };
+
+  return (
+    <MermaidStreamingContext.Provider value={streaming}>
+      <MarkdownBlockStack imageSources={imageSources}>
+        {segments.map(renderSegment)}
+      </MarkdownBlockStack>
       {image ? <AttachmentLightbox source={image} onClose={closeImage} /> : null}
     </MermaidStreamingContext.Provider>
   );
-  return <MarkdownRendererFrame imageSources={imageSources}>{content}</MarkdownRendererFrame>;
 });

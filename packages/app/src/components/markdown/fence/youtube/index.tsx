@@ -1,8 +1,9 @@
 import { useMemo } from "react";
 import { YouTubeInlinePlayer } from "./player";
+import { YouTubeMiniPlayer } from "./mini";
 import { youtubeIdForUrl } from "./urls";
 
-export { YouTubeInlinePlayer };
+export { YouTubeInlinePlayer, YouTubeMiniPlayer };
 export { youtubeEmbedUrl, youtubeIdForUrl, youtubeWatchUrl } from "./urls";
 
 /** ```youtube fence: code is a watch URL or bare video ID. Standalone

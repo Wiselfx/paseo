@@ -17,7 +17,7 @@ import { splitStreamingMarkdown } from "./streaming";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
 import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fence/mermaid";
-import { YouTubeFence } from "./fence/youtube";
+import { YouTubeFence, YouTubeMiniPlayer } from "./fence/youtube";
 import { splitYouTubeFences } from "./fence/youtube/segments";
 import { AssistantLinkCard } from "./link-card";
 import { splitLinkCards } from "./link-card-segments";
@@ -126,6 +126,8 @@ const MarkdownPart = memo(function MarkdownPart({
           <MermaidFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
         ) : segment.kind === "youtube" ? (
           <YouTubeFence key={`${segment.kind}:${segment.id}`} code={segment.source} />
+        ) : segment.kind === "youtube-inline" ? (
+          <YouTubeMiniPlayer key={`${segment.kind}:${segment.id}`} code={segment.source} />
         ) : segment.kind === "card" ? (
           <AssistantLinkCard
             key={`${segment.kind}:${segment.id}`}

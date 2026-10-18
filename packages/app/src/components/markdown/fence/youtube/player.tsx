@@ -26,9 +26,7 @@ const styles = StyleSheet.create((theme: Theme) => ({
 }));
 
 function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: Theme }) {
-  const embedUrl = useMemo(() => youtubeEmbedUrl(videoId), [videoId]);
   const watchUrl = useMemo(() => youtubeWatchUrl(videoId), [videoId]);
-  const source = useMemo(() => ({ uri: embedUrl }), [embedUrl]);
   const handleOpen = useCallback(() => {
     void openExternalUrl(watchUrl);
   }, [watchUrl]);
@@ -36,14 +34,7 @@ function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: T
   return (
     <View style={styles.card}>
       <View style={styles.screen}>
-        <WebView
-          source={source}
-          style={styles.player}
-          javaScriptEnabled
-          allowsInlineMediaPlayback
-          allowsFullscreenVideo
-          scrollEnabled={false}
-        />
+        <YouTubePlayerScreen videoId={videoId} />
       </View>
       <Pressable
         accessibilityRole="link"
@@ -55,6 +46,22 @@ function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: T
         <Text style={styles.host as TextStyle}>youtube.com · {videoId}</Text>
       </Pressable>
     </View>
+  );
+}
+
+/** The embed surface, sized by its parent box. */
+export function YouTubePlayerScreen({ videoId }: { videoId: string }) {
+  const embedUrl = useMemo(() => youtubeEmbedUrl(videoId), [videoId]);
+  const source = useMemo(() => ({ uri: embedUrl }), [embedUrl]);
+  return (
+    <WebView
+      source={source}
+      style={styles.player}
+      javaScriptEnabled
+      allowsInlineMediaPlayback
+      allowsFullscreenVideo
+      scrollEnabled={false}
+    />
   );
 }
 

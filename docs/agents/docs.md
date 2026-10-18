@@ -7,7 +7,10 @@ downloads in chat. Web UI only. No native builds.
 
 1. `packages/app/src/components/markdown/fence/youtube/index.tsx` (new).
    WebView player wrapping a `youtube-nocookie` embed. Requires
-   `javaScriptEnabled` and `allowsInlineMediaPlayback`.
+   `javaScriptEnabled` and `allowsInlineMediaPlayback`. A bare YouTube URL
+   inside prose hosts the matching-sized player instead of a full-width one
+   (`segments.ts` `youtube-inline` cut, `mini.tsx`: 16:9 poster, max 320
+   wide, radius 12, tap to load).
 2. `packages/app/src/components/markdown/fence/index.tsx`. Registers
    `youtube` in the fence map.
 3. `packages/app/src/components/markdown/renderer.tsx` plus

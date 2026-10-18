@@ -36,7 +36,6 @@ const iframeStyle: CSSProperties = {
 };
 
 function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: Theme }) {
-  const embedUrl = useMemo(() => youtubeEmbedUrl(videoId), [videoId]);
   const watchUrl = useMemo(() => youtubeWatchUrl(videoId), [videoId]);
   const handleOpen = useCallback(() => {
     void openExternalUrl(watchUrl);
@@ -45,13 +44,7 @@ function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: T
   return (
     <View style={styles.card}>
       <View style={styles.screen}>
-        <iframe
-          src={embedUrl}
-          title={`YouTube video ${videoId}`}
-          style={iframeStyle}
-          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-          allowFullScreen
-        />
+        <YouTubePlayerScreen videoId={videoId} />
       </View>
       <Pressable
         accessibilityRole="link"
@@ -63,6 +56,20 @@ function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: T
         <Text style={styles.host as TextStyle}>youtube.com · {videoId}</Text>
       </Pressable>
     </View>
+  );
+}
+
+/** The embed surface, sized by its parent box. */
+export function YouTubePlayerScreen({ videoId }: { videoId: string }) {
+  const embedUrl = useMemo(() => youtubeEmbedUrl(videoId), [videoId]);
+  return (
+    <iframe
+      src={embedUrl}
+      title={`YouTube video ${videoId}`}
+      style={iframeStyle}
+      allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+      allowFullScreen
+    />
   );
 }
 

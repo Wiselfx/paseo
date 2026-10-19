@@ -267,6 +267,8 @@ describe("daemon web UI route module", () => {
     expect(res.headers["cache-control"]).toBe(
       "no-store, no-cache, must-revalidate, proxy-revalidate",
     );
+    // Fork: remote chat images load only when the document sends no referrer.
+    expect(res.headers["referrer-policy"]).toBe("no-referrer");
   });
 
   test("sets immutable caching for hashed assets", async () => {

@@ -132,6 +132,10 @@ function setResponseCacheHeaders(res: Response, isIndexHtml: boolean, resolvedFi
     res.setHeader("Cache-Control", "no-store, no-cache, must-revalidate, proxy-revalidate");
     res.setHeader("Pragma", "no-cache");
     res.setHeader("Expires", "0");
+    // Fork: hotlink-gated hosts answer a browser's Referer with a 307 to an HTML page, so a
+    // remote chat image never decodes. The size probe and the renderer both draw from this
+    // document, so its policy is the one lever that reaches both.
+    res.setHeader("Referrer-Policy", "no-referrer");
   } else if (isHashedAsset(resolvedFile)) {
     res.setHeader("Cache-Control", "public, max-age=31536000, immutable");
   } else {

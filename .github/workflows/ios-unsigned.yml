@@ -1,0 +1,56 @@
+name: iOS Unsigned IPA
+
+on:
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        run: node scripts/npm-retry.mjs ci
+
+      - name: Build app dependencies
+        run: npm run build:app-deps
+
+      - name: Prebuild iOS
+        run: |
+          cd packages/app
+          APP_VARIANT=production npx expo prebuild --platform ios --clean --non-interactive
+
+      - name: Archive unsigned
+        run: |
+          cd packages/app/ios
+          xcodebuild clean archive \
+            -workspace Paseo.xcworkspace \
+            -scheme Paseo \
+            -configuration Release \
+            -sdk iphoneos \
+            -destination 'generic/platform=iOS' \
+            -archivePath "$RUNNER_TEMP/Paseo.xcarchive" \
+            CODE_SIGNING_ALLOWED=NO \
+            CODE_SIGN_IDENTITY="" \
+            CODE_SIGNING_REQUIRED=NO
+
+      - name: Package IPA
+        run: |
+          set -euo pipefail
+          APP_PATH="$(find "$RUNNER_TEMP/Paseo.xcarchive/Products/Applications" -name '*.app' | head -n 1)"
+          test -n "$APP_PATH"
+          rm -rf "$RUNNER_TEMP/Payload"
+          mkdir -p "$RUNNER_TEMP/Payload"
+          cp -R "$APP_PATH" "$RUNNER_TEMP/Payload/"
+          cd "$RUNNER_TEMP"
+          zip -r paseo-unsigned.ipa Payload
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: paseo-unsigned-ipa
+          path: ${{ runner.temp }}/paseo-unsigned.ipa

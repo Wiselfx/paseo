@@ -20,7 +20,10 @@ export const forkText = {
     `Cache hit ${lastTurn}% last turn · ${session}% session`,
   cacheHitLastTurn: (lastTurn: string) => `Cache hit ${lastTurn}% last turn`,
   cacheHitSession: (session: string) => `Cache hit ${session}% session`,
-  cacheWaste: (tokens: string, cost: string) => `Cache re-billed ${tokens} tokens (${cost})`,
-  cacheWasteNoCost: (tokens: string) => `Cache re-billed ${tokens} tokens`,
+  cacheWaste: (tokens: string, cost: string, misses: string | null) =>
+    `Cache re-billed ${tokens} tokens (${cost})${misses ? ` · ${misses} this session` : ""}`,
+  cacheWasteNoCost: (tokens: string, misses: string | null) =>
+    `Cache re-billed ${tokens} tokens${misses ? ` · ${misses} this session` : ""}`,
+  cacheMisses: (count: number) => `${count} miss${count === 1 ? "" : "es"}`,
   cacheCostByModel: (parts: string) => `Cost by model: ${parts}`,
 };

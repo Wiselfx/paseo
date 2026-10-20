@@ -69,6 +69,7 @@ export function ContextWindowDetails({
   const cache = cacheReadout(lastUsage, formatTokenCount);
   const cacheHit = cacheHitRates(lastUsage);
   const cacheWaste = cacheWasteReadout(lastUsage, formatTokenCount);
+  const wasteMisses = cacheWaste?.misses != null ? forkText.cacheMisses(cacheWaste.misses) : null;
   const cacheModels = cacheModelCosts(lastUsage, formatTokenCount);
   const cacheHitLine = cacheHitText(cacheHit);
   const cacheModelLine =
@@ -111,8 +112,8 @@ export function ContextWindowDetails({
         {cacheWaste ? (
           <Text style={styles.detail}>
             {cacheWaste.cost
-              ? forkText.cacheWaste(cacheWaste.tokens, cacheWaste.cost)
-              : forkText.cacheWasteNoCost(cacheWaste.tokens)}
+              ? forkText.cacheWaste(cacheWaste.tokens, cacheWaste.cost, wasteMisses)
+              : forkText.cacheWasteNoCost(cacheWaste.tokens, wasteMisses)}
           </Text>
         ) : null}
         {cacheModelLine ? <Text style={styles.detail}>{cacheModelLine}</Text> : null}

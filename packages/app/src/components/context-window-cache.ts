@@ -15,7 +15,11 @@ export interface CacheUsageNumbers {
   inputTokens?: number | null;
   sessionCacheHitRatePct?: number | null;
   lastTurnCacheHitRatePct?: number | null;
-  cacheWaste?: { tokens?: number | null; costUsd?: number | null } | null;
+  cacheWaste?: {
+    tokens?: number | null;
+    costUsd?: number | null;
+    missCount?: number | null;
+  } | null;
   costByModel?:
     | readonly { key?: string | null; costUsd?: number | null; tokens?: number | null }[]
     | null;
@@ -63,6 +67,8 @@ export function cacheHitRates(usage: CacheUsageNumbers | null | undefined): Cach
 export interface CacheWasteReadout {
   tokens: string;
   cost: string | null;
+  /** How many misses the total came from, so it reads as events, not a charge. */
+  misses: number | null;
 }
 
 export function cacheWasteReadout(
@@ -73,9 +79,11 @@ export function cacheWasteReadout(
   if (!isPositiveNumber(waste?.tokens)) {
     return null;
   }
+  const misses = waste?.missCount;
   return {
     tokens: format(waste.tokens),
     cost: isPositiveNumber(waste.costUsd) ? formatCost(waste.costUsd) : null,
+    misses: isPositiveNumber(misses) && Number.isInteger(misses) ? misses : null,
   };
 }
 

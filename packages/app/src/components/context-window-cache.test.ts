@@ -67,16 +67,22 @@ describe("cacheHitRates", () => {
 
 describe("cacheWasteReadout", () => {
   it("shows re-billed tokens and their cost", () => {
-    expect(cacheWasteReadout({ cacheWaste: { tokens: 214_388, costUsd: 0.61 } }, format)).toEqual({
+    expect(
+      cacheWasteReadout({ cacheWaste: { tokens: 214_388, costUsd: 0.61, missCount: 2 } }, format),
+    ).toEqual({
       tokens: "214k",
       cost: "$0.61",
+      misses: 2,
     });
   });
 
   it("keeps a sub-cent cost visible in thousandths", () => {
-    expect(cacheWasteReadout({ cacheWaste: { tokens: 40_000, costUsd: 0.0054 } }, format)).toEqual({
+    expect(
+      cacheWasteReadout({ cacheWaste: { tokens: 40_000, costUsd: 0.0054, missCount: 1 } }, format),
+    ).toEqual({
       tokens: "40k",
       cost: "$0.005",
+      misses: 1,
     });
   });
 
@@ -84,6 +90,20 @@ describe("cacheWasteReadout", () => {
     expect(cacheWasteReadout({ cacheWaste: { tokens: 40_000, costUsd: 0 } }, format)).toEqual({
       tokens: "40k",
       cost: null,
+      misses: null,
+    });
+  });
+
+  it("leaves the miss count out when it is not a whole number of misses", () => {
+    expect(cacheWasteReadout({ cacheWaste: { tokens: 40_000, missCount: 0 } }, format)).toEqual({
+      tokens: "40k",
+      cost: null,
+      misses: null,
+    });
+    expect(cacheWasteReadout({ cacheWaste: { tokens: 40_000, missCount: 1.5 } }, format)).toEqual({
+      tokens: "40k",
+      cost: null,
+      misses: null,
     });
   });
 

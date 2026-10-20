@@ -16,8 +16,11 @@ import type { PiMessageUsage } from "./rpc-types.js";
  *
  * The rules Pi applies are otherwise kept: the same noise floor, the same
  * display thresholds, and the same cost derivation from the message's own
- * breakdown. Pi scans session entries; the live path here compares a completed
- * assistant message against the request before it.
+ * breakdown. One rule is stricter: a miss needs a previous prompt the cache
+ * actually held, because providers that cache a few hundred tokens bill the
+ * rest every turn and Pi reads that as a loss that never happened. Pi scans
+ * session entries; the live path here compares a completed assistant message
+ * against the request before it.
  */
 
 /** Misses at or below this are prompt-cache breakpoint granularity, not waste. */
@@ -38,6 +41,8 @@ export interface CacheRequest {
   timestampMs?: number;
   /** Whether this request read from or wrote to the cache at all. */
   cachedAnything: boolean;
+  /** How many of this request's prompt tokens the cache held. */
+  cachedTokens: number;
   /** Whether any request in this session has reported cache activity yet. */
   reportedCache: boolean;
 }
@@ -74,6 +79,7 @@ export function nextRequest(
     modelKey,
     ...(timestampMs === undefined ? {} : { timestampMs }),
     cachedAnything,
+    cachedTokens: (usage.cacheRead ?? 0) + (usage.cacheWrite ?? 0),
     reportedCache: reportedCache || cachedAnything,
   };
 }
@@ -104,8 +110,12 @@ export function detectCacheMiss(
 ): CacheMiss | undefined {
   const tokens = promptTokens(usage);
   const cacheRead = usage.cacheRead ?? 0;
-  const cacheActivity = cacheRead + (usage.cacheWrite ?? 0);
-  if (!previous || tokens <= 0 || (cacheActivity === 0 && !previous.reportedCache)) {
+  // A miss is a discount that was lost, so the previous prompt must have been
+  // held by the cache at a scale worth losing. Some providers report a handful
+  // of cached tokens and bill the rest every turn; that is a cold cache, not a
+  // discount that went missing, and Pi's own rule has nothing below the noise
+  // floor to compare against.
+  if (!previous || tokens <= 0 || previous.cachedTokens <= NOISE_FLOOR_TOKENS) {
     return undefined;
   }
   const missedTokens = Math.min(previous.promptTokens, tokens) - cacheRead;

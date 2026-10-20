@@ -42,6 +42,7 @@ function previous(promptTokens: number, overrides: Partial<CacheRequest> = {}): 
     modelKey: "anthropic/claude",
     timestampMs: 0,
     cachedAnything: true,
+    cachedTokens: promptTokens,
     reportedCache: true,
     ...overrides,
   };
@@ -68,9 +69,22 @@ describe("Pi cache miss detection", () => {
   });
 
   it("ignores a provider that has never reported cache activity", () => {
-    expect(
-      missFor(previous(60_000, { reportedCache: false, cachedAnything: false }), priced(60_000, 0)),
-    ).toBeUndefined();
+    const neverCached = previous(60_000, {
+      reportedCache: false,
+      cachedAnything: false,
+      cachedTokens: 0,
+    });
+    expect(missFor(neverCached, priced(60_000, 0))).toBeUndefined();
+    // A stray cache read is not proof the earlier prompt was cached: nothing was
+    // written, so there was no discount to lose, only a cold start.
+    expect(missFor(neverCached, priced(16_724, 187))).toBeUndefined();
+  });
+
+  it("ignores a previous prompt the cache barely held", () => {
+    // Some providers cache a few hundred tokens and bill the rest every turn.
+    // That re-bills tokens, but nothing was ever discounted to lose.
+    const barelyCached = previous(16_911, { cachedTokens: 187 });
+    expect(missFor(barelyCached, priced(33_000, 186))).toBeUndefined();
   });
 
   it("ignores misses at or below the breakpoint noise floor", () => {

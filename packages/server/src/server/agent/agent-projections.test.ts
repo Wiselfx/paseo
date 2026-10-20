@@ -277,14 +277,38 @@ describe("toAgentPayload", () => {
     expect(permissionA.title).toBe("Run command");
   });
 
+  it("carries the prompt-cache figures the client draws", () => {
+    const agent = createManagedAgent({
+      lastUsage: {
+        inputTokens: 9_000,
+        cachedInputTokens: 24_000,
+        cacheWriteTokens: 1_200,
+        sessionCacheHitRatePct: 72.7,
+        lastTurnCacheHitRatePct: 34.5,
+        cacheWaste: { tokens: 40_000, costUsd: 0.0054, missCount: 2 },
+        costByModel: [{ key: "zen/foo", costUsd: 0.12, tokens: 33_000 }],
+      },
+    });
+
+    const payload = toAgentPayload(agent, { title: "UI Payload" });
+
+    expect(payload.lastUsage).toEqual(agent.lastUsage);
+    expect(payload.lastUsage).not.toBe(agent.lastUsage);
+    expect(payload.lastUsage?.cacheWaste).not.toBe(agent.lastUsage?.cacheWaste);
+    expect(payload.lastUsage?.costByModel).not.toBe(agent.lastUsage?.costByModel);
+  });
+
   it("omits usage when any numeric usage field is NaN", () => {
     const fields = [
       "inputTokens",
       "cachedInputTokens",
+      "cacheWriteTokens",
       "outputTokens",
       "totalCostUsd",
       "contextWindowMaxTokens",
       "contextWindowUsedTokens",
+      "sessionCacheHitRatePct",
+      "lastTurnCacheHitRatePct",
     ] as const;
 
     for (const field of fields) {

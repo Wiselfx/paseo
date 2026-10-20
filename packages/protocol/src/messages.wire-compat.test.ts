@@ -292,6 +292,47 @@ describe("wire schema compatibility", () => {
     expect(parsed.capabilities.supportsRewindBoth).toBe(false);
   });
 
+  test("agent snapshots keep the prompt-cache figures the context panel draws", () => {
+    const usage = {
+      inputTokens: 9_000,
+      cachedInputTokens: 24_000,
+      cacheWriteTokens: 1_200,
+      sessionCacheHitRatePct: 72.7,
+      lastTurnCacheHitRatePct: 34.5,
+      cacheWaste: { tokens: 40_000, costUsd: 0.0054, missCount: 2 },
+      costByModel: [{ key: "zen/foo", costUsd: 0.12, tokens: 33_000 }],
+    };
+    const parsed = AgentSnapshotPayloadSchema.parse({
+      id: "agent-1",
+      provider: "pi",
+      cwd: "/tmp/project",
+      model: null,
+      thinkingOptionId: null,
+      effectiveThinkingOptionId: null,
+      createdAt: "2026-05-23T00:00:00.000Z",
+      updatedAt: "2026-05-23T00:00:00.000Z",
+      lastUserMessageAt: null,
+      status: "idle",
+      capabilities: {
+        supportsStreaming: true,
+        supportsSessionPersistence: true,
+        supportsDynamicModes: true,
+        supportsMcpServers: true,
+        supportsReasoningStream: true,
+        supportsToolInvocations: true,
+      },
+      currentModeId: null,
+      availableModes: [],
+      pendingPermissions: [],
+      persistence: null,
+      title: null,
+      labels: {},
+      lastUsage: usage,
+    });
+
+    expect(parsed.lastUsage).toEqual(usage);
+  });
+
   test("notification timeline items parse their level and message", () => {
     expect(
       AgentTimelineItemPayloadSchema.parse({

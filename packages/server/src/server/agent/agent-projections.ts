@@ -15,6 +15,8 @@ import type {
   AgentSessionConfig,
   AgentRuntimeInfo,
   AgentUsage,
+  AgentCacheWaste,
+  AgentModelCost,
   ImportableProviderSession,
 } from "./agent-sdk-types.js";
 import type { ManagedAgent } from "./agent-manager.js";
@@ -461,6 +463,48 @@ function assignFiniteNumber(
   return raw === undefined || raw === null;
 }
 
+function sanitizeCacheWaste(value: JsonValue | undefined): AgentCacheWaste | undefined {
+  if (!value || !isJsonObject(value)) {
+    return undefined;
+  }
+  const { tokens, costUsd, missCount } = value;
+  if (
+    typeof tokens !== "number" ||
+    !Number.isFinite(tokens) ||
+    typeof costUsd !== "number" ||
+    !Number.isFinite(costUsd) ||
+    typeof missCount !== "number" ||
+    !Number.isFinite(missCount)
+  ) {
+    return undefined;
+  }
+  return { tokens, costUsd, missCount };
+}
+
+function sanitizeModelCosts(value: JsonValue | undefined): AgentModelCost[] | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+  const costs: AgentModelCost[] = [];
+  for (const entry of value) {
+    if (!entry || !isJsonObject(entry)) {
+      continue;
+    }
+    const { key, costUsd, tokens } = entry;
+    if (typeof key !== "string") {
+      continue;
+    }
+    if (typeof costUsd !== "number" || !Number.isFinite(costUsd)) {
+      continue;
+    }
+    if (typeof tokens !== "number" || !Number.isFinite(tokens)) {
+      continue;
+    }
+    costs.push({ key, costUsd, tokens });
+  }
+  return costs.length ? costs : undefined;
+}
+
 function sanitizeUsage(value: unknown): AgentUsage | undefined {
   const sanitized = sanitizeOptionalJson(value);
   if (!sanitized || !isJsonObject(sanitized)) {
@@ -470,15 +514,26 @@ function sanitizeUsage(value: unknown): AgentUsage | undefined {
   const fields: UsageNumericField[] = [
     "inputTokens",
     "cachedInputTokens",
+    "cacheWriteTokens",
     "outputTokens",
     "totalCostUsd",
     "contextWindowMaxTokens",
     "contextWindowUsedTokens",
+    "sessionCacheHitRatePct",
+    "lastTurnCacheHitRatePct",
   ];
   for (const field of fields) {
     if (!assignFiniteNumber(sanitized, result, field)) {
       return undefined;
     }
+  }
+  const cacheWaste = sanitizeCacheWaste(sanitized.cacheWaste);
+  if (cacheWaste) {
+    result.cacheWaste = cacheWaste;
+  }
+  const costByModel = sanitizeModelCosts(sanitized.costByModel);
+  if (costByModel) {
+    result.costByModel = costByModel;
   }
   return Object.keys(result).length ? result : undefined;
 }

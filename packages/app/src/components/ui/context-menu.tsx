@@ -6,8 +6,6 @@ import {
   type Ref,
 } from "react";
 import {
-  Platform,
-  StatusBar,
   View,
   type GestureResponderEvent,
   type PressableProps,
@@ -152,10 +150,9 @@ export function ContextMenuTrigger({
       // needs no anchor, so open anyway when the point is unavailable.
       const point = coerceEventPoint(event);
       if (point) {
-        const statusBarHeight = Platform.OS === "android" ? (StatusBar.currentHeight ?? 0) : 0;
         ctx.setAnchorRect({
           x: point.pageX,
-          y: point.pageY + statusBarHeight,
+          y: point.pageY,
           width: 0,
           height: 0,
         });

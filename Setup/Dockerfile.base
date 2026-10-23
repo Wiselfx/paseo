@@ -1,0 +1,116 @@
+# syntax=docker/dockerfile:1
+# Paseo BASE image: everything except Paseo itself.
+#
+# Paseo is never baked in. It is installed into the /home/paseo volume
+# (npm prefix /home/paseo/.local) from the fork's `dist` release, so updating
+# Paseo never means rebuilding this image.
+#
+# Build (context = repo checkout, for docker/base/rootfs if kept):
+#   docker build -f Setup/Dockerfile.base -t paseo:base /path/to/paseo
+#
+# First install (server not running):
+#   docker run --rm -v paseo-home:/home/paseo paseo:base \
+#     bash -lc 'cd /tmp && curl -fsSL \
+#       https://api.github.com/repos/Wiselfx/paseo/releases/tags/dist \
+#       | jq -r ".assets[].browser_download_url" | xargs -n1 curl -fsSLO \
+#       && npm i -g --prefix /home/paseo/.local ./*.tgz'
+#
+# Run: Paseo is installed into the volume on first start (paseo-init), then
+# configured and started. PID 1 is never the daemon, so `paseo daemon
+# stop|start` cannot take the container down with it. Update with
+# `paseo-update` (newest `dist` build) or `paseo-update dist-<sha>` (rollback).
+#
+# Managed `daemon start` ignores PASEO_LISTEN/web-UI/relay env; set those once
+# per home with `paseo daemon config set` (they persist in the volume).
+
+FROM ubuntu:26.04
+
+# Node 24.11.0 LTS, from the official node image.
+COPY --from=node:22-bookworm-slim /usr/local /usr/local
+
+ENV HOME=/home/paseo \
+    CLAUDE_CONFIG_DIR=/home/paseo/.claude \
+    CODEX_HOME=/home/paseo/.codex \
+    XDG_CONFIG_HOME=/home/paseo/.config \
+    XDG_DATA_HOME=/home/paseo/.local/share \
+    XDG_STATE_HOME=/home/paseo/.local/state \
+    XDG_CACHE_HOME=/home/paseo/.cache \
+    ONNXRUNTIME_NODE_INSTALL=skip \
+    SHELL=/bin/bash \
+    LANG=C.UTF-8 \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/paseo/.local/bin:/home/paseo/.pi/agent/bin:/home/paseo/.opencode/bin" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
+
+# Toolset. System dirs come first on PATH, so the image owns the base tools and
+# the volume's user-local installs (pi, opencode, uv tools, Paseo) come after.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      bash ca-certificates curl git lbzip2 openssh-client procps tini \
+      jq less unzip zip xz-utils zstd rsync file tree lsof psmisc ripgrep \
+      netcat-openbsd iputils-ping bind9-dnsutils git-lfs \
+      build-essential cmake ninja-build pkg-config autoconf automake libtool \
+      bison flex patch \
+      gdb strace ltrace \
+      python3-pip python3-venv python3-dev python3-debugpy \
+      libssl-dev zlib1g-dev libffi-dev libbz2-dev liblzma-dev libreadline-dev \
+      libsqlite3-dev libncurses-dev \
+      ffmpeg imagemagick poppler-utils pandoc graphviz \
+      tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd \
+      sqlite3 postgresql-client redis-tools; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    git config --system --add safe.directory '/home/paseo/*'; \
+    git config --system init.defaultBranch main; \
+    git config --system core.pager cat; \
+    node --version; npm --version; python3 --version
+
+# uv: python venvs and CLI tools. From the release tarball because the shell
+# installer writes profile files; latest on purpose.
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) uv_arch=x86_64 ;; \
+      arm64) uv_arch=aarch64 ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/latest/download/uv-${uv_arch}-unknown-linux-gnu.tar.gz" -o /tmp/uv.tgz; \
+    mkdir -p /tmp/uv; \
+    tar -xzf /tmp/uv.tgz -C /tmp/uv --strip-components=1; \
+    for b in uv uvx; do if [ -f "/tmp/uv/$b" ]; then install -m 0755 "/tmp/uv/$b" /usr/local/bin/; fi; done; \
+    rm -rf /tmp/uv.tgz /tmp/uv; \
+    uv --version
+
+RUN set -eux; \
+    mkdir -p \
+      /home/paseo/workspace \
+      /home/paseo/.paseo \
+      /home/paseo/.claude \
+      /home/paseo/.codex \
+      /home/paseo/.config \
+      /home/paseo/.local/share \
+      /home/paseo/.local/state \
+      /home/paseo/.cache
+
+# Boot + update scripts. PID 1 is paseo-init, never the daemon.
+COPY Setup/rootfs/ /
+RUN chmod +x /usr/local/bin/paseo-init /usr/local/bin/paseo-update
+
+# Root-only: there is no gosu in the image at all.
+
+WORKDIR /home/paseo/workspace
+
+EXPOSE 6767
+# No VOLUME on purpose: bare runs create zero volumes. /home/paseo lives
+# in the writable layer (survives restart, dies on rm) unless bind-mounted.
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "const listen=process.env.PASEO_LISTEN||'0.0.0.0:6767'; const m=listen.match(/:(\d+)$/); const port=m?Number(m[1]):6767; require('http').get({hostname:'127.0.0.1',port,path:'/api/health'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+# PID 1 is not the daemon: it stays alive so the daemon can be stopped,
+# replaced and started again without the container dying. Start Paseo with
+# `paseo daemon start` (detached supervisor), e.g. from compose `command:`:
+#   command: ["bash","-lc","paseo daemon start; exec sleep infinity"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/paseo-init"]

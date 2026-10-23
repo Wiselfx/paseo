@@ -1,0 +1,97 @@
+#!/usr/bin/env bash
+# Boot for the Paseo base image, in three steps:
+#   1. install from the fork's `dist` release, only if the volume has none
+#   2. write the settings a managed `daemon start` refuses to take from env
+#   3. start the daemon, then keep the container alive (never PID 1)
+#
+# Nothing here upgrades an existing install: that is `paseo-update`.
+set -euo pipefail
+
+PASEO_HOME_DIR="${PASEO_HOME:-/home/paseo/.paseo}"
+PREFIX="${PASEO_PREFIX:-/home/paseo/.local}"
+REPO="${PASEO_REPO:-Wiselfx/paseo}"
+TAG="${PASEO_DIST_TAG:-dist}"
+CFG="${PASEO_HOME_DIR}/config.json"
+
+log() { echo "[paseo-init] $*"; }
+
+install_paseo() {
+  local tmp entry
+  tmp="$(mktemp -d)" || return 1
+  log "installing from ${REPO} '${TAG}'"
+  if ! curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" -o "${tmp}/release.json"; then
+    log "could not read release metadata; leaving the volume as it is"
+    rm -rf "$tmp"
+    return 1
+  fi
+  local urls
+  urls="$(jq -r '.assets[] | select(.name | endswith(".tgz")) | .browser_download_url' "${tmp}/release.json")"
+  if [[ -z "$urls" ]]; then
+    log "release '${TAG}' carries no packages"
+    rm -rf "$tmp"
+    return 1
+  fi
+  while read -r url; do
+    [[ -n "$url" ]] || continue
+    curl -fsSL "$url" -o "${tmp}/$(basename "$url")" || { log "download failed"; rm -rf "$tmp"; return 1; }
+  done <<<"$urls"
+  mkdir -p "$PREFIX"
+  npm install -g --prefix "$PREFIX" "${tmp}"/*.tgz >/dev/null || { log "install failed"; rm -rf "$tmp"; return 1; }
+  node -p "require('${PREFIX}/lib/node_modules/@getpaseo/cli/package.json').version" > "${PREFIX}/PASEO_VERSION"
+  rm -rf "$tmp"
+  log "installed Paseo $(cat "${PREFIX}/PASEO_VERSION")"
+}
+
+has_cfg() { [[ -f "$CFG" ]] && jq -e "$1 != null" "$CFG" >/dev/null 2>&1; }
+
+configure() {
+  [[ -x "${PREFIX}/bin/paseo" ]] || return 0
+  has_cfg '.daemon.listen' || paseo daemon config set daemon.listen "${PASEO_DEFAULT_LISTEN:-0.0.0.0:6767}" \
+    --home "$PASEO_HOME_DIR" --string >/dev/null
+  has_cfg '.features.webUi.enabled' || paseo daemon config set features.webUi.enabled true \
+    --home "$PASEO_HOME_DIR" --string >/dev/null
+  has_cfg '.log.level' || paseo daemon config set log.level info \
+    --home "$PASEO_HOME_DIR" --string >/dev/null
+  has_cfg '.log.format' || paseo daemon config set log.format json \
+    --home "$PASEO_HOME_DIR" --string >/dev/null
+  log "config ready at ${CFG}"
+}
+
+set_password() {
+  [[ -x "${PREFIX}/bin/paseo" ]] || return 0
+  has_cfg '.daemon.auth.password' && return 0
+  if [[ -n "${PASEO_PASSWORD:-}" ]]; then
+    ( cd "${PREFIX}/lib" && node --input-type=module -e '
+        const { hashDaemonPassword } = await import("@getpaseo/server/auth");
+        const { readPersistedConfig, savePersistedConfig } = await import("@getpaseo/server/configuration");
+        const home = process.env.PASEO_HOME || "/home/paseo/.paseo";
+        const cfg = readPersistedConfig(home);
+        cfg.daemon = { ...cfg.daemon, auth: { ...cfg.daemon?.auth, password: hashDaemonPassword(process.env.PASEO_PASSWORD) } };
+        savePersistedConfig(home, cfg);
+      ' )
+    log "password taken from PASEO_PASSWORD"
+  elif [[ -t 0 ]]; then
+    paseo daemon set-password --home "$PASEO_HOME_DIR" || log "password not set"
+  else
+    log "no password set; use PASEO_PASSWORD or run once with -it"
+  fi
+}
+
+mkdir -p "$PASEO_HOME_DIR" /home/paseo/.claude /home/paseo/.codex \
+  /home/paseo/.config /home/paseo/.local/share /home/paseo/.local/state /home/paseo/.cache
+
+[[ -x "${PREFIX}/bin/paseo" ]] || install_paseo || true
+configure
+set_password
+
+if [[ -x "${PREFIX}/bin/paseo" ]]; then
+  paseo daemon start --home "$PASEO_HOME_DIR" >/dev/null 2>&1 \
+    && log "daemon started" \
+    || log "daemon not started; see: paseo daemon status --home ${PASEO_HOME_DIR}"
+fi
+
+if [[ "$#" -gt 0 ]]; then
+  exec "$@"
+fi
+
+exec /bin/sleep infinity

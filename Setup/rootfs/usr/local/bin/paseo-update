@@ -1,0 +1,53 @@
+#!/usr/bin/env bash
+# Install or update Paseo from the fork's `dist` release into the volume.
+#
+#   paseo-update              # newest build attached to tag `dist`
+#   paseo-update dist-<sha>   # a pinned build (rollback)
+#
+# Stops the daemon, replaces the install, starts it again. Safe from a shell
+# container or from `docker exec`; never mid-update twice.
+set -euo pipefail
+
+PASEO_HOME_DIR="${PASEO_HOME:-/home/paseo/.paseo}"
+PREFIX="${PASEO_PREFIX:-/home/paseo/.local}"
+REPO="${PASEO_REPO:-Wiselfx/paseo}"
+TAG="${1:-${PASEO_DIST_TAG:-dist}}"
+CLI="${PREFIX}/lib/node_modules/@getpaseo/cli/package.json"
+
+log() { echo "[paseo-update] $*"; }
+
+if [[ -x "${PREFIX}/bin/paseo" ]]; then
+  log "stopping daemon"
+  paseo daemon stop --home "$PASEO_HOME_DIR" >/dev/null 2>&1 || \
+    log "no running daemon (or it refused to stop)"
+fi
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+log "fetching ${REPO} '${TAG}'"
+curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" -o "${tmp}/release.json"
+
+urls="$(jq -r '.assets[] | select(.name | endswith(".tgz")) | .browser_download_url' "${tmp}/release.json")"
+if [[ -z "$urls" ]]; then
+  log "release '${TAG}' carries no packages"
+  exit 1
+fi
+
+while read -r url; do
+  [[ -n "$url" ]] || continue
+  curl -fsSL "$url" -o "${tmp}/$(basename "$url")"
+done <<<"$urls"
+
+npm install -g --prefix "$PREFIX" "${tmp}"/*.tgz
+npm cache clean --force >/dev/null 2>&1 || true
+
+version="$(node -p "require('${CLI}').version")"
+printf '%s\n' "$version" > "${PREFIX}/PASEO_VERSION"
+log "installed Paseo ${version}"
+
+if [[ -x "${PREFIX}/bin/paseo" ]]; then
+  paseo daemon start --home "$PASEO_HOME_DIR" >/dev/null 2>&1 \
+    && log "daemon started" \
+    || log "daemon not started; see: paseo daemon status --home ${PASEO_HOME_DIR}"
+fi

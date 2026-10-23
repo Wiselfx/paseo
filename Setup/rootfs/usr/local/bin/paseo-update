@@ -39,6 +39,8 @@ while read -r url; do
   curl -fsSL "$url" -o "${tmp}/$(basename "$url")"
 done <<<"$urls"
 
+  # A half-finished install leaves trees npm cannot reify over (ENOTEMPTY).
+  rm -rf "${PREFIX}/lib/node_modules/@getpaseo" "${PREFIX}"/lib/node_modules/@getpaseo-* "${PREFIX}"/bin/paseo*
 npm install -g --prefix "$PREFIX" "${tmp}"/*.tgz
 npm cache clean --force >/dev/null 2>&1 || true
 

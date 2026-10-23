@@ -1,0 +1,133 @@
+# syntax=docker/dockerfile:1
+# Paseo BASE image: everything except Paseo itself.
+#
+# Rationale: Paseo is never baked in. It is installed into the /home/paseo
+# volume (prefix /home/paseo/.local) by Setup/rootfs/usr/local/bin/paseo-update,
+# so updating Paseo never means rebuilding this image.
+#
+# Build (context = repo checkout, for docker/base/rootfs and Setup/rootfs):
+#   docker build -f Setup/Dockerfile.base -t paseo:base /path/to/paseo
+#
+# First fill of a fresh volume (server stopped / never started):
+#   docker run --rm -v paseo-home:/home/paseo \
+#     --entrypoint /usr/local/bin/paseo-update paseo:base
+#
+# Runtime: entrypoint is paseo-boot, which resolves the volume install and
+# points /etc/paseo-server-entry at it before handing off to the stock
+# upstream entrypoint. Runs as root by default (see PASEO_RUN_AS_ROOT).
+
+FROM ubuntu:26.04
+
+# Node 22, straight from the upstream image.
+COPY --from=node:22-bookworm-slim /usr/local /usr/local
+
+ENV HOME=/home/paseo \
+    PASEO_HOME=/home/paseo/.paseo \
+    PASEO_LISTEN=0.0.0.0:6767 \
+    PASEO_WEB_UI_ENABLED=true \
+    PASEO_LOG_FORMAT=json \
+    PASEO_LOG_LEVEL=info \
+    CLAUDE_CONFIG_DIR=/home/paseo/.claude \
+    CODEX_HOME=/home/paseo/.codex \
+    XDG_CONFIG_HOME=/home/paseo/.config \
+    XDG_DATA_HOME=/home/paseo/.local/share \
+    XDG_STATE_HOME=/home/paseo/.local/state \
+    XDG_CACHE_HOME=/home/paseo/.cache \
+    ONNXRUNTIME_NODE_INSTALL=skip \
+    SHELL=/bin/bash \
+    LANG=C.UTF-8 \
+    PATH="/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/home/paseo/.local/bin:/home/paseo/.pi/agent/bin:/home/paseo/.opencode/bin" \
+    PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    NPM_CONFIG_UPDATE_NOTIFIER=false
+
+# Toolset. System dirs come first on PATH, so the image owns the base tools and
+# the volume's user-local installs (pi, opencode, uv tools, Paseo) come after.
+RUN set -eux; \
+    apt-get update; \
+    apt-get install -y --no-install-recommends \
+      bash ca-certificates curl git gosu lbzip2 openssh-client procps tini \
+      jq less unzip zip xz-utils zstd rsync file tree lsof psmisc ripgrep \
+      netcat-openbsd iputils-ping bind9-dnsutils git-lfs \
+      build-essential cmake ninja-build pkg-config autoconf automake libtool \
+      bison flex patch \
+      gdb strace ltrace \
+      python3-pip python3-venv python3-dev python3-debugpy \
+      libssl-dev zlib1g-dev libffi-dev libbz2-dev liblzma-dev libreadline-dev \
+      libsqlite3-dev libncurses-dev \
+      ffmpeg imagemagick poppler-utils pandoc graphviz \
+      tesseract-ocr tesseract-ocr-eng tesseract-ocr-osd \
+      sqlite3 postgresql-client redis-tools; \
+    apt-get clean; \
+    rm -rf /var/lib/apt/lists/*; \
+    git config --system --add safe.directory '/home/paseo/*'; \
+    git config --system init.defaultBranch main; \
+    git config --system core.pager cat; \
+    node --version; npm --version; python3 --version
+
+# uv: python venvs and CLI tools. From the release tarball because the shell
+# installer writes profile files; latest on purpose.
+RUN set -eux; \
+    arch="$(dpkg --print-architecture)"; \
+    case "$arch" in \
+      amd64) uv_arch=x86_64 ;; \
+      arm64) uv_arch=aarch64 ;; \
+      *) echo "unsupported architecture: $arch" >&2; exit 1 ;; \
+    esac; \
+    curl -fsSL "https://github.com/astral-sh/uv/releases/latest/download/uv-${uv_arch}-unknown-linux-gnu.tar.gz" -o /tmp/uv.tgz; \
+    mkdir -p /tmp/uv; \
+    tar -xzf /tmp/uv.tgz -C /tmp/uv --strip-components=1; \
+    for b in uv uvx; do if [ -f "/tmp/uv/$b" ]; then install -m 0755 "/tmp/uv/$b" /usr/local/bin/; fi; done; \
+    rm -rf /tmp/uv.tgz /tmp/uv; \
+    uv --version
+
+RUN set -eux; \
+    existing_group="$(getent group 1000 | cut -d: -f1 || true)"; \
+    if [ -n "$existing_group" ] && [ "$existing_group" != "paseo" ]; then \
+      groupmod --new-name paseo "$existing_group"; \
+    elif [ -z "$existing_group" ]; then \
+      groupadd --gid 1000 paseo; \
+    fi; \
+    existing_user="$(getent passwd 1000 | cut -d: -f1 || true)"; \
+    if [ -n "$existing_user" ] && [ "$existing_user" != "paseo" ]; then \
+      usermod --login paseo --gid paseo --home /home/paseo --shell /bin/bash "$existing_user"; \
+    elif [ -z "$existing_user" ]; then \
+      useradd --uid 1000 --gid paseo --create-home --home-dir /home/paseo --shell /bin/bash paseo; \
+    fi; \
+    mkdir -p \
+      /home/paseo/workspace \
+      "$PASEO_HOME" \
+      "$CLAUDE_CONFIG_DIR" \
+      "$CODEX_HOME" \
+      "$XDG_CONFIG_HOME" \
+      "$XDG_DATA_HOME" \
+      "$XDG_STATE_HOME" \
+      "$XDG_CACHE_HOME"; \
+    chown -R paseo:paseo /home/paseo
+
+COPY docker/base/rootfs/ /
+COPY Setup/rootfs/ /
+RUN chmod +x /usr/local/bin/paseo-docker-entrypoint /usr/local/bin/paseo-boot /usr/local/bin/paseo-update
+
+# Run as root by default: strip the entrypoint's gosu drops so the daemon
+# and its agents stay root. Build with --build-arg PASEO_RUN_AS_ROOT=0
+# for the upstream non-root behavior.
+ARG PASEO_RUN_AS_ROOT=1
+ENV PASEO_RUN_AS_ROOT=${PASEO_RUN_AS_ROOT}
+RUN if [ "${PASEO_RUN_AS_ROOT}" = "1" ]; then \
+      sed -i 's|exec gosu paseo|exec|' /usr/local/bin/paseo-docker-entrypoint; \
+      grep -c 'gosu' /usr/local/bin/paseo-docker-entrypoint || echo "gosu drops removed"; \
+    fi
+
+WORKDIR /home/paseo/workspace
+
+EXPOSE 6767
+# No VOLUME on purpose: bare runs create zero volumes. /home/paseo lives
+# in the writable layer (survives restart, dies on rm) unless bind-mounted.
+
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+  CMD node -e "const listen=process.env.PASEO_LISTEN||'0.0.0.0:6767'; const m=listen.match(/:(\d+)$/); const port=m?Number(m[1]):6767; require('http').get({hostname:'127.0.0.1',port,path:'/api/health'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
+
+# paseo-boot seeds paseo-update into the volume, resolves the installed server
+# entry, then execs the stock upstream entrypoint.
+ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/paseo-boot"]

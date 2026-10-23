@@ -1,0 +1,25 @@
+#!/usr/bin/env bash
+# Boot wrapper for the Paseo base image.
+#
+# 1. seeds paseo-update into the volume (so the host can run it from there)
+# 2. points /etc/paseo-server-entry at the volume install, if one exists
+# 3. hands off to the stock upstream entrypoint
+set -euo pipefail
+
+VOL_HOME="/home/paseo"
+VOL_ENTRY="${VOL_HOME}/.local/lib/node_modules/@getpaseo/server/dist/scripts/supervisor-entrypoint.js"
+
+if [[ -x /usr/local/bin/paseo-update ]]; then
+  mkdir -p "${VOL_HOME}/bin"
+  if [[ ! -x "${VOL_HOME}/bin/paseo-update" ]]; then
+    install -m 0755 /usr/local/bin/paseo-update "${VOL_HOME}/bin/paseo-update"
+  fi
+fi
+
+if [[ -f "$VOL_ENTRY" ]]; then
+  printf '%s\n' "$VOL_ENTRY" > /etc/paseo-server-entry
+else
+  echo "[boot] no Paseo install in ${VOL_HOME}/.local — run paseo-update to install one." >&2
+fi
+
+exec /usr/local/bin/paseo-docker-entrypoint "$@"

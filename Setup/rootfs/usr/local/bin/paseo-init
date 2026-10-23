@@ -36,7 +36,7 @@ install_paseo() {
     curl -fsSL "$url" -o "${tmp}/$(basename "$url")" || { log "download failed"; rm -rf "$tmp"; return 1; }
   done <<<"$urls"
   mkdir -p "$PREFIX"
-  # A half-finished install leaves trees npm cannot reify over (ENOTEMPTY).
+  # Leftovers break npm reify (ENOTEMPTY).
   rm -rf "${PREFIX}/lib/node_modules/@getpaseo" "${PREFIX}"/lib/node_modules/@getpaseo-* "${PREFIX}"/bin/paseo*
   npm install -g --prefix "$PREFIX" "${tmp}"/*.tgz >/dev/null || { log "install failed"; rm -rf "$tmp"; return 1; }
   node -p "require('${PREFIX}/lib/node_modules/@getpaseo/cli/package.json').version" > "${PREFIX}/PASEO_VERSION"

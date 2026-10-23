@@ -1,0 +1,38 @@
+#!/usr/bin/env bash
+# Install / update Paseo from the fork's `dist` release into the volume.
+#
+#   paseo-update              # newest build attached to tag `dist`
+#   paseo-update dist-<sha>   # a pinned (rollback) build
+#
+# Never run this against a live daemon: stop the container first, run the
+# update in a throwaway container, then start it again.
+set -euo pipefail
+
+REPO="${PASEO_REPO:-Wiselfx/paseo}"
+TAG="${1:-dist}"
+PREFIX="${PASEO_PREFIX:-/home/paseo/.local}"
+
+tmp="$(mktemp -d)"
+trap 'rm -rf "$tmp"' EXIT
+
+echo "[paseo-update] fetching ${REPO} release '${TAG}'"
+curl -fsSL "https://api.github.com/repos/${REPO}/releases/tags/${TAG}" -o "${tmp}/release.json"
+
+urls="$(jq -r '.assets[] | select(.name | endswith(".tgz")) | .browser_download_url' "${tmp}/release.json")"
+if [[ -z "$urls" ]]; then
+  echo "[paseo-update] no .tgz assets on '${TAG}'" >&2
+  exit 1
+fi
+
+while read -r url; do
+  [[ -n "$url" ]] || continue
+  curl -fsSL "$url" -o "${tmp}/$(basename "$url")"
+done <<<"$urls"
+
+mkdir -p "$PREFIX"
+npm install -g --prefix "$PREFIX" "${tmp}"/*.tgz
+npm cache clean --force >/dev/null 2>&1 || true
+
+version="$(node -p "require('${PREFIX}/lib/node_modules/@getpaseo/cli/package.json').version")"
+printf '%s\n' "$version" > "${PREFIX}/PASEO_VERSION"
+echo "[paseo-update] installed Paseo ${version} into ${PREFIX}"

@@ -1,20 +1,26 @@
 # syntax=docker/dockerfile:1
 # Paseo BASE image: everything except Paseo itself.
 #
-# Rationale: Paseo is never baked in. It is installed into the /home/paseo
-# volume (prefix /home/paseo/.local) by Setup/rootfs/usr/local/bin/paseo-update,
-# so updating Paseo never means rebuilding this image.
+# Paseo is never baked in. It is installed into the /home/paseo volume
+# (npm prefix /home/paseo/.local) from the fork's `dist` release, so updating
+# Paseo never means rebuilding this image.
 #
-# Build (context = repo checkout, for docker/base/rootfs and Setup/rootfs):
+# Build (context = repo checkout, for docker/base/rootfs if kept):
 #   docker build -f Setup/Dockerfile.base -t paseo:base /path/to/paseo
 #
-# First fill of a fresh volume (server stopped / never started):
-#   docker run --rm -v paseo-home:/home/paseo \
-#     --entrypoint /usr/local/bin/paseo-update paseo:base
+# First install (server not running):
+#   docker run --rm -v paseo-home:/home/paseo paseo:base \
+#     bash -lc 'cd /tmp && curl -fsSL \
+#       https://api.github.com/repos/Wiselfx/paseo/releases/tags/dist \
+#       | jq -r ".assets[].browser_download_url" | xargs -n1 curl -fsSLO \
+#       && npm i -g --prefix /home/paseo/.local ./*.tgz'
 #
-# Runtime: entrypoint is paseo-boot, which resolves the volume install and
-# points /etc/paseo-server-entry at it before handing off to the stock
-# upstream entrypoint. Runs as root by default (see PASEO_RUN_AS_ROOT).
+# Run: PID 1 is sleep, not the daemon, so `paseo daemon stop|start` cannot
+# kill the container. Start the daemon on boot, e.g. compose command:
+#   command: ["bash","-lc","paseo daemon start; exec sleep infinity"]
+#
+# Managed `daemon start` ignores PASEO_LISTEN/web-UI/relay env; set those once
+# per home with `paseo daemon config set` (they persist in the volume).
 
 FROM ubuntu:26.04
 
@@ -105,19 +111,7 @@ RUN set -eux; \
       "$XDG_CACHE_HOME"; \
     chown -R paseo:paseo /home/paseo
 
-COPY docker/base/rootfs/ /
-COPY Setup/rootfs/ /
-RUN chmod +x /usr/local/bin/paseo-docker-entrypoint /usr/local/bin/paseo-boot /usr/local/bin/paseo-update
-
-# Run as root by default: strip the entrypoint's gosu drops so the daemon
-# and its agents stay root. Build with --build-arg PASEO_RUN_AS_ROOT=0
-# for the upstream non-root behavior.
-ARG PASEO_RUN_AS_ROOT=1
-ENV PASEO_RUN_AS_ROOT=${PASEO_RUN_AS_ROOT}
-RUN if [ "${PASEO_RUN_AS_ROOT}" = "1" ]; then \
-      sed -i 's|exec gosu paseo|exec|' /usr/local/bin/paseo-docker-entrypoint; \
-      grep -c 'gosu' /usr/local/bin/paseo-docker-entrypoint || echo "gosu drops removed"; \
-    fi
+# Also root-only: no gosu choreography anywhere.
 
 WORKDIR /home/paseo/workspace
 
@@ -128,6 +122,8 @@ EXPOSE 6767
 HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
   CMD node -e "const listen=process.env.PASEO_LISTEN||'0.0.0.0:6767'; const m=listen.match(/:(\d+)$/); const port=m?Number(m[1]):6767; require('http').get({hostname:'127.0.0.1',port,path:'/api/health'},r=>process.exit(r.statusCode===200?0:1)).on('error',()=>process.exit(1))"
 
-# paseo-boot seeds paseo-update into the volume, resolves the installed server
-# entry, then execs the stock upstream entrypoint.
-ENTRYPOINT ["/usr/bin/tini", "--", "/usr/local/bin/paseo-boot"]
+# PID 1 is not the daemon: it stays alive so the daemon can be stopped,
+# replaced and started again without the container dying. Start Paseo with
+# `paseo daemon start` (detached supervisor), e.g. from compose `command:`:
+#   command: ["bash","-lc","paseo daemon start; exec sleep infinity"]
+ENTRYPOINT ["/usr/bin/tini", "--", "/bin/sleep", "infinity"]

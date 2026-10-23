@@ -1,0 +1,90 @@
+name: dist
+
+# Builds the installable Paseo packages from this fork and attaches them to a
+# release tag. `paseo-update` in the base image consumes those assets; nothing
+# is published to npm.
+#
+# Trigger: Actions -> dist -> Run workflow (or push a `dist*` tag).
+
+on:
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "Release tag to (re)build and overwrite"
+        required: false
+        default: "dist"
+        type: string
+  push:
+    tags:
+      - "dist*"
+
+permissions:
+  contents: write
+
+concurrency:
+  group: dist-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  pack:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      DIST_TAG: ${{ inputs.tag || 'dist' }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: "npm"
+
+      - name: Install dependencies
+        # `prepare` runs lefthook (git hooks are pointless in CI).
+        run: |
+          node -e "
+          const fs = require('node:fs');
+          const p = JSON.parse(fs.readFileSync('package.json','utf8'));
+          delete p.scripts.prepare;
+          fs.writeFileSync('package.json', JSON.stringify(p, null, 2) + '\n');
+          "
+          npm ci
+
+      - name: Pack workspaces
+        # Order matters: each package's prepack compiles against the previous
+        # ones' dist output. @getpaseo/server also builds the daemon web UI.
+        run: |
+          mkdir -p dist
+          for w in highlight relay protocol client plugin server cli; do
+            npm pack --workspace="@getpaseo/$w" --pack-destination dist
+          done
+          node -p "require('./package.json').version" > dist/VERSION
+          ls -lh dist
+
+      - name: Publish release assets
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          version="$(cat dist/VERSION)"
+          gh release delete "$DIST_TAG" --cleanup-tag -y || true
+          gh release create "$DIST_TAG" dist/*.tgz dist/VERSION \
+            --title "dist ${version}" \
+            --notes "Built from ${GITHUB_SHA} on ${GITHUB_REF_NAME}." \
+            --latest=false
+
+      - name: Summary
+        run: |
+          {
+            echo "### dist ${DIST_TAG}"
+            echo ""
+            echo "Version: \`$(cat dist/VERSION)\`"
+            echo ""
+            echo "Install on the host:"
+            echo ""
+            echo '```'
+            echo "docker stop paseo"
+            echo "docker run --rm -v paseo-home:/home/paseo" \
+                 "--entrypoint /usr/local/bin/paseo-update paseo:base"
+            echo "docker start paseo"
+            echo '```'
+          } >> "$GITHUB_STEP_SUMMARY"

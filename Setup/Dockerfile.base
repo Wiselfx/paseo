@@ -25,7 +25,7 @@
 FROM ubuntu:26.04
 
 # Node 22, straight from the upstream image.
-COPY --from=node:22-bookworm-slim /usr/local /usr/local
+COPY --from=node:24.11.0-bookworm-slim /usr/local /usr/local
 
 ENV HOME=/home/paseo \
     PASEO_HOME=/home/paseo/.paseo \

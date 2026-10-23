@@ -36,6 +36,8 @@ install_paseo() {
     curl -fsSL "$url" -o "${tmp}/$(basename "$url")" || { log "download failed"; rm -rf "$tmp"; return 1; }
   done <<<"$urls"
   mkdir -p "$PREFIX"
+  # A half-finished install leaves trees npm cannot reify over (ENOTEMPTY).
+  rm -rf "${PREFIX}/lib/node_modules/@getpaseo" "${PREFIX}"/lib/node_modules/@getpaseo-* "${PREFIX}"/bin/paseo*
   npm install -g --prefix "$PREFIX" "${tmp}"/*.tgz >/dev/null || { log "install failed"; rm -rf "$tmp"; return 1; }
   node -p "require('${PREFIX}/lib/node_modules/@getpaseo/cli/package.json').version" > "${PREFIX}/PASEO_VERSION"
   rm -rf "$tmp"
@@ -49,7 +51,7 @@ configure() {
   has_cfg '.daemon.listen' || paseo daemon config set daemon.listen "${PASEO_DEFAULT_LISTEN:-0.0.0.0:6767}" \
     --home "$PASEO_HOME_DIR" --string >/dev/null
   has_cfg '.features.webUi.enabled' || paseo daemon config set features.webUi.enabled true \
-    --home "$PASEO_HOME_DIR" --string >/dev/null
+    --home "$PASEO_HOME_DIR" >/dev/null
   has_cfg '.log.level' || paseo daemon config set log.level info \
     --home "$PASEO_HOME_DIR" --string >/dev/null
   has_cfg '.log.format' || paseo daemon config set log.format json \

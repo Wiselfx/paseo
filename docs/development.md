@@ -542,6 +542,14 @@ patch every build the consumers use: Metro resolves the `react-native` field of 
 (`src/*.ts` for `react-native-svg`), while Node and Vitest resolve `main`/`module`
 (`lib/commonjs`, `lib/module`). Patching only `lib/` leaves the app bundle unfixed.
 
+### Temporary generated-codegen patch
+
+`scripts/patch-enriched-markdown-codegen.mjs` adds inline-code `fontScale` to the checked-in
+generated `Props.h` files for React Native Enriched Markdown. It is intentionally separate from
+`patches/*.patch` so it can be deleted as one unit. Postinstall checks it at startup, and
+`npm run check:patches` fails in CI when the installed package or the main patch already provides
+the field. When that happens, follow the removal steps in the script header.
+
 ## ACP provider catalog versions
 
 The in-app ACP provider catalog pins package-runner entries (`npx`, `npm exec`,

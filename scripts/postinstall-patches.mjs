@@ -2,6 +2,14 @@ import { copyFileSync, existsSync, mkdirSync, readdirSync, rmSync } from "node:f
 import { spawnSync } from "node:child_process";
 import { join, relative } from "node:path";
 
+import {
+  applyEnrichedMarkdownCodegenPatch,
+  checkEnrichedMarkdownCodegen,
+} from "./patch-enriched-markdown-codegen.mjs";
+
+// Check temporary patches before touching node_modules so an upstream fix is reported immediately.
+const codegenStatusAtStart = checkEnrichedMarkdownCodegen();
+
 // In CI we often install a single workspace (e.g. server/relay/website). Only apply patches
 // when the patched dependency is actually present.
 // `cwd` is where patch-package must run from. Packages that npm does not hoist to the
@@ -107,6 +115,12 @@ for (const [index, { nodeModulesPath, patchPrefix, cwd = "." }] of installedPack
       "Run npm install again to reinstall it with the current patch. " +
       "If it fails again on the clean package, the patch is out of date and must be regenerated.",
   );
+}
+
+if (!failed) {
+  applyEnrichedMarkdownCodegenPatch({
+    warn: codegenStatusAtStart === "redundant" ? () => {} : console.warn,
+  });
 }
 
 process.exit(failed ? 1 : 0);

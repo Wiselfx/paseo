@@ -47,6 +47,7 @@
     "test:e2e:composer-keyboard:android": "./packages/app/e2e/mobile/composer-keyboard/android.sh",
     "dev:website": "npm run dev --workspace=@getpaseo/website",
     "postinstall": "node scripts/postinstall-patches.mjs",
+    "check:patches": "node scripts/patch-enriched-markdown-codegen.mjs --check",
     "prepare": "lefthook install --force",
     "build": "npm run build --workspaces --if-present",
     "build:apk": "node scripts/build-apk.mjs",

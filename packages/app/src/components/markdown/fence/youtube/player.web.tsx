@@ -67,6 +67,10 @@ export function YouTubePlayerScreen({ videoId }: { videoId: string }) {
       src={embedUrl}
       title={`YouTube video ${videoId}`}
       style={iframeStyle}
+      // The daemon serves the app with `no-referrer` so hotlink-gated chat images
+      // can load. YouTube answers an embed with no referrer with error 153, so
+      // this one navigation overrides the document and sends its origin.
+      referrerPolicy="strict-origin-when-cross-origin"
       allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
       allowFullScreen
     />

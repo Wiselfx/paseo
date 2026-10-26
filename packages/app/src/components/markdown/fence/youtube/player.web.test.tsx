@@ -71,6 +71,8 @@ describe("YouTubeInlinePlayer web", () => {
     expect(iframe?.getAttribute("src")).toBe(
       "https://www.youtube-nocookie.com/embed/4q6UGCyHZCI?rel=0",
     );
+    // The document policy is no-referrer for chat images; the embed overrides it.
+    expect(iframe?.getAttribute("referrerpolicy")).toBe("strict-origin-when-cross-origin");
     expect(el.textContent).toContain("youtube.com · 4q6UGCyHZCI");
   });
 });

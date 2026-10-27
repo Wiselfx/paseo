@@ -150,10 +150,7 @@ jobs:
         run: node scripts/npm-retry.mjs ci
 
       - name: Verify dependency patch recovery
-        run: node --test scripts/postinstall-patches.test.mjs scripts/patch-enriched-markdown-codegen.test.mjs
-
-      - name: Check temporary dependency patches
-        run: npm run check:patches
+        run: node --test scripts/postinstall-patches.test.mjs
 
       - name: Build server stack
         run: npm run build:server

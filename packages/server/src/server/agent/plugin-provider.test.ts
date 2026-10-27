@@ -310,7 +310,7 @@ describe("PluginAgentClientRegistry", () => {
     });
     const own = { nested: { replace: "agent" } };
     const agent = await manager.createAgent(
-      { provider: "plugin-direct", cwd: "/tmp", providerOptions: own },
+      { provider: "plugin-direct", cwd: tmpdir(), providerOptions: own },
       undefined,
       { workspaceId: undefined },
     );
@@ -1319,5 +1319,30 @@ test("plugin without a runtime safety capability uses baseline collection withou
     await registry.shutdown();
     await storage.flush();
     await rm(home, { recursive: true, force: true });
+  }
+});
+
+test("plugin provider import launches with runtime MCP servers and returns only saved configuration", async () => {
+  const harness = createProviderHarness();
+  const registry = new PluginAgentClientRegistry(createTestLogger());
+  registry.replace([harness.registration]);
+  const client = registry.clients()[harness.registration.id]!;
+  const storedConfig = { provider: harness.registration.id, cwd: "/project" };
+  const company = { type: "http", url: "https://tools.example.com/mcp" } as const;
+  try {
+    const imported = await client.importSession!(
+      { providerHandleId: 'plugin:{"version":1,"data":{"token":"root"}}', cwd: "/project" },
+      { config: { ...storedConfig, mcpServers: { company } }, storedConfig },
+    );
+    expect(harness.inputs).toContainEqual(
+      expect.objectContaining({
+        type: "session.open",
+        config: expect.objectContaining({ mcpServers: { company } }),
+      }),
+    );
+    expect(imported.config).toEqual(storedConfig);
+    await imported.session.close();
+  } finally {
+    await registry.shutdown();
   }
 });

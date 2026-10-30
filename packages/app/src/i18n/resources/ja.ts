@@ -2033,7 +2033,6 @@ export const ja: TranslationResources = {
   toolCallDetails: {
     error: "エラー",
     empty: "追加の詳細はありません",
-    subAgentActivity: "サブエージェントアクティビティ",
     input: "入力",
     output: "出力",
   },
@@ -2113,6 +2112,11 @@ export const ja: TranslationResources = {
     },
   },
   providerUsage: {
+    checkUsage: "使用状況を確認",
+    checkUsageHint: "すべてのデバイスで {{host}} に適用",
+    off: "{{host}} の使用状況確認はオフです。",
+    turnOn: "オンにする",
+
     options: "設定",
     refreshFailed: "使用状況を更新できません",
     noHosts: "接続中のホストがありません",

@@ -137,6 +137,10 @@ none` on tree rows, touch web only, coarse-pointer guard.
 - Image renders as a small tile: it sits inside a list item, or it is acquirable
   but mid-sentence and still pending — the pending placeholder takes a paragraph
   of its own, so the tile is the resolved image's size.
+- Chat image renders as alt text: the library's `web/renderers/BlockRenderers`
+  lost the patched `referrerPolicy="no-referrer"`, so a hotlink-gated host 307s
+  the probe or the `<img>`. YouTube error 153 is the opposite: a document-wide
+  `no-referrer` reached the embed, which is why the policy lives on images only.
 - Merge conflicts: files 2–6, and the fork calls left in `source.ts` and
   `renderer.tsx` (#3). New-file items (#18–20) cannot. `pi/agent.ts`
   `streamHistory` conflicts when upstream changes the replay path (#8523,

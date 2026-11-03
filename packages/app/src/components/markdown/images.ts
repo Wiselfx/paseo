@@ -1,4 +1,3 @@
-import { Image } from "react-native";
 import { isWeb } from "@/constants/platform";
 import { useMemo, useEffect, useId } from "react";
 import { useFetchQueries } from "@/data/query";
@@ -19,6 +18,7 @@ import type { AttachmentMetadata } from "@/attachments/types";
 import { resolveMarkdownPreviewImageSource } from "./image-source";
 import { prepareMarkdownSource } from "./source";
 import { decodeMarkdownImage, getMarkdownImageStatus } from "./image-decoding";
+import { getImageSize } from "./image-size";
 
 const urls = createAssistantImageAcquisitionCache<{ uri: string; attachment: AttachmentMetadata }>({
   capacity: 500,
@@ -127,7 +127,7 @@ export function useMarkdownSource(
       gcTime: 0,
       queryFn: () => {
         if (!uri) throw new Error("No image URL to decode");
-        return decodeMarkdownImage(uri, Image.getSize);
+        return decodeMarkdownImage(uri, getImageSize);
       },
     })),
   );

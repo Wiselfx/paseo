@@ -1422,11 +1422,32 @@ index 250fa18..ea79a10 100644
 @@ -1 +1 @@
 -{"version":3,"names":["parserPromise","initializeParser","then","module","default","wasmModule","cwrap","catch","error","isASTNode","value","type","parseMarkdown","markdown","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","parse","result","JSON","Error"],"sourceRoot":"../../../src","sources":["web/parseMarkdown.ts"],"mappings":";;AAeA;AACA;AACA,IAAIA,aAAsC,GAAG,IAAI;;AAEjD;AACA;AACA,SAASC,gBAAgBA,CAAA,EAAqB;EAC5C,IAAI,CAACD,aAAa,EAAE;IAClBA,aAAa,GAAG,MAAM,CAAC,aAAa,CAAC,CAClCE,IAAI,CAAEC,MAAM,IAAKA,MAAM,CAACC,OAAO,CAAC,CAAC,CAAC,CAClCF,IAAI,CAAEG,UAAU,IACfA,UAAU,CAACC,KAAK,CAAC,eAAe,EAAE,QAAQ,EAAE,CAC1C,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,CACT,CACH,CAAC,CACAC,KAAK,CAAEC,KAAK,IAAK;MAChBR,aAAa,GAAG,IAAI;MACpB,MAAMQ,KAAK;IACb,CAAC,CAAqB;EAC1B;EACA,OAAOR,aAAa;AACtB;AAEA,SAASS,SAASA,CAACC,KAAc,EAAoB;EACnD,OACE,OAAOA,KAAK,KAAK,QAAQ,IACzBA,KAAK,KAAK,IAAI,IACd,MAAM,IAAIA,KAAK,IACf,OAAQA,KAAK,CAAaC,IAAI,KAAK,QAAQ;AAE/C;AAEA,OAAO,eAAeC,aAAaA,CACjCC,QAAgB,EAChB;EACEC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,IAAI;EAChBC,WAAW,GAAG,KAAK;EACnBC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,KAAK;EACjBC,cAAc,GAAG,KAAK;EACtBC,kBAAkB,GAAG,KAAK;EAC1BC,WAAW,GAAG;AACL,CAAC,GAAG,CAAC,CAAC,EACC;EAClB,MAAMC,KAAK,GAAG,MAAMrB,gBAAgB,CAAC,CAAC;EAEtC,MAAMsB,MAAe,GAAGC,IAAI,CAACF,KAAK,CAChCA,KAAK,CACHT,QAAQ,EACRC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,WAAW,GAAG,CAAC,GAAG,CAAC,EACnBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,cAAc,GAAG,CAAC,GAAG,CAAC,EACtBC,kBAAkB,GAAG,CAAC,GAAG,CAAC,EAC1BC,WAAW,GAAG,CAAC,GAAG,CACpB,CACF,CAAC;EAED,IAAI,CAACZ,SAAS,CAACc,MAAM,CAAC,EAAE;IACtB,MAAM,IAAIE,KAAK,CAAC,kCAAkC,CAAC;EACrD;EAEA,OAAOF,MAAM;AACf","ignoreList":[]}
 +{"version":3,"names":["readyParser","parserPromise","initializeParser","then","module","default","wasmModule","cwrap","parse","catch","error","isASTNode","value","type","parseMarkdownSync","markdown","underline","latexMath","superscript","subscript","highlight","hardSoftBreaks","preserveBlankLines","admonitions","result","JSON","Error","parseMarkdown","flags"],"sourceRoot":"../../../src","sources":["web/parseMarkdown.ts"],"mappings":";;AAeA;AACA;AACA,IAAIA,WAA2B,GAAG,IAAI;AACtC,IAAIC,aAAsC,GAAG,IAAI;;AAEjD;AACA;AACA,SAASC,gBAAgBA,CAAA,EAAqB;EAC5C,IAAI,CAACD,aAAa,EAAE;IAClBA,aAAa,GAAG,MAAM,CAAC,aAAa,CAAC,CAClCE,IAAI,CAAEC,MAAM,IAAKA,MAAM,CAACC,OAAO,CAAC,CAAC,CAAC,CAClCF,IAAI,CAAEG,UAAU,IACfA,UAAU,CAACC,KAAK,CAAC,eAAe,EAAE,QAAQ,EAAE,CAC1C,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,EACR,QAAQ,CACT,CACH,CAAC,CACAJ,IAAI,CAAEK,KAAK,IAAK;MACfR,WAAW,GAAGQ,KAAgB;MAC9B,OAAOA,KAAK;IACd,CAAC,CAAC,CACDC,KAAK,CAAEC,KAAK,IAAK;MAChBT,aAAa,GAAG,IAAI;MACpB,MAAMS,KAAK;IACb,CAAC,CAAqB;EAC1B;EACA,OAAOT,aAAa;AACtB;AAEA,SAASU,SAASA,CAACC,KAAc,EAAoB;EACnD,OACE,OAAOA,KAAK,KAAK,QAAQ,IACzBA,KAAK,KAAK,IAAI,IACd,MAAM,IAAIA,KAAK,IACf,OAAQA,KAAK,CAAaC,IAAI,KAAK,QAAQ;AAE/C;AAEA,OAAO,SAASC,iBAAiBA,CAC/BC,QAAgB,EAChB;EACEC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,IAAI;EAChBC,WAAW,GAAG,KAAK;EACnBC,SAAS,GAAG,KAAK;EACjBC,SAAS,GAAG,KAAK;EACjBC,cAAc,GAAG,KAAK;EACtBC,kBAAkB,GAAG,KAAK;EAC1BC,WAAW,GAAG;AACL,CAAC,GAAG,CAAC,CAAC,EACD;EAChB,MAAMf,KAAK,GAAGR,WAAW;EACzB,IAAI,CAACQ,KAAK,EAAE,OAAO,IAAI;EAEvB,MAAMgB,MAAe,GAAGC,IAAI,CAACjB,KAAK,CAChCA,KAAK,CACHO,QAAQ,EACRC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,WAAW,GAAG,CAAC,GAAG,CAAC,EACnBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,SAAS,GAAG,CAAC,GAAG,CAAC,EACjBC,cAAc,GAAG,CAAC,GAAG,CAAC,EACtBC,kBAAkB,GAAG,CAAC,GAAG,CAAC,EAC1BC,WAAW,GAAG,CAAC,GAAG,CACpB,CACF,CAAC;EAED,IAAI,CAACZ,SAAS,CAACa,MAAM,CAAC,EAAE;IACtB,MAAM,IAAIE,KAAK,CAAC,kCAAkC,CAAC;EACrD;EAEA,OAAOF,MAAM;AACf;AAEA,OAAO,eAAeG,aAAaA,CACjCZ,QAAgB,EAChBa,KAAgB,GAAG,CAAC,CAAC,EACH;EAClB,MAAM1B,gBAAgB,CAAC,CAAC;EACxB,OAAOY,iBAAiB,CAACC,QAAQ,EAAEa,KAAK,CAAC;AAC3C","ignoreList":[]}
+diff --git a/node_modules/react-native-enriched-markdown/src/web/renderers/BlockRenderers.tsx b/node_modules/react-native-enriched-markdown/src/web/renderers/BlockRenderers.tsx
+--- a/node_modules/react-native-enriched-markdown/src/web/renderers/BlockRenderers.tsx
++++ b/node_modules/react-native-enriched-markdown/src/web/renderers/BlockRenderers.tsx
+@@ -179,7 +179,9 @@
+     parentType !== 'TableCell' &&
+     parentType !== 'TableHeaderCell';
+   if (!interactive) {
+-    return <img src={url} alt={alt} title={title} style={imgStyle} />;
++    return (
++      <img src={url} alt={alt} title={title} style={imgStyle} referrerPolicy="no-referrer" />
++    );
+   }
+ 
+   const press = () => callbacks.onImagePress?.({ url, altText: markdownAlt });
+@@ -197,6 +199,7 @@
+       alt={alt}
+       title={title}
+       style={imgStyle}
++      referrerPolicy="no-referrer"
+       role="button"
+       tabIndex={0}
+       aria-label={alt}
 diff --git a/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js b/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js
-index dd70713..ca0385a 100644
 --- a/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js
 +++ b/node_modules/react-native-enriched-markdown/lib/module/web/renderers/BlockRenderers.js
-@@ -101,12 +101,28 @@ function AdmonitionRenderer({
+@@ -101,12 +101,28 @@
    });
  }
  function CodeBlockRenderer({
@@ -1455,7 +1476,19 @@ index dd70713..ca0385a 100644
    const label = language ? `Code block: ${language}` : 'Code block';
    if (callbacks.onCodeBlockPress == null) {
      return /*#__PURE__*/_jsx("pre", {
-@@ -214,7 +230,10 @@ function ImageRenderer({
+@@ -193,6 +209,7 @@
+   const interactive = callbacks.onImagePress != null && parentType !== 'Link' && parentType !== 'TableCell' && parentType !== 'TableHeaderCell';
+   if (!interactive) {
+     return /*#__PURE__*/_jsx("img", {
++    referrerPolicy: "no-referrer",
+       src: url,
+       alt: alt,
+       title: title,
+@@ -211,10 +228,14 @@
+     }
+   };
+   return /*#__PURE__*/_jsx("img", {
++    referrerPolicy: "no-referrer",
      src: url,
      alt: alt,
      title: title,

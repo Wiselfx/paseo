@@ -90,6 +90,7 @@ import {
   createFakeCodexAppServer,
   fakeCodexThreadHistory,
   type FakeCodexAppServer,
+  waitForNextEvent,
   waitForNextPermission,
   waitForNextTimelineItem,
   waitForProviderSubagent,
@@ -225,6 +226,57 @@ function deferred<T>() {
   });
   return { promise, resolve };
 }
+
+describe("Codex file-change approvals", () => {
+  test("file-change approval includes the matching patch when notifications are still queued", async () => {
+    const appServer = createFakeCodexAppServer();
+    const { session } = await startPublicSteeringSession(appServer);
+    try {
+      for (const [id, filePath, diff] of [
+        ["file-alpha", "/workspace/project/alpha.txt", "@@ -1 +1 @@\n-blue\n+green\n"],
+        ["file-beta", "/workspace/project/beta.txt", "@@ -1 +1 @@\n-small\n+large\n"],
+      ]) {
+        appServer.startsFileChange({
+          threadId: "thread-1",
+          turnId: "native-A",
+          callId: id,
+          path: filePath,
+          diff,
+        });
+      }
+      const permission = waitForNextPermission(session);
+      appServer.requestFileChangeApproval({
+        itemId: "file-alpha",
+        threadId: "thread-1",
+        turnId: "native-A",
+        reason: "Apply the patch",
+      });
+
+      expect((await permission).request).toEqual({
+        id: "permission-file-alpha",
+        provider: "codex",
+        name: "CodexFileChange",
+        kind: "tool",
+        title: "Apply file changes: alpha.txt",
+        description: "Apply the patch",
+        detail: {
+          type: "edit",
+          filePath: "alpha.txt",
+          unifiedDiff: "@@ -1 +1 @@\n-blue\n+green\n",
+        },
+        metadata: { itemId: "file-alpha", threadId: "thread-1", turnId: "native-A" },
+      });
+
+      await session.respondToPermission("permission-file-alpha", { behavior: "allow" });
+      await expect(appServer.waitForApprovalDecision("file-alpha")).resolves.toEqual({
+        decision: "accept",
+      });
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
+  });
+});
 
 describe("Codex active-turn steering admission", () => {
   test("steers an accepted turn whose native id arrives after startTurn returns", async () => {
@@ -1287,6 +1339,9 @@ describe("Codex app-server provider", () => {
     );
     await firstSession.startTurn("first turn");
     await expect(beforeRestart.waitForTurnStart()).resolves.toMatchObject({ effort: "medium" });
+    const saved = waitForNextEvent(firstSession, "thread_started");
+    beforeRestart.startsTurn({ threadId: "thread-1" });
+    await saved;
     const handle = firstSession.describePersistence()!;
     await firstSession.close();
 
@@ -1319,8 +1374,60 @@ describe("Codex app-server provider", () => {
     try {
       await session.startTurn("persist the configured session");
       await appServer.waitForTurnStart();
+      const saved = waitForNextEvent(session, "thread_started");
+      appServer.startsTurn({ threadId: "thread-1" });
+      await saved;
       const handle = session.describePersistence()!;
       expect(handle.metadata).not.toHaveProperty("providerOptions");
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
+  });
+
+  test("reports a new thread only after Codex announces its first turn", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = await createProviderWithFakeAppServer(appServer).createSession(createConfig());
+    try {
+      // Codex has started the thread but writes its rollout at the first turn, so another
+      // app-server could not resume it yet.
+      await expect(session.getRuntimeInfo()).resolves.toMatchObject({ sessionId: null });
+      expect(session.describePersistence()).toBeNull();
+      expect(
+        appServer.requests().filter((request) => request.method === "thread/start"),
+      ).toHaveLength(1);
+
+      await session.startTurn("first prompt");
+      await appServer.waitForTurnStart();
+      expect(session.describePersistence()).toBeNull();
+
+      const saved = waitForNextEvent(session, "thread_started");
+      appServer.startsTurn({ threadId: "thread-1" });
+      await expect(saved).resolves.toMatchObject({
+        type: "thread_started",
+        provider: "codex",
+        sessionId: "thread-1",
+      });
+      expect(session.describePersistence()).toMatchObject({
+        sessionId: "thread-1",
+        nativeHandle: "thread-1",
+      });
+      await expect(session.getRuntimeInfo()).resolves.toMatchObject({ sessionId: "thread-1" });
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
+  });
+
+  test("reports a resumed thread before its next turn", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = await createProviderWithFakeAppServer(appServer).resumeSession(
+      { provider: "codex", sessionId: "saved-thread" },
+      createConfig(),
+    );
+    try {
+      expect(session.describePersistence()).toMatchObject({ sessionId: "saved-thread" });
+      await expect(session.getRuntimeInfo()).resolves.toMatchObject({ sessionId: "saved-thread" });
       appServer.assertNoErrors();
     } finally {
       await session.close();
@@ -2604,7 +2711,12 @@ describe("Codex app-server provider", () => {
         clientMessageId: "client-message",
       },
     });
-    expect(events.slice(0, 2).map((event) => event.type)).toEqual(["turn_started", "timeline"]);
+    // The first turn of a new thread also reports the thread, now that Codex has saved it.
+    expect(events.slice(0, 3).map((event) => event.type)).toEqual([
+      "thread_started",
+      "turn_started",
+      "timeline",
+    ]);
     appServer.completeTurn();
     await new Promise<void>((resolve) => setImmediate(resolve));
     await new Promise<void>((resolve) => setImmediate(resolve));
@@ -2623,9 +2735,9 @@ describe("Codex app-server provider", () => {
       OPENAI_BASE_URL: "https://custom-relay.example.com",
     });
     expect(capturedThreadStartConfig(capturedRequests)).toEqual({
-      model_provider: "codex-iisb",
+      model_provider: "paseo:codex-iisb",
       model_providers: {
-        "codex-iisb": {
+        "paseo:codex-iisb": {
           name: "Custom Codex",
           base_url: "https://custom-relay.example.com/v1",
           env_key: "OPENAI_API_KEY",
@@ -2643,10 +2755,25 @@ describe("Codex app-server provider", () => {
     );
 
     expect(capturedThreadStartConfig(capturedRequests)).toEqual({
-      model_provider: "codex-custom",
+      model_provider: "paseo:codex-custom",
       model_providers: {
-        "codex-custom": expect.objectContaining({
+        "paseo:codex-custom": expect.objectContaining({
           base_url: "https://custom-relay.example.com/v1",
+        }),
+      },
+    });
+  });
+
+  test("namespaces provider ids that collide with Codex built-ins", async () => {
+    // `ollama` is a reserved Codex provider id: without namespacing, Codex rejects
+    // the generated config outright and the agent never starts.
+    const capturedRequests = await runCustomCodexProviderTurn("ollama", "https://ollama.com");
+
+    expect(capturedThreadStartConfig(capturedRequests)).toEqual({
+      model_provider: "paseo:ollama",
+      model_providers: {
+        "paseo:ollama": expect.objectContaining({
+          base_url: "https://ollama.com/v1",
         }),
       },
     });
@@ -3308,6 +3435,87 @@ describe("Codex app-server provider", () => {
       expect(item.detail.newString).toBeUndefined();
     }
   });
+
+  test.each([
+    ["patch_apply_begin", undefined, "running", null],
+    ["patch_apply_end", true, "completed", null],
+    ["patch_apply_end", false, "failed", { message: "Cannot apply patch" }],
+  ] as const)(
+    "maps both files from legacy %s notifications (success: %s)",
+    async (type, success, status, error) => {
+      const appServer = createFakeCodexAppServer();
+      const session = new CodexAppServerAgentSession(
+        createConfig({ cwd: "/tmp/repo" }),
+        null,
+        createTestLogger(),
+        async () => appServer.child,
+      );
+      try {
+        await session.connect();
+        const nextTimelineItem = waitForNextTimelineItem(session);
+        appServer.child.stdout.write(
+          `${JSON.stringify({
+            method: `codex/event/${type}`,
+            params: {
+              conversationId: "thread-1",
+              msg: {
+                type,
+                call_id: "patch-array-alias",
+                changes: [
+                  {
+                    path: "/tmp/repo/src/array-alias.ts",
+                    kind: "modify",
+                    unified_diff: "@@\n-old\n+new\n",
+                  },
+                  {
+                    path: "/tmp/repo/src/second.ts",
+                    kind: "modify",
+                    unified_diff: "@@\n-before\n+after\n",
+                  },
+                ],
+                success,
+                stderr: "Cannot apply patch",
+              },
+            },
+          })}\n`,
+        );
+
+        await expect(nextTimelineItem).resolves.toEqual({
+          type: "timeline",
+          provider: "codex",
+          item: {
+            type: "tool_call",
+            callId: "patch-array-alias",
+            name: "apply_patch",
+            status,
+            error,
+            detail: {
+              type: "edit",
+              filePath: "src/array-alias.ts",
+              unifiedDiff: [
+                "diff --git a/src/array-alias.ts b/src/array-alias.ts",
+                "--- a/src/array-alias.ts",
+                "+++ b/src/array-alias.ts",
+                "@@",
+                "-old",
+                "+new",
+                "",
+                "diff --git a/src/second.ts b/src/second.ts",
+                "--- a/src/second.ts",
+                "+++ b/src/second.ts",
+                "@@",
+                "-before",
+                "+after",
+              ].join("\n"),
+            },
+          },
+        });
+        appServer.assertNoErrors();
+      } finally {
+        await session.close();
+      }
+    },
+  );
 
   test("maps Codex plan markdown to a synthetic plan tool call", () => {
     const item = mapCodexPlanToToolCall({
@@ -7348,9 +7556,21 @@ describe("Codex importable sessions", () => {
   const threadsByModelProvider = [
     { id: "stock-thread", cwd: "/workspace/project-a", modelProvider: "openai", updatedAt: 2 },
     { id: "custom-thread", cwd: "/workspace/project-a", modelProvider: "my-codex", updatedAt: 1 },
+    {
+      id: "new-custom-thread",
+      cwd: "/workspace/project-a",
+      modelProvider: "paseo:my-codex",
+      updatedAt: 3,
+    },
+    {
+      id: "other-custom-thread",
+      cwd: "/workspace/project-a",
+      modelProvider: "paseo-my-codex",
+      updatedAt: 4,
+    },
   ];
 
-  test("a custom Codex provider lists the threads it created", async () => {
+  test("a custom Codex provider lists its old and namespaced threads without other providers", async () => {
     const appServer = createFakeCodexAppServer({
       "thread/list": providerFilteringThreadListHandler(threadsByModelProvider),
     });
@@ -7363,9 +7583,39 @@ describe("Codex importable sessions", () => {
 
     const sessions = await provider.listImportableSessions({ cwd: "/workspace/project-a" });
 
-    expect(sessions.map((session) => session.providerHandleId)).toEqual(["custom-thread"]);
+    expect(sessions.map((session) => session.providerHandleId)).toEqual([
+      "custom-thread",
+      "new-custom-thread",
+    ]);
     appServer.assertNoErrors();
   });
+
+  test.each(["openai", "ollama", "lmstudio", "amazon-bedrock", "amazon-bedrock-runtime", "gcp"])(
+    "a custom provider named %s excludes native built-in sessions",
+    async (providerId) => {
+      const appServer = createFakeCodexAppServer({
+        "thread/list": providerFilteringThreadListHandler([
+          { id: "native-thread", cwd: "/workspace/project-a", modelProvider: providerId },
+          {
+            id: "custom-thread",
+            cwd: "/workspace/project-a",
+            modelProvider: `paseo:${providerId}`,
+          },
+        ]),
+      });
+      const provider = createProviderWithFakeAppServer(appServer, {
+        runtimeSettings: {
+          env: { OPENAI_BASE_URL: "https://llm.example.test/v1", OPENAI_API_KEY: "test-key" },
+        },
+        customProvider: { id: providerId, label: "Custom Codex", extends: "codex" },
+      });
+
+      const sessions = await provider.listImportableSessions({ cwd: "/workspace/project-a" });
+
+      expect(sessions.map((session) => session.providerHandleId)).toEqual(["custom-thread"]);
+      appServer.assertNoErrors();
+    },
+  );
 
   test("stock Codex keeps listing only its own threads", async () => {
     const appServer = createFakeCodexAppServer({
@@ -7709,4 +7959,94 @@ test("publishes a materialized image before dispatching the following turn compl
   } finally {
     await session.close();
   }
+});
+
+describe("legacy multi-file diff budget", () => {
+  test.each([true, false])(
+    "retains later file diffs when a large patch is running: %s",
+    (running) => {
+      const item = mapCodexPatchNotificationToToolCall({
+        callId: "large-legacy-patch",
+        cwd: "/repo",
+        running,
+        success: true,
+        changes: [
+          {
+            path: "/repo/alpha.txt",
+            kind: "modify",
+            unified_diff: "@@ -1 +1 @@\n-old\n+" + "a".repeat(14000),
+          },
+          { path: "/repo/beta.txt", kind: "modify", unified_diff: "@@ -1 +1 @@\n-small\n+large\n" },
+        ],
+      });
+      expect(item?.detail.type).toBe("edit");
+      if (item?.detail.type !== "edit") throw new Error("Expected edit detail");
+      expect(item.detail.unifiedDiff).toContain("diff --git a/beta.txt b/beta.txt");
+      expect(item.detail.unifiedDiff).toContain("+large");
+      expect(item.detail.unifiedDiff!.length).toBeLessThanOrEqual(12000);
+    },
+  );
+});
+
+describe("legacy multi-file move metadata", () => {
+  test.each([true, false])("preserves path-keyed moves while running: %s", (running) => {
+    const item = mapCodexPatchNotificationToToolCall({
+      callId: "legacy-move",
+      cwd: "/repo",
+      running,
+      success: true,
+      changes: {
+        "/repo/old.txt": {
+          type: "update",
+          move_path: "/repo/new.txt",
+          unified_diff: "@@ -1 +1 @@\n-old\n+new\n",
+        },
+        "/repo/other.txt": { type: "update", unified_diff: "@@ -1 +1 @@\n-before\n+after\n" },
+      },
+    });
+    if (item?.detail.type !== "edit") throw new Error("Expected edit");
+    expect(item.detail.unifiedDiff).toContain("diff --git a/old.txt b/new.txt");
+    expect(item.detail.unifiedDiff).toContain("+++ b/new.txt");
+  });
+});
+
+describe("legacy move-only entries", () => {
+  test.each([true, false])(
+    "keeps a move-only file alongside another edit while running: %s",
+    (running) => {
+      const item = mapCodexPatchNotificationToToolCall({
+        callId: "legacy-move-only",
+        cwd: "/repo",
+        running,
+        success: true,
+        changes: {
+          "/repo/old.txt": { type: "update", move_path: "/repo/new.txt", unified_diff: "" },
+          "/repo/second.txt": { type: "update", unified_diff: "@@ -1 +1 @@\n-small\n+large\n" },
+        },
+      });
+      if (item?.detail.type !== "edit") throw new Error("Expected edit");
+      expect(item.detail.unifiedDiff).toContain("rename from old.txt\nrename to new.txt");
+      expect(item.detail.unifiedDiff).toContain("diff --git a/second.txt b/second.txt");
+    },
+  );
+});
+
+describe("legacy empty additions", () => {
+  test.each([true, false])("keeps an empty new file while running: %s", (running) => {
+    const item = mapCodexPatchNotificationToToolCall({
+      callId: "legacy-empty",
+      cwd: "/repo",
+      running,
+      success: true,
+      changes: {
+        "/repo/empty.txt": { type: "add", content: "" },
+        "/repo/second.txt": { type: "update", unified_diff: "@@ -1 +1 @@\n-old\n+new\n" },
+      },
+    });
+    if (item?.detail.type !== "edit") throw new Error("Expected edit");
+    expect(item.detail.unifiedDiff).toContain(
+      "diff --git a/empty.txt b/empty.txt\n--- /dev/null\n+++ b/empty.txt",
+    );
+    expect(item.detail.unifiedDiff).toContain("diff --git a/second.txt b/second.txt");
+  });
 });

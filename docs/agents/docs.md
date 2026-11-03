@@ -103,7 +103,9 @@ none` on tree rows, touch web only, coarse-pointer guard.
     alt text — unavailable, or an SVG on native — stays where it was, since it
     occupies no box. Upstream's `docs/markdown-renderer.md` still describes its
     own inline rule. Upstream's engine fork (`#7240`) moves this rule into C++
-    and deletes the call.
+    and deletes the call. Upstream #8530 keeps shared-line badges inline on web
+    (its `inlineImageStyle` patch) and tests that in `renderer.test.ts`; the fork
+    still gives them a paragraph, and that file asserts the fork's answer.
 19. `packages/app/src/components/markdown/hosted-segments.ts`
     (`hosted-segments.test.ts`). The one stage table that decides which fence
     kinds the app hosts outside the library — mermaid native-only, then YouTube,
@@ -136,7 +138,10 @@ none` on tree rows, touch web only, coarse-pointer guard.
   but mid-sentence and still pending — the pending placeholder takes a paragraph
   of its own, so the tile is the resolved image's size.
 - Merge conflicts: files 2–6, and the fork calls left in `source.ts` and
-  `renderer.tsx` (#3). New-file items (#18–20) cannot.
+  `renderer.tsx` (#3). New-file items (#18–20) cannot. `pi/agent.ts`
+  `streamHistory` conflicts when upstream changes the replay path (#8523,
+  #8554): keep `getHistory()`'s `messages`/`userEntries` and replay the cache
+  figures over `history.messages`.
 
 ## Needs
 

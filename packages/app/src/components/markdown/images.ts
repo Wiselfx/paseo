@@ -38,10 +38,13 @@ export interface MarkdownImageContext {
   filePath?: string;
 }
 
-export function useMarkdownSource(text: string, context: MarkdownImageContext) {
+export function useMarkdownSource(
+  text: string,
+  context: MarkdownImageContext,
+  links: { commandNames?: ReadonlySet<string>; forgeReferencePattern?: string } = {},
+) {
   const occurrenceKey = useId();
-  // Fork media: raw <svg> blocks hoist to data-URI images before mdast prep
-  // so they ride the stock image pipeline. Unclosed svg and code stay text.
+  const { commandNames, forgeReferencePattern } = links;
   // Fork media: raw <svg> hoists to data-URI images, bare remote image
   // URLs become image markdown, bare local paths become images or file
   // links — all before mdast prep so they ride stock pipelines.
@@ -52,9 +55,11 @@ export function useMarkdownSource(text: string, context: MarkdownImageContext) {
         context.workspaceRoot,
         {
           supportsSvg: isWeb,
+          commandNames,
+          forgeReferencePattern,
         },
       ),
-    [text, context.workspaceRoot],
+    [text, context.workspaceRoot, commandNames, forgeReferencePattern],
   );
   const sources = [...new Set(prepared.images.map((image) => image.source))];
   const acquisitions = sources.map((source) => {

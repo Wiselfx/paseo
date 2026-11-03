@@ -2,7 +2,7 @@ import { mapCustomMessageToToolCall } from "../custom-message.js";
 import { randomUUID } from "node:crypto";
 import { existsSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { homedir, tmpdir } from "node:os";
-import { join, resolve as resolvePath } from "node:path";
+import { basename, join, resolve as resolvePath } from "node:path";
 import type { Logger } from "pino";
 import stripAnsi from "strip-ansi";
 import { z } from "zod";
@@ -23,6 +23,7 @@ import {
   type AgentPersistenceHandle,
   type AgentPromptInput,
   type AgentProvider,
+  type AgentResumeSessionOptions,
   type AgentRunOptions,
   type AgentRunResult,
   type AgentRuntimeInfo,
@@ -76,8 +77,13 @@ import {
   piExtensionRuntimeBridge,
   type PiExtensionEventOutput,
 } from "./extensions/index.js";
+import { resolveResumeProcessCwd } from "../resume-process-cwd.js";
 import { revertPiConversation } from "./rewind.js";
-import { listPiImportableSessions, readPiImportSessionConfig } from "./session-descriptor.js";
+import {
+  copyPiSessionFileWithCwd,
+  listPiImportableSessions,
+  readPiImportSessionConfig,
+} from "./session-descriptor.js";
 import type { PiRuntime, PiRuntimeSession, PiStartSessionInput } from "./runtime.js";
 import type {
   PiAgentSessionEvent,
@@ -247,7 +253,9 @@ interface PiRpcAgentSessionOptions {
   initialState: PiSessionState;
   capabilities: AgentCapabilityFlags;
   currentModeId?: string | null;
+  persistedSessionFile?: string;
   cleanup?: () => void;
+  closeAfterHistory?: boolean;
   extensionTimeoutMs?: number;
   logger: Logger;
   usagePollScheduler?: PiUsagePollScheduler;
@@ -494,13 +502,14 @@ function buildResumeConfig(
 
 function buildResumeStartInput(input: {
   resumeConfig: PiResumeConfig;
+  processCwd: string;
   sessionFile: string;
   launchContext: AgentLaunchContext | undefined;
   mcpConfigFile: PiTempFile | null;
   paseoExtension: PiTempFile | null;
 }): PiStartSessionInput {
   return {
-    cwd: input.resumeConfig.cwd,
+    cwd: input.processCwd,
     env: input.launchContext?.env,
     session: input.sessionFile,
     thinkingOptionId: normalizePiThinkingOption(input.resumeConfig.thinkingOptionId) ?? undefined,
@@ -620,6 +629,19 @@ function createPiMcpConfigFile(
   };
 }
 
+async function createPiSessionCopy(sessionFile: string, cwd: string): Promise<PiTempFile> {
+  const dir = mkdtempSync(join(tmpdir(), "paseo-pi-session-"));
+  const cleanup = () => rmSync(dir, { recursive: true, force: true });
+  const filePath = join(dir, basename(sessionFile));
+  try {
+    await copyPiSessionFileWithCwd({ sourceFile: sessionFile, targetFile: filePath, cwd });
+  } catch (error) {
+    cleanup();
+    throw error;
+  }
+  return { path: filePath, cleanup };
+}
+
 function createPiPaseoExtensionFile({
   systemPrompt,
   mcpServers = {},
@@ -668,8 +690,6 @@ function createPiPaseoExtensionFile({
 	        requestId,
 	        // Rewind targets: rows can still show entries that a rewind or compaction left off the branch.
 	        treeEntries: toCapturedUserEntries(ctx.sessionManager.getEntries()),
-	        // The entries getMessages() replays, so the nth one is the nth replayed user message.
-	        contextEntries: toCapturedUserEntries(ctx.sessionManager.buildContextEntries()),
 	      }),
 	    "info",
 	  );
@@ -1217,7 +1237,6 @@ export class PiRpcAgentSession implements AgentSession {
   private readonly pendingPromptResults = new Map<string, boolean>();
   private readonly pendingSteerSubmissions: PiPendingSteerSubmission[] = [];
   currentLeafOverrideId: string | null | undefined;
-  private readonly contextUserEntries: PiCapturedEntry[] = [];
   private readonly treeUserEntriesById = new Map<string, PiCapturedEntry>();
   private readonly pendingExtensionResults = new Map<string, PendingExtensionResult>();
   private compactionPromise: Promise<void> | null = null;
@@ -1258,7 +1277,9 @@ export class PiRpcAgentSession implements AgentSession {
     this.capabilities = options.capabilities;
     this.provider = PI_PROVIDER;
     this.currentModeId = options.currentModeId ?? null;
+    this.persistedSessionFile = options.persistedSessionFile;
     this.cleanup = options.cleanup;
+    this.closeAfterHistory = options.closeAfterHistory ?? false;
     this.extensionTimeoutMs = options.extensionTimeoutMs ?? DEFAULT_PI_EXTENSION_RESULT_TIMEOUT_MS;
     this.logger = options.logger;
     this.extensionHost = createPiExtensionHost(this.logger);
@@ -1289,7 +1310,9 @@ export class PiRpcAgentSession implements AgentSession {
 
   private readonly runtimeSession: PiRuntimeSession;
   private readonly config: AgentSessionConfig;
+  private readonly persistedSessionFile?: string;
   private readonly cleanup?: () => void;
+  private readonly closeAfterHistory: boolean;
   private readonly extensionTimeoutMs: number;
 
   get id(): string | null {
@@ -1458,21 +1481,25 @@ export class PiRpcAgentSession implements AgentSession {
   }
 
   async *streamHistory(): AsyncGenerator<AgentStreamEvent> {
-    await this.requestEntryCapture("history");
-    const messages = await this.runtimeSession.getMessages();
-    // Fork: seed the cache figures from the transcript being replayed, so a
-    // resumed session shows the same numbers and keeps the same warnings.
-    this.cacheStats.reset();
-    const cacheNotices = this.cacheStats.observeAll(messages);
-    yield* streamPiHistory(
-      this.provider,
-      messages,
-      this.contextUserEntries,
-      { mapAssistantNotice: (message) => cacheNotices.get(message) },
-      // At most eight 2 MiB child files per replay; later cards retain their summaries.
-      createPiExtensionHost(this.logger, undefined, 16 * 1024 * 1024),
-      this.closeController.signal,
-    );
+    try {
+      await this.requestEntryCapture("history");
+      const history = await this.runtimeSession.getHistory();
+      // Fork: seed the cache figures from the transcript being replayed, so a
+      // resumed session shows the same numbers and keeps the same warnings.
+      this.cacheStats.reset();
+      const cacheNotices = this.cacheStats.observeAll(history.messages);
+      yield* streamPiHistory(
+        this.provider,
+        history.messages,
+        history.userEntries,
+        { mapAssistantNotice: (message) => cacheNotices.get(message) },
+        // At most eight 2 MiB child files per replay; later cards retain their summaries.
+        createPiExtensionHost(this.logger, undefined, 16 * 1024 * 1024),
+        this.closeController.signal,
+      );
+    } finally {
+      if (this.closeAfterHistory) await this.close();
+    }
   }
 
   async getRuntimeInfo(): Promise<AgentRuntimeInfo> {
@@ -1528,7 +1555,7 @@ export class PiRpcAgentSession implements AgentSession {
     return {
       provider: this.provider,
       sessionId: this.state.sessionId,
-      nativeHandle: this.state.sessionFile,
+      nativeHandle: this.persistedSessionFile ?? this.state.sessionFile,
       metadata: {
         cwd: this.config.cwd,
         ...(this.config.model ? { model: this.config.model } : {}),
@@ -2019,13 +2046,9 @@ export class PiRpcAgentSession implements AgentSession {
     }
   }
 
-  private recordCapturedUserEntries(input: {
-    treeEntries: PiCapturedEntry[];
-    contextEntries: PiCapturedEntry[];
-  }): void {
-    this.contextUserEntries.splice(0, this.contextUserEntries.length, ...input.contextEntries);
+  private recordCapturedUserEntries(entries: PiCapturedEntry[]): void {
     this.treeUserEntriesById.clear();
-    for (const entry of input.treeEntries) {
+    for (const entry of entries) {
       this.treeUserEntriesById.set(entry.id, entry);
     }
   }
@@ -2062,10 +2085,7 @@ export class PiRpcAgentSession implements AgentSession {
     if (!payload) {
       return false;
     }
-    this.recordCapturedUserEntries({
-      treeEntries: parseCapturedEntries(payload.treeEntries),
-      contextEntries: parseCapturedEntries(payload.contextEntries),
-    });
+    this.recordCapturedUserEntries(parseCapturedEntries(payload.treeEntries));
     if (typeof payload.requestId === "string") {
       this.resolveExtensionResult(payload.requestId, undefined);
     }
@@ -2722,6 +2742,7 @@ export class PiRpcAgentClient implements AgentClient {
     handle: AgentPersistenceHandle,
     overrides?: Partial<AgentSessionConfig>,
     launchContext?: AgentLaunchContext,
+    options?: AgentResumeSessionOptions,
   ): Promise<AgentSession> {
     const sessionFile = handle.nativeHandle;
     if (!sessionFile) {
@@ -2730,6 +2751,7 @@ export class PiRpcAgentClient implements AgentClient {
 
     const persistenceMetadata = parsePersistenceMetadata(handle.metadata);
     const resumeConfig = buildResumeConfig(persistenceMetadata, overrides, this.provider);
+    const processCwd = await resolveResumeProcessCwd(resumeConfig.cwd, options?.purpose);
 
     const providerOptions = PiProviderOptionsSchema.parse(
       resumeConfig.config.providerOptions ?? {},
@@ -2740,7 +2762,7 @@ export class PiRpcAgentClient implements AgentClient {
       ...launchContext?.env,
     };
     const mcp = await this.prepareMcpInjection(
-      resumeConfig.cwd,
+      processCwd,
       resumeConfig.config.mcpServers,
       mcpEnv,
       runtime,
@@ -2753,20 +2775,29 @@ export class PiRpcAgentClient implements AgentClient {
       ),
       mcpServers: mcp?.kind === "builtin" ? mcp.servers : undefined,
     });
+    const tempFiles = mcpConfigFile ? [mcpConfigFile, paseoExtension] : [paseoExtension];
+    const cleanupTempFiles = () => {
+      for (const tempFile of tempFiles) tempFile.cleanup();
+    };
+    let sessionCopy: PiTempFile | null = null;
     let runtimeSession: PiRuntimeSession;
     try {
+      if (processCwd !== resumeConfig.cwd) {
+        sessionCopy = await createPiSessionCopy(sessionFile, processCwd);
+        tempFiles.push(sessionCopy);
+      }
       runtimeSession = await runtime.startSession(
         buildResumeStartInput({
           resumeConfig,
-          sessionFile,
+          processCwd,
+          sessionFile: sessionCopy?.path ?? sessionFile,
           launchContext,
           mcpConfigFile,
           paseoExtension,
         }),
       );
     } catch (error) {
-      mcpConfigFile?.cleanup();
-      paseoExtension?.cleanup();
+      cleanupTempFiles();
       throw error;
     }
     try {
@@ -2779,15 +2810,16 @@ export class PiRpcAgentClient implements AgentClient {
         },
         initialState,
         capabilities: capabilitiesForSession(mcp !== null),
-        cleanup: combineCleanup([mcpConfigFile?.cleanup, paseoExtension?.cleanup]),
+        persistedSessionFile: sessionCopy ? sessionFile : undefined,
+        cleanup: cleanupTempFiles,
+        closeAfterHistory: options?.purpose === "history",
         extensionTimeoutMs: providerOptions.extensionTimeoutMs,
         logger: this.logger,
         usagePollScheduler: this.usagePollScheduler,
       });
     } catch (error) {
       await runtimeSession.close().catch(() => undefined);
-      mcpConfigFile?.cleanup();
-      paseoExtension?.cleanup();
+      cleanupTempFiles();
       throw error;
     }
   }

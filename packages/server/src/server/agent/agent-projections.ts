@@ -108,6 +108,7 @@ export function toStoredAgentRecord(
       ? agent.attention.attentionTimestamp.toISOString()
       : null,
     internal: options?.internal,
+    ...(agent.background ? { background: true } : {}),
     owner: agent.owner,
   } satisfies StoredAgentRecord;
 }
@@ -151,7 +152,7 @@ export function toAgentPayload(
     title: options?.title ?? null,
     labels: agent.labels,
     archivedAt: options?.archivedAt ?? null,
-    ...(agent.internal ? { internal: true } : {}),
+    ...visibilityFlags(agent),
   };
 
   const usage = sanitizeUsage(agent.lastUsage);
@@ -208,6 +209,17 @@ function buildStoredPersistenceHandle(
   return toAgentPersistenceHandle(validProviders, record.persistence);
 }
 
+/** The wire carries `internal` and `background` only when set. */
+function visibilityFlags(agent: {
+  internal?: boolean;
+  background?: boolean;
+}): Pick<AgentSnapshotPayload, "internal" | "background"> {
+  return {
+    ...(agent.internal ? { internal: true } : {}),
+    ...(agent.background ? { background: true } : {}),
+  };
+}
+
 export function buildStoredAgentPayload(
   record: StoredAgentRecord,
   validProviders: Iterable<AgentProvider>,
@@ -260,7 +272,7 @@ export function buildStoredAgentPayload(
     attentionReason: record.attentionReason ?? null,
     attentionTimestamp: record.attentionTimestamp ?? null,
     archivedAt: record.archivedAt ?? null,
-    ...(record.internal ? { internal: true } : {}),
+    ...visibilityFlags(record),
     labels: normalizeLabels(record.labels),
     ...(typeof record.lastError === "string" ? { lastError: record.lastError } : {}),
     ...(providerAvailable ? {} : { providerUnavailable: true }),

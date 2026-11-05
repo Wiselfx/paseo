@@ -2287,8 +2287,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
     gap: theme.spacing[3],
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius["2xl"],
+    // Fork (imessage): the send bar is a rounded field, not an outlined box.
+    borderColor: "transparent",
+    borderRadius: 20,
     paddingTop: {
       xs: theme.spacing[2],
       md: theme.spacing[4],

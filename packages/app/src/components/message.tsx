@@ -10,6 +10,7 @@ import {
   AttachmentThumbnail,
 } from "@/components/attachment-pill";
 import { MarkdownRenderer } from "@/components/markdown/renderer";
+import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -313,16 +314,19 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     marginBottom: theme.spacing[4],
   },
   bubble: {
-    backgroundColor: theme.colors.surface3,
-    borderRadius: theme.borderRadius["2xl"],
-    borderTopRightRadius: theme.borderRadius.sm,
-    paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[4],
+    // Fork (imessage): blue is identity, not theme — "this message is yours".
+    // The literal is the reference; do not repoint it at the app palette.
+    backgroundColor: theme.colorScheme === "dark" ? "#0A84FF" : "#007AFF",
+    borderRadius: 18,
+    borderBottomRightRadius: 6,
+    paddingHorizontal: 12,
+    paddingVertical: 8,
     minWidth: 0,
     flexShrink: 1,
+    maxWidth: "78%",
   },
   text: {
-    color: theme.colors.foreground,
+    color: "#FFFFFF",
     fontSize: theme.fontSize.content,
     ...(isWeb
       ? {
@@ -1164,7 +1168,11 @@ export const AssistantMessage = memo(function AssistantMessage({
     [message, renderFullContent],
   );
   const revealedText = useRevealedText(renderedMessage.text, phase);
-  const revealedMessage = renderFullContent ? renderedMessage.text : revealedText;
+  // Fork (imessage): the reveal is bypassed rather than removed. `useRevealedText`
+  // still owns the frame clock contract, but nothing renders from it — the fork
+  // shows only finished blocks, so a half-written paragraph can never appear.
+  void revealedText;
+  const revealedMessage = renderedMessage.text;
   const fullMessageByteLength = useMemo(
     () => (renderedMessage.capped && phase === "complete" ? getUtf8ByteLength(message) : null),
     [message, phase, renderedMessage.capped],
@@ -1202,10 +1210,10 @@ export const AssistantMessage = memo(function AssistantMessage({
       style={assistantContainerStyle}
       onLayout={measureMessage}
     >
-      <MarkdownRenderer
+      <ImessageAssistantBody
         text={revealedMessage}
+        phase={phase}
         agentCommands
-        streaming={phase !== "complete" || revealedMessage.length < renderedMessage.text.length}
         client={client}
         workspaceRoot={workspaceRoot}
         serverId={serverId}

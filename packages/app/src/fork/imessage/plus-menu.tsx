@@ -75,14 +75,16 @@ interface RowProps {
   onPress: (item: PlusMenuItem) => void;
   color: string;
   disabledColor: string;
+  disc: string;
 }
 
-const PlusRow = memo(function PlusRow({ item, onPress, color, disabledColor }: RowProps) {
+const PlusRow = memo(function PlusRow({ item, onPress, color, disabledColor, disc }: RowProps) {
   const handlePress = useCallback(() => onPress(item), [item, onPress]);
   const labelStyle = useMemo(
     () => [styles.label, { color: item.disabled ? disabledColor : color }],
     [item.disabled, disabledColor, color],
   );
+  const discStyle = useMemo(() => [{ backgroundColor: disc }], [disc]);
   return (
     <PressHighlight
       onPress={handlePress}
@@ -94,7 +96,7 @@ const PlusRow = memo(function PlusRow({ item, onPress, color, disabledColor }: R
       testID={`plus-menu-item-${item.id}`}
     >
       <View style={styles.iconWrap}>
-        <View style={styles.iconDisc}>{item.icon}</View>
+        <View style={[styles.iconDisc, discStyle]}>{item.icon}</View>
       </View>
       <Text style={labelStyle} numberOfLines={1}>
         {item.label}
@@ -107,6 +109,9 @@ function rowTheme(theme: Theme) {
   return {
     color: theme.colorScheme === "light" ? "#000000" : "#F4F3F4",
     disabledColor: theme.colorScheme === "light" ? "#BDBDBD" : "#5D5D5D",
+    // The measured rows are Apple app icons on their own discs; Paseo's rows are actions, so
+    // they get the system fill rather than a colour Apple never used here.
+    disc: theme.colorScheme === "light" ? "rgba(120,120,128,0.12)" : "rgba(120,120,128,0.24)",
   };
 }
 

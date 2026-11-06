@@ -53,6 +53,8 @@ import type { ComposerAttachment } from "@/attachments/types";
 import type { ImageAttachment, MessagePayload, TextReplacement } from "@/composer/types";
 import { focusWithRetries } from "@/utils/web-focus";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import { GlassSurface } from "@/fork/imessage/glass";
+import { sendSenses } from "@/fork/imessage/senses";
 import { PlusMenu } from "@/fork/imessage/plus-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Shortcut } from "@/components/ui/shortcut";
@@ -263,8 +265,15 @@ function AttachButtonIcon({
   buttonIconSize: number;
 }) {
   const colorMapping = hovered ? iconForegroundMapping : iconForegroundMutedMapping;
+  // Measured on the iOS 26 composer: the `+` is a Ø40 glass circle centred (48, 826) whose
+  // glyph ink is 15.33 square at a 1.66 stroke. The button box stays a 44pt hit target.
   return (
     <View ref={onAttachButtonRef} collapsable={false} style={styles.attachButtonAnchor}>
+      <GlassSurface
+        radius={COMPOSER_PLUS_SIZE / 2}
+        cast="nav-round"
+        style={styles.attachGlass}
+      />
       <ThemedPlus size={buttonIconSize} uniProps={colorMapping} />
     </View>
   );
@@ -1061,6 +1070,9 @@ function sendMessageImpl(ctx: SendMessageContext): void {
     return;
   }
   ctx.exitFullscreen();
+  // Fork (imessage): the send is a physical event. The whoosh is the POP sample and the haptic
+  // is the medium impact Messages' send lands with; both are rationed in `senses.ts`.
+  sendSenses();
   ctx.onSubmit({
     text: trimmed,
     attachments: ctx.attachments,
@@ -2477,6 +2489,12 @@ const styles = StyleSheet.create((theme: Theme) => ({
   attachHighlight: {
     backgroundColor: "transparent",
   },
+  attachGlass: {
+    position: "absolute",
+    width: COMPOSER_PLUS_SIZE,
+    height: COMPOSER_PLUS_SIZE,
+    borderRadius: COMPOSER_PLUS_SIZE / 2,
+  },
   attachButtonAnchor: {
     width: TOOLBAR_CONTROL_HEIGHT,
     height: TOOLBAR_CONTROL_HEIGHT,
@@ -2545,6 +2563,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
 })) as unknown as Record<string, object>;
 
 const ThemedPlus = withUnistyles(Plus);
+const COMPOSER_PLUS_SIZE = 40;
+
 const ThemedMic = withUnistyles(Mic);
 const ThemedMicOff = withUnistyles(MicOff);
 const ThemedArrowUp = withUnistyles(ArrowUp);

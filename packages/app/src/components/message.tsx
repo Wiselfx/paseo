@@ -12,6 +12,7 @@ import {
 import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
 import { ChatBubble } from "@/fork/imessage/bubble";
 import { bubblePalette } from "@/fork/imessage/palette";
+import { PhotoBubble } from "@/fork/imessage/photo-bubble";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -389,6 +390,42 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
 
 const MESSAGE_TEXT_DATASET = { messageText: "true" };
 
+/** A photo bubble has no text inset: the image runs to the balloon's edge. */
+const ZERO_PADDING = { x: 0, y: 0 } as const;
+
+interface UserMessageImagesProps {
+  photoOnly: boolean;
+  images: UserMessageImageAttachment[];
+  containerStyle: React.ComponentProps<typeof View>["style"];
+  onOpen: (image: UserMessageImageAttachment) => void;
+  accessibilityLabel: string;
+}
+
+/** One photo fills the bubble; two or more stay in Paseo's thumbnail row. */
+const UserMessageImages = memo(function UserMessageImages({
+  photoOnly,
+  images,
+  containerStyle,
+  onOpen,
+  accessibilityLabel,
+}: UserMessageImagesProps) {
+  if (photoOnly) {
+    return <PhotoBubble image={images[0]!} accessibilityLabel={accessibilityLabel} />;
+  }
+  return (
+    <View style={containerStyle}>
+      {images.map((image) => (
+        <UserMessageImagePill
+          key={image.id}
+          image={image}
+          onOpen={onOpen}
+          accessibilityLabel={accessibilityLabel}
+        />
+      ))}
+    </View>
+  );
+});
+
 export const UserMessage = memo(function UserMessage({
   sender,
   serverId,
@@ -418,6 +455,8 @@ export const UserMessage = memo(function UserMessage({
   const hasText = message.trim().length > 0;
   const hasImages = images.length > 0;
   const hasAttachments = attachments.length > 0;
+  // One photo and nothing else: the image fills the balloon (`photo-bubble.tsx`).
+  const isPhotoOnly = hasImages && images.length === 1 && !hasText && !hasAttachments;
   const showTrailingRow = !isPending && hasText && (isCompact || isNative || isHovered);
   const formattedTimestamp = useMemo(
     () => formatMessageTimestamp(new Date(timestamp)),
@@ -493,19 +532,17 @@ export const UserMessage = memo(function UserMessage({
           tail={isLastInGroup}
           reactionKey={messageId ? `user:${messageId}` : undefined}
           onAction={hasText ? handleBubbleAction : undefined}
+          contentPadding={isPhotoOnly ? ZERO_PADDING : undefined}
         >
           <MessagePreview>
             {hasImages ? (
-              <View style={imagePreviewContainerStyle}>
-                {images.map((image) => (
-                  <UserMessageImagePill
-                    key={image.id}
-                    image={image}
-                    onOpen={setLightboxMetadata}
-                    accessibilityLabel={t("composer.attachments.openImage")}
-                  />
-                ))}
-              </View>
+              <UserMessageImages
+                photoOnly={isPhotoOnly}
+                images={images}
+                containerStyle={imagePreviewContainerStyle}
+                onOpen={setLightboxMetadata}
+                accessibilityLabel={t("composer.attachments.openImage")}
+              />
             ) : null}
             {hasAttachments ? (
               <View style={attachmentPreviewContainerStyle}>

@@ -22,12 +22,16 @@ import {
 import { copyToClipboard } from "@/utils/copy-to-clipboard";
 
 import { ChatBubble } from "./bubble";
+import { LinkPreview, isBareLink } from "./link-preview";
 import { Popping, TypingBubble } from "./typing-bubble";
 import { usePoppedBlocks } from "./use-popped-blocks";
 
 /** Measured on iOS Messages: bubbles inside one run, and the gap to a new run. */
 const GAP_IN_GROUP = 4.3333;
 const GAP_BETWEEN_GROUPS = 10.2;
+
+/** The link card already carries its own measured padding. */
+const BARE_LINK_PADDING = { x: 0, y: 0 } as const;
 
 /** Everything the markdown engine needs, minus the text itself. */
 type MarkdownContextProps = Omit<MarkdownRendererProps, "text" | "streaming" | "selectable">;
@@ -72,6 +76,9 @@ const BlockBubble = memo(function BlockBubble({
     [copy, onSelectRequest, onAction],
   );
 
+  // A block that is nothing but a URL is a link card in Messages, not a text bubble.
+  const bare = !selectable && isBareLink(text);
+
   return (
     <Popping origin="left">
       <ChatBubble
@@ -79,8 +86,13 @@ const BlockBubble = memo(function BlockBubble({
         tail={tail}
         reactionKey={reactionKey}
         onAction={handleAction}
+        contentPadding={bare ? BARE_LINK_PADDING : undefined}
       >
-        <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} />
+        {bare ? (
+          <LinkPreview url={text.trim()} />
+        ) : (
+          <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} />
+        )}
       </ChatBubble>
     </Popping>
   );

@@ -13,7 +13,7 @@
  * growing out of the tail corner), which is what lets the compositor run it
  * without touching layout.
  */
-import { useEffect, useRef } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { View } from "react-native";
 import Animated, {
   useAnimatedStyle,
@@ -25,8 +25,9 @@ import Animated, {
 } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 
-import { tickSenses } from "./senses";
 import { ChatBubble } from "./bubble";
+import { tickSenses, touchSenses } from "./senses";
+import { toggleWorkVisible } from "./work";
 import { bubblePalette } from "./palette";
 
 /** Measured: `transcriptTypingIndicatorLargeBubbleSize` and its dot metrics. */
@@ -100,11 +101,17 @@ export interface TypingBubbleProps {
 
 export function TypingBubble({ ticking = true }: TypingBubbleProps) {
   useTypingTicks(ticking);
+  // Tapping the balloon is the one deliberate way to see the work: the transcript hides
+  // reasoning and tool rows while it is up (`agent-stream/view.tsx`).
+  const toggleWork = useCallback(() => {
+    touchSenses();
+    toggleWorkVisible();
+  }, []);
 
   return (
     <View style={styles.row}>
       <Popping origin="left">
-        <ChatBubble side="agent" interactive={false} contentPadding={BALLOON_PADDING}>
+        <ChatBubble side="agent" onPress={toggleWork} contentPadding={BALLOON_PADDING}>
           <View style={styles.dots}>
             {DOT_KEYS.map((key, index) => (
               <Dot key={key} index={index} />

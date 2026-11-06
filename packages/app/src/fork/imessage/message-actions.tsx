@@ -58,6 +58,7 @@ import { GlassSurface } from "./glass";
 import { contextMenuPanel } from "./menu";
 import { bubblePalette, withAlpha } from "./palette";
 import { TapbackBar, tapbackBarMetrics, type TapbackSelection } from "./tapback-bar";
+import { TapbackDetails } from "./tapback-details";
 import type { BubbleSide } from "./bubble";
 
 export interface Rect {
@@ -387,6 +388,8 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
           pickerSide={layout.pickerSide}
         />
       </Animated.View>
+
+      {selected ? <TapbackDetails selection={selected} /> : null}
 
       <Animated.View style={[styles.menu, { left: layout.menuLeft, top: layout.menuTop }, panelStyle]}>
         <ThemedGlass style={StyleSheet.absoluteFill} uniProps={menuGlass} />

@@ -69,6 +69,9 @@ import {
 import { ToolCallSheetProvider } from "@/components/tool-call-sheet";
 import { createStreamPresentation } from "./presentation";
 import { OverviewToolCallGroupView } from "@/tool-calls/detail-level/overview/view";
+import { useWorkVisible } from "@/fork/imessage/work";
+import { DateSeparator, dayKey, formatClockTime } from "@/fork/imessage/date-separator";
+import { SwipeTimesRow } from "@/fork/imessage/swipe-times";
 import { IndentRail } from "@/components/indent-rail";
 import { TurnSummaryLine } from "./turn-collapse/summary-line";
 import { type AgentStreamRenderModel, buildAgentStreamRenderModel } from "./model";
@@ -709,6 +712,9 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     });
 
     const setToolCallGroupExpanded = toolCallExpansion.setGroupExpanded;
+    // Fork (imessage): reasoning and tool rows are hidden behind the typing balloon until
+    // asked for. Failures never hide — see `toolCallNeedsAttention`.
+    const workVisible = useWorkVisible();
 
     const renderUserMessageItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "user_message" }>) => {
@@ -943,9 +949,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             return renderAssistantMessageItem(layoutItem, item);
 
           case "thought":
-            return renderToolCallItem(layoutItem, item);
+            return workVisible ? renderToolCallItem(layoutItem, item) : null;
 
           case "tool_call":
+            if (!workVisible && !toolCallNeedsAttention(item)) return null;
             return (
               <>
                 {renderToolCallItem(layoutItem, item)}
@@ -990,16 +997,56 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         getCollapsedTurn,
         setTurnExpanded,
         resolvedServerId,
+        workVisible,
       ],
     );
 
     const bottomTurnFooterHost = streamLayout.auxiliaryTurnFooter;
 
+    /**
+     * Fork (imessage): which messages open a new day, and which one opens the conversation.
+     *
+     * Computed from the whole stream rather than tracked as rows render, because the list
+     * virtualises: a row can mount in any order, and a "previous row" ref would put the header
+     * on whichever message happened to scroll into view first.
+     */
+    const dayHeaders = useMemo(() => {
+      const starts = new Map<string, "first" | "mid">();
+      let lastDay: string | null = null;
+      for (const layoutItem of [...streamLayout.history, ...streamLayout.liveHead]) {
+        const item = layoutItem.item;
+        if (item.kind !== "user_message" && item.kind !== "assistant_message") continue;
+        const day = dayKey(item.timestamp);
+        if (day === lastDay) continue;
+        starts.set(item.id, lastDay === null ? "first" : "mid");
+        lastDay = day;
+      }
+      return starts;
+    }, [streamLayout.history, streamLayout.liveHead]);
+
     const renderStreamItem = useCallback<RenderStreamItem>(
       (item, layoutItem) => {
         const content = renderStreamItemContent(item, layoutItem);
+        const dayVariant = dayHeaders.get(item.id);
+        const withDay = dayVariant ? (
+          <>
+            <DateSeparator
+              date={item.timestamp}
+              variant={dayVariant}
+              service={dayVariant === "first" ? "iMessage" : undefined}
+            />
+            {content}
+          </>
+        ) : (
+          content
+        );
+        // Every row rides the transcript drawer; a drag anywhere moves the column, which is
+        // how the native drawer behaves (`swipe-times.tsx`).
+        const withSwipe = (
+          <SwipeTimesRow time={formatClockTime(item.timestamp)}>{withDay}</SwipeTimesRow>
+        );
         return renderStreamItemWithTurnFooter({
-          content,
+          content: withSwipe,
           layoutItem,
           turnIndent: getTurnIndent(layoutItem),
           strategy: streamRenderStrategy,
@@ -1008,6 +1055,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         });
       },
       [
+        dayHeaders,
         getTurnIndent,
         handleForkAssistantTurn,
         readOnly,
@@ -1881,6 +1929,18 @@ const permissionStyles = StyleSheet.create((theme) => ({
     color: theme.colors.foreground,
   },
 }));
+
+/**
+ * Fork (imessage): a tool row that needs a person is never hidden behind the typing balloon.
+ *
+ * The vision is explicit — failures, approvals and questions self-expand, because hiding the one
+ * row that is asking for a decision would be a bug wearing a design system.
+ */
+function toolCallNeedsAttention(item: Extract<StreamItem, { kind: "tool_call" }>): boolean {
+  const { data } = item.payload;
+  if ("error" in data && data.error) return true;
+  return "status" in data && data.status === "failed";
+}
 
 interface StreamItemWrapperProps {
   gapBelow: number;

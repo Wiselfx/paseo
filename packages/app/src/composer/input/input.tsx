@@ -52,6 +52,8 @@ import {
 import type { ComposerAttachment } from "@/attachments/types";
 import type { ImageAttachment, MessagePayload, TextReplacement } from "@/composer/types";
 import { focusWithRetries } from "@/utils/web-focus";
+import { PressHighlight } from "@/components/ui/press-highlight";
+import { PlusMenu } from "@/fork/imessage/plus-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { Shortcut } from "@/components/ui/shortcut";
 import {
@@ -304,7 +306,19 @@ function AttachmentDropdown({
   addAttachmentLabel: string;
 }) {
   const isButtonDisabled = !isConnected || disabled;
+  const isCompact = useIsCompactFormFactor();
   if (!visible) return null;
+  if (isCompact) {
+    return (
+      <CompactAttachButton
+        disabled={isButtonDisabled}
+        style={styles.attachButton}
+        renderIcon={renderAttachButtonIcon}
+        label={addAttachmentLabel}
+        items={attachmentMenuItems}
+      />
+    );
+  }
   return (
     <DropdownMenu compactMode="sheet">
       <Tooltip delayDuration={0} enabledOnDesktop enabledOnMobile={false}>
@@ -334,6 +348,61 @@ function AttachmentDropdown({
         <AttachmentMenuList items={attachmentMenuItems} />
       </DropdownMenuContent>
     </DropdownMenu>
+  );
+}
+
+/**
+ * Fork (imessage): the `+` opens the measured send sheet on phones, not a dropdown.
+ *
+ * The rows are Paseo's own attachment actions wearing Messages' chrome — the sheet does not
+ * invent Camera, Stickers, Apple Cash or Check In, because none of them exist here. What is
+ * ported is the thing that makes it read as iOS: the 322.67 × 460.67 glass sheet with its
+ * 66.5pt rows, the 24pt labels, and no dim behind it.
+ */
+function CompactAttachButton({
+  disabled,
+  style,
+  renderIcon,
+  label,
+  items,
+}: {
+  disabled: boolean;
+  style: React.ComponentProps<typeof PressHighlight>["style"];
+  renderIcon: (input: { hovered?: boolean }) => React.ReactElement;
+  label: string;
+  items: AttachmentMenuItem[];
+}) {
+  const [open, setOpen] = useState(false);
+  const a11yState = useMemo(() => ({ disabled, expanded: open }), [disabled, open]);
+  const openMenu = useCallback(() => setOpen(true), []);
+  const closeMenu = useCallback(() => setOpen(false), []);
+  const rows = useMemo(
+    () =>
+      items.map((item) => ({
+        id: item.id,
+        label: item.label,
+        icon: item.icon,
+        disabled: item.disabled,
+        onSelect: item.onSelect,
+      })),
+    [items],
+  );
+  return (
+    <>
+      <PressHighlight
+        onPress={openMenu}
+        disabled={disabled}
+        accessibilityLabel={label}
+        accessibilityRole="button"
+        accessibilityState={a11yState}
+        highlightStyle={styles.attachHighlight}
+        testID="message-input-attach-button"
+        style={style}
+      >
+        {renderIcon}
+      </PressHighlight>
+      <PlusMenu items={rows} open={open} onClose={closeMenu} />
+    </>
   );
 }
 
@@ -2404,6 +2473,9 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
+  },
+  attachHighlight: {
+    backgroundColor: "transparent",
   },
   attachButtonAnchor: {
     width: TOOLBAR_CONTROL_HEIGHT,

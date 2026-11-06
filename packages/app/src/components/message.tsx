@@ -11,6 +11,7 @@ import {
 } from "@/components/attachment-pill";
 import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
 import { ChatBubble } from "@/fork/imessage/bubble";
+import { bubblePalette } from "@/fork/imessage/palette";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -358,9 +359,14 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   trailingRowVisible: {
     opacity: 1,
   },
+  // Fork (imessage): the measured status label — 11pt semibold, -0.25 tracking, secondary ink.
+  // It is the same slot Messages puts "Delivered" in, so the timestamp reads as status, not chrome.
   timestampText: {
-    color: theme.colors.foregroundMuted,
-    fontSize: STREAM_METADATA_FONT_SIZE,
+    color: bubblePalette("user", theme.colorScheme).muted,
+    fontSize: 11,
+    lineHeight: 13,
+    fontWeight: "600",
+    letterSpacing: -0.25,
   },
 }));
 

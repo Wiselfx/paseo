@@ -22,6 +22,7 @@ import {
 import { copyToClipboard } from "@/utils/copy-to-clipboard";
 
 import { ChatBubble } from "./bubble";
+import { IOS_MESSAGE_MENU } from "./menu";
 import { LinkPreview, isBareLink } from "./link-preview";
 import { Popping, TypingBubble } from "./typing-bubble";
 import { usePoppedBlocks } from "./use-popped-blocks";
@@ -32,6 +33,9 @@ const GAP_BETWEEN_GROUPS = 10.2;
 
 /** The link card already carries its own measured padding. */
 const BARE_LINK_PADDING = { x: 0, y: 0 } as const;
+
+/** Copy and Select are the two rows Paseo can actually perform on a text bubble. */
+const TEXT_MENU = IOS_MESSAGE_MENU.filter((item) => "id" in item && (item.id === "copy" || item.id === "select"));
 
 /** Everything the markdown engine needs, minus the text itself. */
 type MarkdownContextProps = Omit<MarkdownRendererProps, "text" | "streaming" | "selectable">;
@@ -86,6 +90,7 @@ const BlockBubble = memo(function BlockBubble({
         tail={tail}
         reactionKey={reactionKey}
         onAction={handleAction}
+        menuItems={TEXT_MENU}
         contentPadding={bare ? BARE_LINK_PADDING : undefined}
       >
         {bare ? (

@@ -55,7 +55,7 @@ import type { Theme } from "@/styles/theme";
 import { PressHighlight } from "@/components/ui/press-highlight";
 
 import { GlassSurface } from "./glass";
-import { contextMenuPanel } from "./menu";
+import { IOS_MESSAGE_MENU, contextMenuPanel, type ContextMenuItem } from "./menu";
 import { bubblePalette, withAlpha } from "./palette";
 import { TapbackBar, tapbackBarMetrics, type TapbackSelection } from "./tapback-bar";
 import { TapbackDetails } from "./tapback-details";
@@ -117,6 +117,8 @@ export interface MessageActionsRequest {
   /** Bubble fill, so the menu's glass picks the colour up. */
   wash: string;
   selected?: TapbackSelection;
+  /** Rows for this message. Defaults to Copy: Paseo has no Translate, and a dead row is worse. */
+  items?: ContextMenuItem[];
   onSelect?: (selection: TapbackSelection) => void;
   onAction?: (id: string) => void;
   onPickEmoji?: () => void;
@@ -155,6 +157,7 @@ interface Layout {
 }
 
 const MENU_WIDTH = 250;
+const DEFAULT_MENU: ContextMenuItem[] = [IOS_MESSAGE_MENU[0]!];
 const WASH_STOPS = [0, 0.45] as const;
 const WASH_START = { x: 0.5, y: 0 } as const;
 const WASH_END = { x: 0.5, y: 1 } as const;
@@ -268,15 +271,7 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
   const { rect, side, tail, bubble, wash, selected, onSelect, onAction, onPickEmoji } = request;
   const outgoing = side === "user";
 
-  const menuItems = useMemo(
-    () => [
-      { id: "copy", label: "Copy", icon: "copy" as const },
-      { id: "translate", label: "Translate", icon: "translate" as const },
-      { id: "select", label: "Select", icon: "select" as const },
-      { id: "more", label: "More…", icon: "more" as const },
-    ],
-    [],
-  );
+  const menuItems = request.items ?? DEFAULT_MENU;
   const menuHeight = 2 * 10 + 42 * menuItems.length;
 
   const layout = useMemo(

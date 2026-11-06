@@ -38,6 +38,7 @@ import {
   type Rect,
   useOptionalMessageActions,
 } from "./message-actions";
+import type { ContextMenuItem } from "./menu";
 import { bubblePalette } from "./palette";
 import { setReaction, useReaction, type Reaction } from "./reactions";
 import { touchSenses } from "./senses";
@@ -182,6 +183,8 @@ export interface ChatBubbleProps {
   onPress?: () => void;
   /** Runs a menu row from the long-press overlay. */
   onAction?: (id: string) => void;
+  /** Rows the overlay offers for this bubble. Defaults to Copy. */
+  menuItems?: ContextMenuItem[];
   /**
    * Identifies this bubble in the reaction store. With a key, the bubble can take a
    * tapback and show it; without one it is inert in the overlay.
@@ -202,6 +205,7 @@ export const ChatBubble = memo(function ChatBubble({
   children,
   onPress,
   onAction,
+  menuItems,
   reactionKey,
   interactive = true,
   accessibilityLabel,
@@ -233,13 +237,14 @@ export const ChatBubble = memo(function ChatBubble({
         tail,
         bubble: lifted,
         wash: washing,
+        items: menuItems,
         selected: reactionToSelection(reaction),
         onSelect: (selection) => setReaction(reactionKey, selection),
         onAction,
       };
       actions.open(request);
     },
-    [actions, reactionKey, side, tail, padding, children, washing, reaction, onAction],
+    [actions, reactionKey, side, tail, padding, children, washing, reaction, onAction, menuItems],
   );
 
   const handleLongPress = useCallback(() => {

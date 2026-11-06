@@ -715,6 +715,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // Fork (imessage): reasoning and tool rows are hidden behind the typing balloon until
     // asked for. Failures never hide — see `toolCallNeedsAttention`.
     const workVisible = useWorkVisible();
+    // Only hide while the turn is actually working, and only on the phone-sized transcript.
+    // Once the turn settles the rows come back, so there is no state where they cannot be found:
+    // a permanently unreachable log is worse than a visible one.
+    const hideWork = isMobile && isTurnActive && !workVisible;
 
     const renderUserMessageItem = useCallback(
       (layoutItem: StreamLayoutItem, item: Extract<StreamItem, { kind: "user_message" }>) => {
@@ -949,10 +953,10 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             return renderAssistantMessageItem(layoutItem, item);
 
           case "thought":
-            return workVisible ? renderToolCallItem(layoutItem, item) : null;
+            return hideWork ? null : renderToolCallItem(layoutItem, item);
 
           case "tool_call":
-            if (!workVisible && !toolCallNeedsAttention(item)) return null;
+            if (hideWork && !toolCallNeedsAttention(item)) return null;
             return (
               <>
                 {renderToolCallItem(layoutItem, item)}
@@ -997,7 +1001,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
         getCollapsedTurn,
         setTurnExpanded,
         resolvedServerId,
-        workVisible,
+        hideWork,
       ],
     );
 

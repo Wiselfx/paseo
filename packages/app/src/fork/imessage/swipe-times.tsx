@@ -110,7 +110,7 @@ export const SwipeTimesRow = memo(function SwipeTimesRow({ time, children }: Swi
 
   return (
     <View style={styles.root}>
-      <Animated.View style={[styles.time, reveal]}>
+      <Animated.View pointerEvents="none" style={[styles.time, reveal]}>
         <ThemedTimeLabel label={time} uniProps={timeTheme} />
       </Animated.View>
       <GestureDetector gesture={pan}>

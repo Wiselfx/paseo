@@ -482,6 +482,12 @@ const styles = StyleSheet.create((theme) => ({
     borderColor: theme.colors.borderAccent,
     borderRadius: theme.borderRadius.lg,
     overflow: "hidden",
-    ...theme.shadow.md,
+    // Fork (imessage): `shadow.md` is 4% over 16pt, which reads as a flat card. Every menu in
+    // the app now casts the measured long-press shadow instead — 9.8% over 35pt, offset 7 —
+    // with the same half-point specular rim the glass controls carry.
+    boxShadow:
+      theme.colorScheme === "light"
+        ? "0 7px 35px rgba(0,0,0,0.14), inset 0 0 0 0.5px rgba(255,255,255,0.45)"
+        : "0 10px 40px rgba(0,0,0,0.55), inset 0 0 0 1px rgba(255,255,255,0.08)",
   },
 }));

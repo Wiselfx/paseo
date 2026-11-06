@@ -10,6 +10,8 @@ import {
   AttachmentThumbnail,
 } from "@/components/attachment-pill";
 import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
+import type { TFunction } from "i18next";
+
 import { ChatBubble } from "@/fork/imessage/bubble";
 import { bubblePalette } from "@/fork/imessage/palette";
 import { PhotoBubble } from "@/fork/imessage/photo-bubble";
@@ -53,7 +55,7 @@ import {
   TriangleAlertIcon,
   XCircle,
 } from "lucide-react-native";
-import type { ComponentType, ReactNode } from "react";
+import type { ComponentType, ReactElement, ReactNode } from "react";
 import * as React from "react";
 import {
   createContext,
@@ -393,6 +395,147 @@ const MESSAGE_TEXT_DATASET = { messageText: "true" };
 /** A photo bubble has no text inset: the image runs to the balloon's edge. */
 const ZERO_PADDING = { x: 0, y: 0 } as const;
 
+interface UserMessagePhotoRunProps {
+  images: UserMessageImageAttachment[];
+  isLastInGroup: boolean;
+  messageId: string | undefined;
+  accessibilityLabel: string;
+  onOpen: (image: UserMessageImageAttachment) => void;
+}
+
+/**
+ * Fork (imessage): a run of photos, one balloon each.
+ *
+ * The reference kit draws a paging stack with a "+N Items" card for several photos on one
+ * message, then records that iOS 26's own send path never produces one: attaching N photos and
+ * tapping Send once yields N *separate* messages, each a single-photo balloon. That observation
+ * is the parity target, so a message with several photos here renders as a run of photo
+ * balloons of one cluster — 4.3333 apart, only the last one tailed.
+ */
+const UserMessagePhotoRun = memo(function UserMessagePhotoRun({
+  images,
+  isLastInGroup,
+  messageId,
+  accessibilityLabel,
+  onOpen,
+}: UserMessagePhotoRunProps) {
+  return (
+    <View style={photoRunStyles.run}>
+      {images.map((image, index) => (
+        <PhotoRunItem
+          key={image.id}
+          image={image}
+          tail={isLastInGroup && index === images.length - 1}
+          reactionKey={index === 0 && messageId ? `user:${messageId}` : undefined}
+          accessibilityLabel={accessibilityLabel}
+          onOpen={onOpen}
+        />
+      ))}
+    </View>
+  );
+});
+
+function PhotoRunItem({
+  image,
+  tail,
+  reactionKey,
+  accessibilityLabel,
+  onOpen,
+}: {
+  image: UserMessageImageAttachment;
+  tail: boolean;
+  reactionKey: string | undefined;
+  accessibilityLabel: string;
+  onOpen: (image: UserMessageImageAttachment) => void;
+}) {
+  const handlePress = useCallback(() => onOpen(image), [image, onOpen]);
+  return (
+    <ChatBubble
+      side="user"
+      tail={tail}
+      contentPadding={ZERO_PADDING}
+      reactionKey={reactionKey}
+      onPress={handlePress}
+    >
+      <PhotoBubble image={image} accessibilityLabel={accessibilityLabel} />
+    </ChatBubble>
+  );
+}
+
+const photoRunStyles = StyleSheet.create({
+  run: {
+    flexDirection: "column",
+    alignItems: "flex-end",
+    gap: 4.3333,
+  },
+});
+
+interface UserMessagePreviewProps {
+  hasImages: boolean;
+  isPhotoOnly: boolean;
+  images: UserMessageImageAttachment[];
+  hasAttachments: boolean;
+  attachments: UserMessageAttachments;
+  hasText: boolean;
+  message: string;
+  imageContainerStyle: React.ComponentProps<typeof View>["style"];
+  attachmentContainerStyle: React.ComponentProps<typeof View>["style"];
+  onOpen: (image: UserMessageImageAttachment) => void;
+  imageLabel: string;
+  t: TFunction;
+}
+
+type UserMessageAttachments = UserMessageProps["attachments"];
+
+/** Everything inside the bubble: photos, file cards, then the text, in Messages' order. */
+const UserMessagePreview = memo(function UserMessagePreview({
+  hasImages,
+  isPhotoOnly,
+  images,
+  hasAttachments,
+  attachments,
+  hasText,
+  message,
+  imageContainerStyle,
+  attachmentContainerStyle,
+  onOpen,
+  imageLabel,
+  t,
+}: UserMessagePreviewProps) {
+  return (
+    <MessagePreview>
+      {hasImages ? (
+        <UserMessageImages
+          photoOnly={isPhotoOnly}
+          images={images}
+          containerStyle={imageContainerStyle}
+          onOpen={onOpen}
+          accessibilityLabel={imageLabel}
+        />
+      ) : null}
+      {hasAttachments ? (
+        <View style={attachmentContainerStyle}>
+          {(attachments ?? []).map((attachment, index) => {
+            const content = getAgentAttachmentPillContent(attachment, t);
+            return (
+              <AttachmentFrame
+                key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
+              >
+                <AttachmentLabel icon={content.icon} title={content.title} subtitle={content.subtitle} />
+              </AttachmentFrame>
+            );
+          })}
+        </View>
+      ) : null}
+      {hasText ? (
+        <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
+          {message}
+        </Text>
+      ) : null}
+    </MessagePreview>
+  );
+});
+
 interface UserMessageImagesProps {
   photoOnly: boolean;
   images: UserMessageImageAttachment[];
@@ -426,6 +569,152 @@ const UserMessageImages = memo(function UserMessageImages({
   );
 });
 
+interface UserMessageBubbleProps {
+  photoRun: ReactElement | null;
+  isLastInGroup: boolean;
+  reactionKey: string | undefined;
+  action: ((id: string) => void) | undefined;
+  padding: { x: number; y: number } | undefined;
+  children: ReactNode;
+}
+
+/** Either the photo run or the single balloon, so `UserMessage` itself stays a layout. */
+function UserMessageBubble({
+  photoRun,
+  isLastInGroup,
+  reactionKey,
+  action,
+  padding,
+  children,
+}: UserMessageBubbleProps) {
+  if (photoRun) return photoRun;
+  return (
+    <ChatBubble
+      side="user"
+      tail={isLastInGroup}
+      reactionKey={reactionKey}
+      onAction={action}
+      contentPadding={padding}
+    >
+      {children}
+    </ChatBubble>
+  );
+}
+
+interface UserMessageTrailingProps {
+  visible: boolean;
+  style: React.ComponentProps<typeof View>["style"];
+  timestamp: string;
+  capabilities: UserMessageProps["capabilities"];
+  messageId: string | undefined;
+  message: string;
+  isPending: boolean;
+  onRewind: (input: { mode: RewindMode; rewoundText: string }) => void;
+  getContent: () => string;
+  copyLabel: string;
+}
+
+/** The timestamp/rewind/copy rail under a user bubble. */
+const UserMessageTrailing = memo(function UserMessageTrailing({
+  visible,
+  style,
+  timestamp,
+  capabilities,
+  messageId,
+  message,
+  isPending,
+  onRewind,
+  getContent,
+  copyLabel,
+}: UserMessageTrailingProps) {
+  return (
+    <View
+      style={style}
+      pointerEvents={visible ? "auto" : "none"}
+      testID="user-message-trailing-row"
+    >
+      <Text style={userMessageStylesheet.timestampText} testID="user-message-timestamp">
+        {timestamp}
+      </Text>
+      {capabilities && messageId ? (
+        <RewindMenu
+          capabilities={capabilities}
+          isPending={isPending}
+          rewoundText={message}
+          onRewind={onRewind}
+        />
+      ) : null}
+      <TurnCopyButton
+        getContent={getContent}
+        containerStyle={userMessageStylesheet.copyButton}
+        accessibilityLabel={copyLabel}
+      />
+    </View>
+  );
+});
+
+interface MessageShapeInput {
+  hasText: boolean;
+  imageCount: number;
+  hasAttachments: boolean;
+  isPending: boolean;
+  showRail: boolean;
+}
+
+/**
+ * How this message's parts become balloons.
+ *
+ * A lone photo is the balloon; two or more are one balloon each (`UserMessagePhotoRun`); the
+ * status rail only appears once there is text and the platform shows it.
+ */
+function resolveMessageShape({
+  hasText,
+  imageCount,
+  hasAttachments,
+  isPending,
+  showRail,
+}: MessageShapeInput) {
+  const photosOnly = imageCount > 0 && !hasText && !hasAttachments;
+  return {
+    isPhotoOnly: photosOnly && imageCount === 1,
+    isPhotoRun: photosOnly && imageCount > 1,
+    showTrailingRow: !isPending && hasText && showRail,
+  };
+}
+
+function resolveUserMessageContainerStyle(
+  isFirstInGroup: boolean,
+  isLastInGroup: boolean,
+  disableOuterSpacing: boolean,
+) {
+  if (disableOuterSpacing) return [userMessageStylesheet.container];
+  return [
+    userMessageStylesheet.container,
+    isFirstInGroup ? userMessageStylesheet.containerFirstInGroup : null,
+    isLastInGroup ? userMessageStylesheet.containerLastInGroup : null,
+    isFirstInGroup && isLastInGroup ? null : userMessageStylesheet.containerSpacing,
+  ];
+}
+
+function resolveImageContainerStyle(hasText: boolean, hasAttachments: boolean) {
+  return hasText || hasAttachments
+    ? [userMessageStylesheet.imagePreviewContainer, userMessageStylesheet.imagePreviewSpacing]
+    : [userMessageStylesheet.imagePreviewContainer];
+}
+
+function resolveAttachmentContainerStyle(hasText: boolean) {
+  return hasText
+    ? [userMessageStylesheet.attachmentPreviewContainer, userMessageStylesheet.imagePreviewSpacing]
+    : [userMessageStylesheet.attachmentPreviewContainer];
+}
+
+function resolveTrailingRowStyle(visible: boolean) {
+  return [
+    userMessageStylesheet.trailingRow,
+    visible ? userMessageStylesheet.trailingRowVisible : userMessageStylesheet.trailingRowHidden,
+  ];
+}
+
 export const UserMessage = memo(function UserMessage({
   sender,
   serverId,
@@ -455,9 +744,27 @@ export const UserMessage = memo(function UserMessage({
   const hasText = message.trim().length > 0;
   const hasImages = images.length > 0;
   const hasAttachments = attachments.length > 0;
-  // One photo and nothing else: the image fills the balloon (`photo-bubble.tsx`).
-  const isPhotoOnly = hasImages && images.length === 1 && !hasText && !hasAttachments;
-  const showTrailingRow = !isPending && hasText && (isCompact || isNative || isHovered);
+  const shape = resolveMessageShape({
+    hasText,
+    imageCount: images.length,
+    hasAttachments,
+    isPending,
+    showRail: isCompact || isNative || isHovered,
+  });
+  const { isPhotoOnly, isPhotoRun, showTrailingRow } = shape;
+  const photoRun = useMemo<ReactElement | null>(
+    () =>
+      isPhotoRun ? (
+        <UserMessagePhotoRun
+          images={images}
+          isLastInGroup={isLastInGroup}
+          messageId={messageId}
+          accessibilityLabel={t("composer.attachments.openImage")}
+          onOpen={setLightboxMetadata}
+        />
+      ) : null,
+    [isPhotoRun, images, isLastInGroup, messageId, t, setLightboxMetadata],
+  );
   const formattedTimestamp = useMemo(
     () => formatMessageTimestamp(new Date(timestamp)),
     [timestamp],
@@ -485,39 +792,57 @@ export const UserMessage = memo(function UserMessage({
   );
 
   const containerStyle = useMemo(
-    () => [
-      userMessageStylesheet.container,
-      !resolvedDisableOuterSpacing && [
-        isFirstInGroup ? userMessageStylesheet.containerFirstInGroup : null,
-        isLastInGroup ? userMessageStylesheet.containerLastInGroup : null,
-        !isFirstInGroup || !isLastInGroup ? userMessageStylesheet.containerSpacing : null,
-      ],
-    ],
+    () =>
+      resolveUserMessageContainerStyle(isFirstInGroup, isLastInGroup, resolvedDisableOuterSpacing),
     [resolvedDisableOuterSpacing, isFirstInGroup, isLastInGroup],
   );
   const imagePreviewContainerStyle = useMemo(
-    () => [
-      userMessageStylesheet.imagePreviewContainer,
-      hasText || hasAttachments ? userMessageStylesheet.imagePreviewSpacing : undefined,
-    ],
+    () => resolveImageContainerStyle(hasText, hasAttachments),
     [hasAttachments, hasText],
   );
   const attachmentPreviewContainerStyle = useMemo(
-    () => [
-      userMessageStylesheet.attachmentPreviewContainer,
-      hasText ? userMessageStylesheet.imagePreviewSpacing : undefined,
-    ],
+    () => resolveAttachmentContainerStyle(hasText),
     [hasText],
   );
   const trailingRowStyle = useMemo(
-    () => [
-      userMessageStylesheet.trailingRow,
-      showTrailingRow
-        ? userMessageStylesheet.trailingRowVisible
-        : userMessageStylesheet.trailingRowHidden,
-    ],
+    () => resolveTrailingRowStyle(showTrailingRow),
     [showTrailingRow],
   );
+
+  const senderNode = sender ? <MessageSender sender={sender} serverId={serverId} /> : null;
+  const bubbleKey = messageId ? `user:${messageId}` : undefined;
+  const bubbleAction = hasText ? handleBubbleAction : undefined;
+  const bubblePadding = isPhotoOnly ? ZERO_PADDING : undefined;
+  const preview = (
+    <UserMessagePreview
+      hasImages={hasImages}
+      isPhotoOnly={isPhotoOnly}
+      images={images}
+      hasAttachments={hasAttachments}
+      attachments={attachments}
+      hasText={hasText}
+      message={message}
+      imageContainerStyle={imagePreviewContainerStyle}
+      attachmentContainerStyle={attachmentPreviewContainerStyle}
+      onOpen={setLightboxMetadata}
+      imageLabel={t("composer.attachments.openImage")}
+      t={t}
+    />
+  );
+  const trailingNode = hasText ? (
+    <UserMessageTrailing
+      visible={showTrailingRow}
+      style={trailingRowStyle}
+      timestamp={formattedTimestamp}
+      capabilities={capabilities}
+      messageId={messageId}
+      message={message}
+      isPending={rewindMutation.isPending}
+      onRewind={handleRewind}
+      getContent={getMessageContent}
+      copyLabel={t("message.actions.copyMessage")}
+    />
+  ) : null;
 
   return (
     <View style={containerStyle} testID="user-message" aria-busy={isPending}>
@@ -526,73 +851,17 @@ export const UserMessage = memo(function UserMessage({
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
-        {sender ? <MessageSender sender={sender} serverId={serverId} /> : null}
-        <ChatBubble
-          side="user"
-          tail={isLastInGroup}
-          reactionKey={messageId ? `user:${messageId}` : undefined}
-          onAction={hasText ? handleBubbleAction : undefined}
-          contentPadding={isPhotoOnly ? ZERO_PADDING : undefined}
+        {senderNode}
+        <UserMessageBubble
+          photoRun={photoRun}
+          isLastInGroup={isLastInGroup}
+          reactionKey={bubbleKey}
+          action={bubbleAction}
+          padding={bubblePadding}
         >
-          <MessagePreview>
-            {hasImages ? (
-              <UserMessageImages
-                photoOnly={isPhotoOnly}
-                images={images}
-                containerStyle={imagePreviewContainerStyle}
-                onOpen={setLightboxMetadata}
-                accessibilityLabel={t("composer.attachments.openImage")}
-              />
-            ) : null}
-            {hasAttachments ? (
-              <View style={attachmentPreviewContainerStyle}>
-                {attachments.map((attachment, index) => {
-                  const content = getAgentAttachmentPillContent(attachment, t);
-                  return (
-                    <AttachmentFrame
-                      key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
-                    >
-                      <AttachmentLabel
-                        icon={content.icon}
-                        title={content.title}
-                        subtitle={content.subtitle}
-                      />
-                    </AttachmentFrame>
-                  );
-                })}
-              </View>
-            ) : null}
-            {hasText ? (
-              <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
-                {message}
-              </Text>
-            ) : null}
-          </MessagePreview>
-        </ChatBubble>
-        {hasText ? (
-          <View
-            style={trailingRowStyle}
-            pointerEvents={showTrailingRow ? "auto" : "none"}
-            testID="user-message-trailing-row"
-          >
-            <Text style={userMessageStylesheet.timestampText} testID="user-message-timestamp">
-              {formattedTimestamp}
-            </Text>
-            {capabilities && messageId ? (
-              <RewindMenu
-                capabilities={capabilities}
-                isPending={rewindMutation.isPending}
-                rewoundText={message}
-                onRewind={handleRewind}
-              />
-            ) : null}
-            <TurnCopyButton
-              getContent={getMessageContent}
-              containerStyle={userMessageStylesheet.copyButton}
-              accessibilityLabel={t("message.actions.copyMessage")}
-            />
-          </View>
-        ) : null}
+          {preview}
+        </UserMessageBubble>
+        {trailingNode}
       </View>
       <AttachmentLightbox source={lightboxSource} onClose={handleLightboxClose} />
     </View>

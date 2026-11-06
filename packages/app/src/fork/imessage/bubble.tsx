@@ -38,6 +38,7 @@ import {
   type Rect,
   useOptionalMessageActions,
 } from "./message-actions";
+import { EmojiPicker } from "./emoji-picker";
 import type { ContextMenuItem } from "./menu";
 import { bubblePalette } from "./palette";
 import { setReaction, useReaction, type Reaction } from "./reactions";
@@ -218,6 +219,7 @@ export const ChatBubble = memo(function ChatBubble({
   const reaction = useReaction(reactionKey);
   const actions = useOptionalMessageActions();
   const host = useRef<View>(null);
+  const [emojiOpen, setEmojiOpen] = useState(false);
 
   const washing = bubblePalette(side, "light").background;
 
@@ -241,10 +243,21 @@ export const ChatBubble = memo(function ChatBubble({
         selected: reactionToSelection(reaction),
         onSelect: (selection) => setReaction(reactionKey, selection),
         onAction,
+        onPickEmoji: () => setEmojiOpen(true),
       };
       actions.open(request);
     },
     [actions, reactionKey, side, tail, padding, children, washing, reaction, onAction, menuItems],
+  );
+
+  const closeEmojiPicker = useCallback(() => setEmojiOpen(false), []);
+  const pickEmoji = useCallback(
+    (emoji: string) => {
+      setEmojiOpen(false);
+      actions?.close();
+      if (reactionKey !== undefined) setReaction(reactionKey, { emoji });
+    },
+    [actions, reactionKey],
   );
 
   const handleLongPress = useCallback(() => {
@@ -306,7 +319,14 @@ export const ChatBubble = memo(function ChatBubble({
     </View>
   );
 
-  return reaction ? <View style={styles.slot}>{pressable}</View> : pressable;
+  const contentNode = reaction ? <View style={styles.slot}>{pressable}</View> : pressable;
+
+  return (
+    <>
+      {contentNode}
+      {emojiOpen ? <EmojiPicker onSelect={pickEmoji} onClose={closeEmojiPicker} /> : null}
+    </>
+  );
 });
 
 function reactionToSelection(reaction: Reaction | undefined): TapbackSelection | undefined {

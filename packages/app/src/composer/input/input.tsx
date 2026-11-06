@@ -34,7 +34,7 @@ import {
   iconSizeFor,
   TOOLBAR_CONTROL_HEIGHT,
 } from "@/components/ui/control-geometry";
-import { ArrowUp, Mic, MicOff, CornerDownLeft, Plus, Square } from "lucide-react-native";
+import { ArrowUp, MicOff, CornerDownLeft, Plus, Square } from "lucide-react-native";
 import * as Haptics from "expo-haptics";
 import { useDictation } from "@/hooks/use-dictation";
 import { hasFinePointer } from "@/hooks/pointer-capabilities";
@@ -54,6 +54,7 @@ import type { ImageAttachment, MessagePayload, TextReplacement } from "@/compose
 import { focusWithRetries } from "@/utils/web-focus";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { GlassSurface } from "@/fork/imessage/glass";
+import { ComposerMicIcon } from "@/fork/imessage/icons";
 import { sendSenses } from "@/fork/imessage/senses";
 import { PlusMenu } from "@/fork/imessage/plus-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
@@ -85,7 +86,9 @@ import {
 } from "@/components/ui/text-input";
 
 const ComposerTextInput = withUnistyles(EditingTextInput, (theme) => ({
-  placeholderTextColor: theme.colors.surface4,
+  // Measured: placeholder #bdbdbd light / #5d5d5d dark, caret #0088ff light / #0091ff dark.
+  placeholderTextColor: theme.colorScheme === "light" ? "#BDBDBD" : "#5D5D5D",
+  selectionColor: theme.colorScheme === "light" ? "#0088FF" : "#0091FF",
 }));
 import {
   resolveSendTooltipLabel,
@@ -224,7 +227,8 @@ export interface MessageInputRef {
   getNativeElement?: () => HTMLElement | null;
 }
 
-const MIN_INPUT_HEIGHT_MOBILE = 30;
+/** Measured on the iOS 26 composer: 17pt on a 20pt line with 10 above and below is 40.33 tall. */
+const MIN_INPUT_HEIGHT_MOBILE = 20.33;
 const MIN_INPUT_HEIGHT_DESKTOP = 46;
 const DEFAULT_MAX_INPUT_HEIGHT = 160;
 const MAX_INPUT_VIEWPORT_RATIO = 0.5;
@@ -433,7 +437,8 @@ function VoiceButtonIcon({
   if (isMutedRealtime) {
     return <ThemedMicOff size={buttonIconSize} uniProps={colorMapping} />;
   }
-  return <ThemedMic size={buttonIconSize} uniProps={colorMapping} />;
+  // The measured composer mic, in its own measured ink, rather than the heavier search-pill one.
+  return <ComposerMicIcon width={12} height={17.6667} />;
 }
 
 type ShortcutChord = NonNullable<React.ComponentProps<typeof Shortcut>["chord"]>;
@@ -2372,17 +2377,19 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderWidth: theme.borderWidth[1],
     borderColor: "transparent",
     borderRadius: 20,
+    // Fork (imessage): measured on the iOS 26 composer — 10 above and below a 20pt line,
+    // 16 of left inset, which puts a one-line field at 40.33 tall.
     paddingTop: {
-      xs: theme.spacing[2],
+      xs: 10,
       md: theme.spacing[4],
     },
     // The button row bleeds 6px horizontally, so match its corner inset at the bottom.
     paddingBottom: {
-      xs: theme.spacing[2],
+      xs: 10,
       md: theme.spacing[3],
     },
     paddingHorizontal: {
-      xs: theme.spacing[3],
+      xs: 16,
       md: theme.spacing[4],
     },
     ...(isWeb
@@ -2436,7 +2443,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexShrink: 1,
     width: "100%",
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.content,
+    // Messages types at 17 on a 20pt line. Native only: the web composer keeps its own scale.
+    fontSize: isWeb ? theme.fontSize.content : 17,
     fontWeight: theme.fontWeight.normal,
     // No lineHeight on native. React Native applies it as a span over the text, and an
     // empty trailing line is laid out from the font's own metrics on some devices, so
@@ -2565,7 +2573,6 @@ const styles = StyleSheet.create((theme: Theme) => ({
 const ThemedPlus = withUnistyles(Plus);
 const COMPOSER_PLUS_SIZE = 40;
 
-const ThemedMic = withUnistyles(Mic);
 const ThemedMicOff = withUnistyles(MicOff);
 const ThemedArrowUp = withUnistyles(ArrowUp);
 const ThemedCornerDownLeft = withUnistyles(CornerDownLeft);

@@ -27,6 +27,7 @@ import { StyleSheet } from "react-native-unistyles";
 
 import { tickSenses } from "./senses";
 import { ChatBubble } from "./bubble";
+import { bubblePalette } from "./palette";
 
 /** Measured: `transcriptTypingIndicatorLargeBubbleSize` and its dot metrics. */
 const DOT_SIZE = 8.5;
@@ -145,7 +146,7 @@ export function Popping({ children, origin = "left" }: PoppingProps) {
   return <Animated.View style={animatedStyle}>{children}</Animated.View>;
 }
 
-const styles = StyleSheet.create(() => ({
+const styles = StyleSheet.create((theme) => ({
   row: {
     flexDirection: "row",
     width: "100%",
@@ -160,6 +161,7 @@ const styles = StyleSheet.create(() => ({
     width: DOT_SIZE,
     height: DOT_SIZE,
     borderRadius: DOT_SIZE / 2,
-    backgroundColor: "#8E8E93",
+    // The measured secondary label, which is the ink ChatKit's dots use.
+    backgroundColor: bubblePalette("agent", theme.colorScheme).muted,
   },
 }));

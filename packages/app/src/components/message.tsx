@@ -15,6 +15,7 @@ import type { TFunction } from "i18next";
 import { ChatBubble } from "@/fork/imessage/bubble";
 import { bubblePalette } from "@/fork/imessage/palette";
 import { PhotoBubble } from "@/fork/imessage/photo-bubble";
+import { AttachmentCard } from "@/fork/imessage/attachment-card";
 import type { ContextMenuItem } from "@/fork/imessage/menu";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
@@ -476,6 +477,7 @@ const photoRunStyles = StyleSheet.create({
 });
 
 interface UserMessagePreviewProps {
+  isFileCard: boolean;
   hasImages: boolean;
   isPhotoOnly: boolean;
   images: UserMessageImageAttachment[];
@@ -494,6 +496,7 @@ type UserMessageAttachments = UserMessageProps["attachments"];
 
 /** Everything inside the bubble: photos, file cards, then the text, in Messages' order. */
 const UserMessagePreview = memo(function UserMessagePreview({
+  isFileCard,
   hasImages,
   isPhotoOnly,
   images,
@@ -507,6 +510,21 @@ const UserMessagePreview = memo(function UserMessagePreview({
   imageLabel,
   t,
 }: UserMessagePreviewProps) {
+  if (isFileCard) {
+    const first = attachments?.[0];
+    const content = first ? getAgentAttachmentPillContent(first, t) : null;
+    if (content) {
+      return (
+        <View style={attachmentContainerStyle}>
+          <AttachmentCard
+            title={content.title}
+            subtitle={content.subtitle}
+            icon={content.icon}
+          />
+        </View>
+      );
+    }
+  }
   return (
     <MessagePreview>
       {hasImages ? (
@@ -580,6 +598,7 @@ interface UserMessageBubbleProps {
   reactionKey: string | undefined;
   action: ((id: string) => void) | undefined;
   padding: { x: number; y: number } | undefined;
+  tone: "auto" | "grey";
   menuItems: ContextMenuItem[];
   children: ReactNode;
 }
@@ -591,6 +610,7 @@ function UserMessageBubble({
   reactionKey,
   action,
   padding,
+  tone,
   menuItems,
   children,
 }: UserMessageBubbleProps) {
@@ -598,6 +618,7 @@ function UserMessageBubble({
   return (
     <ChatBubble
       side="user"
+      tone={tone}
       tail={isLastInGroup}
       reactionKey={reactionKey}
       onAction={action}
@@ -686,6 +707,8 @@ function resolveMessageShape({
   return {
     isPhotoOnly: photosOnly && imageCount === 1,
     isPhotoRun: photosOnly && imageCount > 1,
+    // A file on its own is a grey card, not a blue bubble with a pill in it.
+    isFileCard: hasAttachments && imageCount === 0 && !hasText,
     showTrailingRow: !isPending && hasText && showRail,
   };
 }
@@ -759,7 +782,7 @@ export const UserMessage = memo(function UserMessage({
     isPending,
     showRail: isCompact || isNative || isHovered,
   });
-  const { isPhotoOnly, isPhotoRun, showTrailingRow } = shape;
+  const { isPhotoOnly, isPhotoRun, isFileCard, showTrailingRow } = shape;
   const photoRun = useMemo<ReactElement | null>(
     () =>
       isPhotoRun ? (
@@ -830,9 +853,11 @@ export const UserMessage = memo(function UserMessage({
   const senderNode = sender ? <MessageSender sender={sender} serverId={serverId} /> : null;
   const bubbleKey = messageId ? `user:${messageId}` : undefined;
   const bubbleAction = hasText ? handleBubbleAction : undefined;
-  const bubblePadding = isPhotoOnly ? ZERO_PADDING : undefined;
+  const bubblePadding = isPhotoOnly || isFileCard ? ZERO_PADDING : undefined;
+  const bubbleTone = isFileCard ? ("grey" as const) : ("auto" as const);
   const preview = (
     <UserMessagePreview
+      isFileCard={isFileCard}
       hasImages={hasImages}
       isPhotoOnly={isPhotoOnly}
       images={images}
@@ -876,6 +901,7 @@ export const UserMessage = memo(function UserMessage({
           reactionKey={bubbleKey}
           action={bubbleAction}
           padding={bubblePadding}
+          tone={bubbleTone}
           menuItems={bubbleMenuItems}
         >
           {preview}

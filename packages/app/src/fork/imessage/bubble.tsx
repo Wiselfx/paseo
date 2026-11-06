@@ -57,6 +57,12 @@ import { Tapback, balloonSlot } from "./tapback";
 
 export type BubbleSide = "user" | "agent";
 
+/**
+ * Which measured fill to paint. Alignment always follows `side`; the tone is separate because
+ * Messages draws a file card as a *grey* balloon in both directions — your own included.
+ */
+export type BubbleTone = "auto" | "grey";
+
 const PRESS_SCALE = 0.97;
 const PRESS_IN = { damping: 22, stiffness: 420, mass: 0.5 } as const;
 const PRESS_OUT = { damping: 14, stiffness: 260, mass: 0.7 } as const;
@@ -78,6 +84,10 @@ function Surface({ color, style, ...rest }: SurfaceProps) {
 const ThemedSurface = withUnistyles(Surface);
 
 /** Theme callbacks, so Unistyles restyles the bubble without a React re-render. */
+function toneSurface(side: BubbleSide, tone: BubbleTone): BubbleSide {
+  return tone === "grey" ? "agent" : side;
+}
+
 function fillProps(side: BubbleSide) {
   return (theme: Theme) => ({ fill: bubblePalette(side, theme.colorScheme).tail });
 }
@@ -97,13 +107,14 @@ function tailSideFor(side: BubbleSide, tail: boolean): "left" | "right" | "none"
 
 interface BubbleOutlineProps {
   side: BubbleSide;
+  tone: BubbleTone;
   tail: boolean;
   padding: { x: number; y: number };
   children: ReactNode;
   testID?: string;
 }
 
-function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineProps) {
+function BubbleOutline({ side, tone, tail, padding, children, testID }: BubbleOutlineProps) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
 
   const measure = useCallback((event: LayoutChangeEvent) => {
@@ -138,7 +149,7 @@ function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineP
           paddingBottom: padding.y + (tail ? TAIL_BOX.hang : 0),
         },
       ]}
-      uniProps={surfaceProps(side, outline !== null)}
+      uniProps={surfaceProps(toneSurface(side, tone), outline !== null)}
       onLayout={measure}
       testID={testID}
     >
@@ -149,7 +160,7 @@ function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineP
         // that loop.
         <View pointerEvents="none" style={styles.overlay}>
           <Svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
-            <ThemedPath d={outline} uniProps={fillProps(side)} />
+            <ThemedPath d={outline} uniProps={fillProps(toneSurface(side, tone))} />
           </Svg>
         </View>
       ) : null}
@@ -177,6 +188,8 @@ function usePressFeedback(active: boolean) {
 
 export interface ChatBubbleProps {
   side: BubbleSide;
+  /** `grey` paints the incoming fill while keeping this bubble's alignment (file cards). */
+  tone?: BubbleTone;
   /** Whether this bubble ends its group — only then does the tail face the speaker. */
   tail?: boolean;
   children: ReactNode;
@@ -202,6 +215,7 @@ export interface ChatBubbleProps {
 
 export const ChatBubble = memo(function ChatBubble({
   side,
+  tone = "auto",
   tail = true,
   children,
   onPress,
@@ -228,7 +242,7 @@ export const ChatBubble = memo(function ChatBubble({
       if (!actions || reactionKey === undefined) return;
       const lifted = (
         <View style={[styles.liftedFrame, { width: rect.width }]}>
-          <BubbleOutline side={side} tail={tail} padding={padding}>
+          <BubbleOutline side={side} tone={tone} tail={tail} padding={padding}>
             {children}
           </BubbleOutline>
         </View>
@@ -247,7 +261,7 @@ export const ChatBubble = memo(function ChatBubble({
       };
       actions.open(request);
     },
-    [actions, reactionKey, side, tail, padding, children, washing, reaction, onAction, menuItems],
+    [actions, reactionKey, side, tone, tail, padding, children, washing, reaction, onAction, menuItems],
   );
 
   const closeEmojiPicker = useCallback(() => setEmojiOpen(false), []);
@@ -275,7 +289,7 @@ export const ChatBubble = memo(function ChatBubble({
       accessible={accessibilityLabel !== undefined}
       accessibilityLabel={accessibilityLabel}
     >
-      <BubbleOutline side={side} tail={tail} padding={padding} testID={testID}>
+      <BubbleOutline side={side} tone={tone} tail={tail} padding={padding} testID={testID}>
         {children}
       </BubbleOutline>
     </Animated.View>

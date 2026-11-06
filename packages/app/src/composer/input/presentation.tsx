@@ -5,6 +5,7 @@ import { useTranslation } from "react-i18next";
 import { Button } from "@/components/ui/button";
 import { ComposerFullscreenBody, ComposerFullscreenFooter } from "@/composer/dock";
 import { useComposerKeyboardScope } from "@/composer/keyboard-scope";
+import { COMPOSER_RADIUS, ComposerGlass } from "@/fork/imessage/composer-glass";
 import { isWeb } from "@/constants/platform";
 import {
   iconSizeFor,
@@ -111,6 +112,7 @@ export function ComposerInputPresentation({
           style={fullscreen ? styles.fullscreenInputWrapper : inputWrapperStyle}
           pointerEvents={inputPointerEvents}
         >
+          {fullscreen ? null : <ComposerGlass radius={COMPOSER_RADIUS} />}
           {fullscreen ? null : attachmentSlot}
           <View style={fullscreen ? styles.fullscreenTextSurface : styles.inlineTextSurface}>
             {surface}

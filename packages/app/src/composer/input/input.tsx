@@ -2285,9 +2285,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexShrink: 1,
     flexDirection: "column",
     gap: theme.spacing[3],
-    backgroundColor: theme.colors.surface1,
+    // Fork (imessage): the field's surface is frosted glass drawn behind the
+    // content (see fork/imessage/composer-glass), so the box itself is clear.
+    backgroundColor: "transparent",
     borderWidth: theme.borderWidth[1],
-    // Fork (imessage): the send bar is a rounded field, not an outlined box.
     borderColor: "transparent",
     borderRadius: 20,
     paddingTop: {

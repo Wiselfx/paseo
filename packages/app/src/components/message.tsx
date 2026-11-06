@@ -9,8 +9,9 @@ import {
   AttachmentLabel,
   AttachmentThumbnail,
 } from "@/components/attachment-pill";
-import { MarkdownRenderer } from "@/components/markdown/renderer";
 import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
+import { ChatBubble } from "@/fork/imessage/bubble";
+import { ContextMenuItem } from "@/components/ui/context-menu";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -26,6 +27,7 @@ import type { TaskActivity, TodoEntry, UserMessageImageAttachment } from "@/type
 import { setAssistantMessageHeight } from "@/utils/assistant-message-height-estimate";
 import { isRenderProfileEnabled } from "@/utils/render-profiler";
 import { writeMarkdownToRichClipboard } from "@/utils/rich-clipboard";
+import { copyToClipboard } from "@/utils/copy-to-clipboard";
 import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-default-environment";
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
 import { resolveToolCallIcon } from "@/utils/tool-call-icon";
@@ -313,18 +315,6 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   containerLastInGroup: {
     marginBottom: theme.spacing[4],
   },
-  bubble: {
-    // Fork (imessage): blue is identity, not theme — "this message is yours".
-    // The literal is the reference; do not repoint it at the app palette.
-    backgroundColor: theme.colorScheme === "dark" ? "#0A84FF" : "#007AFF",
-    borderRadius: 18,
-    borderBottomRightRadius: 6,
-    paddingHorizontal: 12,
-    paddingVertical: 8,
-    minWidth: 0,
-    flexShrink: 1,
-    maxWidth: "78%",
-  },
   text: {
     color: "#FFFFFF",
     fontSize: theme.fontSize.content,
@@ -433,6 +423,13 @@ export const UserMessage = memo(function UserMessage({
   const handlePointerEnter = useCallback(() => setIsHovered(true), []);
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
   const getMessageContent = useCallback(() => message, [message]);
+  const copyMessage = useCallback(() => {
+    void copyToClipboard(message);
+  }, [message]);
+  const bubbleMenu = useMemo(
+    () => <ContextMenuItem onSelect={copyMessage}>{t("message.actions.copyMessage")}</ContextMenuItem>,
+    [copyMessage, t],
+  );
   const handleRewind = useCallback(
     (input: { mode: RewindMode; rewoundText: string }) => {
       return rewindMutation.rewindAgent(input);
@@ -483,7 +480,7 @@ export const UserMessage = memo(function UserMessage({
         onPointerLeave={handlePointerLeave}
       >
         {sender ? <MessageSender sender={sender} serverId={serverId} /> : null}
-        <View style={userMessageStylesheet.bubble}>
+        <ChatBubble side="user" tail={isLastInGroup} menu={hasText ? bubbleMenu : undefined}>
           <MessagePreview>
             {hasImages ? (
               <View style={imagePreviewContainerStyle}>
@@ -521,7 +518,7 @@ export const UserMessage = memo(function UserMessage({
               </Text>
             ) : null}
           </MessagePreview>
-        </View>
+        </ChatBubble>
         {hasText ? (
           <View
             style={trailingRowStyle}

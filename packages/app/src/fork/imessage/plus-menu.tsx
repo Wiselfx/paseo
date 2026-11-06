@@ -125,7 +125,7 @@ const ThemedGlass = withUnistyles(function PlusGlass({
   radius: number;
   style?: object;
 }) {
-  return <GlassSurface radius={radius} tint={tint} style={style} />;
+  return <GlassSurface radius={radius} tint={tint} cast="sheet" style={style} />;
 });
 
 export interface PlusMenuProps {

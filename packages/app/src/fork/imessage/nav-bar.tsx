@@ -106,7 +106,7 @@ function RoundButton({
   const press = useControlPress(true);
   return (
     <Animated.View style={[styles.roundBox, press.style]}>
-      <GlassSurface radius={ROUND_SIZE / 2} style={styles.roundGlass} />
+      <GlassSurface radius={ROUND_SIZE / 2} cast="nav-round" style={styles.roundGlass} />
       <PressHighlight
         onPress={onPress}
         onPressIn={press.onPressIn}
@@ -208,7 +208,7 @@ export const ImessageNavBar = memo(function ImessageNavBar({
             accessibilityLabel={name}
             style={styles.pillHit}
           >
-            <GlassSurface radius={PILL_RADIUS} style={styles.pillGlass} />
+            <GlassSurface radius={PILL_RADIUS} cast="nav-pill" style={styles.pillGlass} />
             <Text style={styles.name} numberOfLines={1}>
               {name}
             </Text>

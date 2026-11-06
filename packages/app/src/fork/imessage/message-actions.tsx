@@ -41,6 +41,7 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Portal } from "@gorhom/portal";
+import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   Easing,
   useAnimatedStyle,
@@ -55,7 +56,7 @@ import { PressHighlight } from "@/components/ui/press-highlight";
 
 import { GlassSurface } from "./glass";
 import { contextMenuPanel } from "./menu";
-import { bubblePalette } from "./palette";
+import { bubblePalette, withAlpha } from "./palette";
 import { TapbackBar, tapbackBarMetrics, type TapbackSelection } from "./tapback-bar";
 import type { BubbleSide } from "./bubble";
 
@@ -153,6 +154,9 @@ interface Layout {
 }
 
 const MENU_WIDTH = 250;
+const WASH_STOPS = [0, 0.45] as const;
+const WASH_START = { x: 0.5, y: 0 } as const;
+const WASH_END = { x: 0.5, y: 1 } as const;
 
 export function layoutMessageActions(
   rect: Rect,
@@ -214,7 +218,7 @@ const ThemedGlass = withUnistyles(function MenuGlass({
   radius: number;
   style?: StyleProp<ViewStyle>;
 }) {
-  return <GlassSurface radius={radius} tint={tint} style={style} />;
+  return <GlassSurface radius={radius} tint={tint} cast="menu" style={style} />;
 });
 
 export function MessageActionsProvider({ children }: { children: ReactNode }) {
@@ -337,6 +341,13 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
     };
   });
 
+  // The menu laps the bubble it opened on, and native carries that colour through the glass.
+  // A flat tint cannot: it is one value for the whole panel, so the top band reads grey.
+  const washColors = useMemo(
+    () => [withAlpha(wash, 0.35), withAlpha(wash, 0)] as const,
+    [wash],
+  );
+
   const liftedShell = useMemo(
     () => ({
       position: "absolute" as const,
@@ -379,6 +390,14 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
 
       <Animated.View style={[styles.menu, { left: layout.menuLeft, top: layout.menuTop }, panelStyle]}>
         <ThemedGlass style={StyleSheet.absoluteFill} uniProps={menuGlass} />
+        <LinearGradient
+          pointerEvents="none"
+          colors={washColors}
+          locations={WASH_STOPS}
+          start={WASH_START}
+          end={WASH_END}
+          style={StyleSheet.absoluteFill}
+        />
         {contextMenuPanel(menuItems, wash, (id) => {
           onAction?.(id);
           onClose();

@@ -11,7 +11,6 @@ import {
 } from "@/components/attachment-pill";
 import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
 import { ChatBubble } from "@/fork/imessage/bubble";
-import { ContextMenuItem } from "@/components/ui/context-menu";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -426,9 +425,12 @@ export const UserMessage = memo(function UserMessage({
   const copyMessage = useCallback(() => {
     void copyToClipboard(message);
   }, [message]);
-  const bubbleMenu = useMemo(
-    () => <ContextMenuItem onSelect={copyMessage}>{t("message.actions.copyMessage")}</ContextMenuItem>,
-    [copyMessage, t],
+  // The long-press overlay runs its own measured menu; this maps a row to the same action.
+  const handleBubbleAction = useCallback(
+    (id: string) => {
+      if (id === "copy") copyMessage();
+    },
+    [copyMessage],
   );
   const handleRewind = useCallback(
     (input: { mode: RewindMode; rewoundText: string }) => {
@@ -480,7 +482,12 @@ export const UserMessage = memo(function UserMessage({
         onPointerLeave={handlePointerLeave}
       >
         {sender ? <MessageSender sender={sender} serverId={serverId} /> : null}
-        <ChatBubble side="user" tail={isLastInGroup} menu={hasText ? bubbleMenu : undefined}>
+        <ChatBubble
+          side="user"
+          tail={isLastInGroup}
+          reactionKey={messageId ? `user:${messageId}` : undefined}
+          onAction={hasText ? handleBubbleAction : undefined}
+        >
           <MessagePreview>
             {hasImages ? (
               <View style={imagePreviewContainerStyle}>
@@ -1210,6 +1217,7 @@ export const AssistantMessage = memo(function AssistantMessage({
       <ImessageAssistantBody
         text={revealedMessage}
         phase={phase}
+        reactionKeyPrefix={`assistant:${occurrenceKey}`}
         agentCommands
         client={client}
         workspaceRoot={workspaceRoot}

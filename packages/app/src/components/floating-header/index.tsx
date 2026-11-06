@@ -21,8 +21,12 @@ export function useFloatingHeaderOverlayClearance(): number {
   return useContext(OverlayClearanceContext);
 }
 
-/** How far the fade runs past the header's bottom edge, so content dissolves instead of clipping. */
-const FADE_OVERHANG = 48;
+/**
+ * How far the fade runs past the header's bottom edge, so content dissolves instead of clipping.
+ * iOS 26 lets go at y 160.39 under a bar that ends at 94, so 66 points of overshoot is measured
+ * (`ios-scroll-edge.tsx` in the reference kit), not padded.
+ */
+const FADE_OVERHANG = 66;
 /** Share of the fade that stays opaque, so the header's title and icons keep contrast. */
 const FADE_SOLID_FRACTION = 0.57;
 

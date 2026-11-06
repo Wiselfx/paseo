@@ -104,7 +104,7 @@ export function TypingBubble({ ticking = true }: TypingBubbleProps) {
   return (
     <View style={styles.row}>
       <Popping origin="left">
-        <ChatBubble side="agent" contentPadding={BALLOON_PADDING}>
+        <ChatBubble side="agent" interactive={false} contentPadding={BALLOON_PADDING}>
           <View style={styles.dots}>
             {DOT_KEYS.map((key, index) => (
               <Dot key={key} index={index} />
@@ -127,17 +127,17 @@ export function Popping({ children, origin = "left" }: PoppingProps) {
   const progress = useSharedValue(0);
 
   useEffect(() => {
-    progress.value = withSpring(1, { damping: 16, stiffness: 300, mass: 0.8 });
+    // Messages' receive spring, measured off 60fps captures: 300ms from half size,
+    // an 80ms fade, damping 0.7 at 30 rad/s (which is stiffness 900, damping 42 here).
+    progress.value = withSpring(1, { damping: 42, stiffness: 900, mass: 1 });
   }, [progress]);
 
   const animatedStyle = useAnimatedStyle(() => {
-    const eased = Math.min(1.08, progress.value);
+    const eased = progress.value;
     return {
-      opacity: Math.min(1, progress.value * 2),
-      transform: [
-        { scale: 0.92 + eased * 0.08 },
-        { translateY: (1 - eased) * 5 },
-      ],
+      // 80ms of the 300ms is the fade; the scale starts at half size, not 92%.
+      opacity: Math.min(1, eased * 3.75),
+      transform: [{ scale: 0.5 + eased * 0.5 }],
       // Grow out of the tail, not out of the middle.
       transformOrigin: origin === "left" ? "left bottom" : "right bottom",
     };

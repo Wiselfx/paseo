@@ -16,10 +16,6 @@ import { View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 
 import {
-  ContextMenuItem,
-  ContextMenuSeparator,
-} from "@/components/ui/context-menu";
-import {
   MarkdownRenderer,
   type MarkdownRendererProps,
 } from "@/components/markdown/renderer";
@@ -45,36 +41,45 @@ interface BlockBubbleProps extends MarkdownContextProps {
   text: string;
   /** Markdown as a plain string, for the copy action. */
   source: string;
+  /** Stable identity for this block's tapback. */
+  reactionKey: string;
   tail: boolean;
   selectable: boolean;
   onSelectRequest: () => void;
+  onAction: (id: string) => void;
 }
 
 const BlockBubble = memo(function BlockBubble({
   text,
   source,
+  reactionKey,
   tail,
   selectable,
   onSelectRequest,
+  onAction,
   ...markdown
 }: BlockBubbleProps) {
   const copy = useCallback(() => {
     void copyToClipboard(source);
   }, [source]);
 
-  const menu = (
-    <>
-      <ContextMenuItem onSelect={copy}>Copy</ContextMenuItem>
-      <ContextMenuSeparator />
-      <ContextMenuItem onSelect={onSelectRequest} closeOnSelect>
-        Select Text
-      </ContextMenuItem>
-    </>
+  const handleAction = useCallback(
+    (id: string) => {
+      if (id === "copy") copy();
+      else if (id === "select") onSelectRequest();
+      else onAction(id);
+    },
+    [copy, onSelectRequest, onAction],
   );
 
   return (
     <Popping origin="left">
-      <ChatBubble side="agent" tail={tail} menu={menu}>
+      <ChatBubble
+        side="agent"
+        tail={tail}
+        reactionKey={reactionKey}
+        onAction={handleAction}
+      >
         <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} />
       </ChatBubble>
     </Popping>
@@ -98,13 +103,31 @@ function useBlockKeys(blocks: readonly string[], generation: number): string[] {
   }, [blocks, generation]);
 }
 
-export function ImessageAssistantBody({ text, phase, ...markdown }: ImessageAssistantBodyProps) {
+export interface ImessageAssistantBodyPropsInternal extends ImessageAssistantBodyProps {
+  /** Namespace for each block's tapback, normally the message id. */
+  reactionKeyPrefix?: string;
+  onAction?: (id: string) => void;
+}
+
+export function ImessageAssistantBody({
+  text,
+  phase,
+  reactionKeyPrefix = "assistant",
+  onAction,
+  ...markdown
+}: ImessageAssistantBodyPropsInternal) {
   const { blocks, generation, typing } = usePoppedBlocks(text, phase);
   const keys = useBlockKeys(blocks, generation);
   // Long-press owns the menu, so selection has to be asked for explicitly. Once
   // asked, it stays on for the turn: the reader is clearly in text, not in bubbles.
   const [selectable, setSelectable] = useState(false);
   const requestSelect = useCallback(() => setSelectable(true), []);
+  const handleAction = useCallback(
+    (id: string) => {
+      onAction?.(id);
+    },
+    [onAction],
+  );
 
   return (
     <View style={styles.stack}>
@@ -113,9 +136,11 @@ export function ImessageAssistantBody({ text, phase, ...markdown }: ImessageAssi
           key={keys[index]}
           text={block}
           source={block}
+          reactionKey={`${reactionKeyPrefix}:${keys[index]}`}
           tail={index === blocks.length - 1 && !typing}
           selectable={selectable}
           onSelectRequest={requestSelect}
+          onAction={handleAction}
           {...markdown}
         />
       ))}

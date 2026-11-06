@@ -32,8 +32,8 @@ import Svg, { Path } from "react-native-svg";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 
+import { Avatar } from "./avatar";
 import { GlassSurface } from "./glass";
-import { ScrollEdgeWash } from "./scroll-edge";
 import { PressHighlight } from "@/components/ui/press-highlight";
 import { touchSenses } from "./senses";
 
@@ -47,7 +47,7 @@ const PILL_TOP = 63;
 const PILL_HEIGHT = 32.3333;
 const PILL_RADIUS = PILL_HEIGHT / 2;
 const NAME_SIZE = 17;
-const AVATAR_FONT = 28;
+
 const CHEVRON_STROKE = 2.6;
 const BACK_STROKE = 2.4;
 
@@ -166,7 +166,6 @@ export const ImessageNavBar = memo(function ImessageNavBar({
 
   return (
     <View style={styles.root} testID={testID}>
-      <ScrollEdgeWash />
       <View style={styles.bar}>
         {leadingSlot ? (
           <View style={styles.roundBox}>{leadingSlot}</View>
@@ -196,9 +195,7 @@ export const ImessageNavBar = memo(function ImessageNavBar({
         )}
 
         <View style={styles.avatar}>
-          <Text style={styles.avatarText} numberOfLines={1}>
-            {letters}
-          </Text>
+          <Avatar size={AVATAR_SIZE} initials={letters} name={name} />
         </View>
 
         <Animated.View style={[styles.pillWrap, press.style]}>
@@ -273,13 +270,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     overflow: "hidden",
-    backgroundColor: theme.colorScheme === "light" ? "#8B9BCE" : "#3F3550",
     boxShadow: `0 2px 4px ${theme.colorScheme === "light" ? "rgba(0,0,0,0.12)" : "rgba(0,0,0,0.3)"}`,
-  },
-  avatarText: {
-    color: "#FFFFFF",
-    fontSize: AVATAR_FONT,
-    fontWeight: "600",
   },
   pillWrap: {
     position: "absolute",

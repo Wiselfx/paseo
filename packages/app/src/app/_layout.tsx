@@ -60,6 +60,7 @@ import { ProviderSettingsHost } from "@/components/provider-settings-host";
 import { WorkspaceSetupDialog } from "@/components/workspace-setup-dialog";
 import { WorkspaceShortcutTargetsSubscriber } from "@/components/workspace-shortcut-targets-subscriber";
 import { FloatingPanelPortalHost } from "@/components/ui/floating-panel-portal";
+import { MessageActionsProvider } from "@/fork/imessage/message-actions";
 import { HostChooserModal, useHostChooser } from "@/hosts/host-chooser";
 import { HostConfirmationSheet } from "@/hosts/host-confirmation-sheet";
 import { HEADER_INNER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
@@ -945,7 +946,9 @@ function RootOverlayProviders({ children }: { children: ReactNode }) {
     <ToastProvider>
       <PortalProvider>
         <BottomSheetModalProvider>
-          {children}
+          {/* Fork (imessage): the long-press overlay portals to the root, so its provider
+              has to sit above every screen that renders a bubble. */}
+          <MessageActionsProvider>{children}</MessageActionsProvider>
           <WindowLayoutActionsHost />
         </BottomSheetModalProvider>
       </PortalProvider>

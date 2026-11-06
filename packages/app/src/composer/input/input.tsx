@@ -2422,17 +2422,19 @@ const styles = StyleSheet.create((theme: Theme) => ({
     backgroundColor: theme.colors.destructive,
   },
   sendButton: {
-    width: TOOLBAR_CONTROL_HEIGHT,
-    height: TOOLBAR_CONTROL_HEIGHT,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.accent,
+    // Measured on the iOS 26 composer: a 38x28 pill, bottom-anchored 6 from the field's
+    // bottom edge, with Apple's blue under a white arrow.
+    width: 38,
+    height: 28,
+    borderRadius: 14,
+    backgroundColor: theme.colorScheme === "light" ? "#0088FF" : "#0091FF",
     alignItems: "center",
     justifyContent: "center",
     marginLeft: theme.spacing[1],
   },
   sendButtonLabeled: {
     width: "auto",
-    minWidth: TOOLBAR_CONTROL_HEIGHT,
+    minWidth: 38,
     paddingHorizontal: theme.spacing[3],
     borderRadius: theme.borderRadius.full,
   },

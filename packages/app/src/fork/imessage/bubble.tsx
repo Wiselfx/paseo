@@ -1,21 +1,24 @@
 /**
  * Fork (imessage): the chat bubble itself.
  *
- * Two identities, one geometry — the same rule iMessage uses. Blue and
- * right-aligned means "you"; grey and left-aligned means "them".
+ * Two identities, one geometry — the same rule iMessage uses. Blue and right-aligned means
+ * "you"; grey and left-aligned means "them", in both appearances.
  *
- * The silhouette is measured, not approximated: `shape.ts` carries the Béziers
- * traced off iOS 26 Messages, so the tail's neck cuts into the body and ends in a
- * point below it. Drawing the whole outline as one SVG path — instead of a rounded
- * View plus a tail patch — is also what removes the hairline seam where two shapes
- * meet on a non-integer pixel boundary.
+ * The silhouette is measured, not approximated: `shape.ts` carries the Béziers traced off
+ * iOS 26 Messages, so the tail's neck cuts into the body and ends in a point below it.
+ * Drawing the whole outline as one SVG path — instead of a rounded View plus a tail patch —
+ * is also what removes the hairline seam where two shapes meet on a non-integer pixel.
  *
- * A bubble is also an object: it gives under a finger on touch-down, springs back
- * on release, and long-press lifts it into a menu. The press has to land on the
- * same frame as the touch — a delayed press is the difference between "responsive"
- * and "web app".
+ * A bubble is an object. It gives under a finger on touch-down, springs back on release, and
+ * a 500ms hold opens the long-press overlay (`message-actions.tsx`) with the bubble lifted,
+ * the Tapback pill above it and the menu below. The press has to land on the same frame as
+ * the touch — a delayed press is the difference between "responsive" and "web app".
+ *
+ * A tapback is not part of the bubble: it floats over the bubble's top corner 27.39 above it
+ * and 13.85 outside it, and the list has to open 28 points of slot for it. Both numbers are
+ * measured (`balloonSlot`).
  */
-import { memo, useCallback, useMemo, useState, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import {
   View,
   type LayoutChangeEvent,
@@ -24,21 +27,19 @@ import {
   type ViewStyle,
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import Animated, {
-  useAnimatedStyle,
-  useSharedValue,
-  withSpring,
-} from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
-import {
-  ContextMenu,
-  ContextMenuContent,
-  ContextMenuTrigger,
-} from "@/components/ui/context-menu";
-import { PressHighlight } from "@/components/ui/press-highlight";
 import type { Theme } from "@/styles/theme";
 
+import { PressHighlight } from "@/components/ui/press-highlight";
+
+import {
+  type MessageActionsRequest,
+  type Rect,
+  useOptionalMessageActions,
+} from "./message-actions";
 import { bubblePalette } from "./palette";
+import { setReaction, useReaction, type Reaction } from "./reactions";
 import { touchSenses } from "./senses";
 import {
   BUBBLE_MAX_WIDTH,
@@ -49,12 +50,17 @@ import {
   TAIL_BOX,
   bubblePath,
 } from "./shape";
+import type { TapbackSelection } from "./tapback-bar";
+import { Tapback, balloonSlot } from "./tapback";
 
 export type BubbleSide = "user" | "agent";
 
 const PRESS_SCALE = 0.97;
 const PRESS_IN = { damping: 22, stiffness: 420, mass: 0.5 } as const;
 const PRESS_OUT = { damping: 14, stiffness: 260, mass: 0.7 } as const;
+/** iOS long-press: a 500ms hold that dies after 8 points of travel. */
+const LONG_PRESS_MS = 500;
+const MOVE_TOLERANCE = 8;
 
 const ThemedPath = withUnistyles(Path);
 
@@ -87,25 +93,8 @@ function tailSideFor(side: BubbleSide, tail: boolean): "left" | "right" | "none"
   return side === "user" ? "right" : "left";
 }
 
-function usePressFeedback() {
-  const scale = useSharedValue(1);
-  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
-
-  const onPressIn = useCallback(() => {
-    // Haptic on the way down, never on release: the finger wants to know it landed.
-    touchSenses();
-    scale.value = withSpring(PRESS_SCALE, PRESS_IN);
-  }, [scale]);
-  const onPressOut = useCallback(() => {
-    scale.value = withSpring(1, PRESS_OUT);
-  }, [scale]);
-
-  return { pressStyle, onPressIn, onPressOut };
-}
-
 interface BubbleOutlineProps {
   side: BubbleSide;
-  /** Whether the tail faces the speaker. */
   tail: boolean;
   padding: { x: number; y: number };
   children: ReactNode;
@@ -130,7 +119,10 @@ function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineP
   // The tail hangs below the body, so the body's own height is the frame minus it.
   const bodyHeight = size ? size.height - (tail ? TAIL_BOX.hang : 0) : 0;
   const outline = useMemo(
-    () => (size && bodyHeight > 0 ? bubblePath(size.width, bodyHeight, tailSide, BUBBLE_RADIUS) : null),
+    () =>
+      size && bodyHeight > 0
+        ? bubblePath(size.width, bodyHeight, tailSide, BUBBLE_RADIUS)
+        : null,
     [bodyHeight, size, tailSide],
   );
 
@@ -149,16 +141,12 @@ function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineP
       testID={testID}
     >
       {outline && size ? (
-        // The drawing sits in an out-of-flow layer on purpose: a sized Svg that is
-        // a laid-out child of the view it is measuring can feed its own size back
-        // into `onLayout`, and the bubble grows on every frame. Absolute positioning
-        // is what breaks that loop.
+        // The drawing sits in an out-of-flow layer on purpose: a sized Svg that is a
+        // laid-out child of the view it is measuring can feed its own size back into
+        // `onLayout`, and the bubble grows on every frame. Absolute positioning breaks
+        // that loop.
         <View pointerEvents="none" style={styles.overlay}>
-          <Svg
-            width={size.width}
-            height={size.height}
-            viewBox={`0 0 ${size.width} ${size.height}`}
-          >
+          <Svg width={size.width} height={size.height} viewBox={`0 0 ${size.width} ${size.height}`}>
             <ThemedPath d={outline} uniProps={fillProps(side)} />
           </Svg>
         </View>
@@ -168,15 +156,39 @@ function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineP
   );
 }
 
+function usePressFeedback(active: boolean) {
+  const scale = useSharedValue(1);
+  const pressStyle = useAnimatedStyle(() => ({ transform: [{ scale: scale.value }] }));
+
+  const onPressIn = useCallback(() => {
+    if (!active) return;
+    // Haptic on the way down, never on release: the finger wants to know it landed.
+    touchSenses();
+    scale.value = withSpring(PRESS_SCALE, PRESS_IN);
+  }, [active, scale]);
+  const onPressOut = useCallback(() => {
+    scale.value = withSpring(1, PRESS_OUT);
+  }, [scale]);
+
+  return { pressStyle, onPressIn, onPressOut };
+}
+
 export interface ChatBubbleProps {
   side: BubbleSide;
   /** Whether this bubble ends its group — only then does the tail face the speaker. */
   tail?: boolean;
   children: ReactNode;
-  /** Menu content, opened by long-press (and right click on web). */
-  menu?: ReactNode;
   /** Fired on a plain tap, after the press animation has already started. */
   onPress?: () => void;
+  /** Runs a menu row from the long-press overlay. */
+  onAction?: (id: string) => void;
+  /**
+   * Identifies this bubble in the reaction store. With a key, the bubble can take a
+   * tapback and show it; without one it is inert in the overlay.
+   */
+  reactionKey?: string;
+  /** A static render (the typing balloon, the lifted copy) takes no presses. */
+  interactive?: boolean;
   accessibilityLabel?: string;
   testID?: string;
   style?: StyleProp<ViewStyle>;
@@ -188,15 +200,56 @@ export const ChatBubble = memo(function ChatBubble({
   side,
   tail = true,
   children,
-  menu,
   onPress,
+  onAction,
+  reactionKey,
+  interactive = true,
   accessibilityLabel,
   testID,
   style,
   contentPadding,
 }: ChatBubbleProps) {
-  const { pressStyle, onPressIn, onPressOut } = usePressFeedback();
+  const { pressStyle, onPressIn, onPressOut } = usePressFeedback(interactive);
   const padding = contentPadding ?? DEFAULT_PADDING;
+  const reaction = useReaction(reactionKey);
+  const actions = useOptionalMessageActions();
+  const host = useRef<View>(null);
+
+  const washing = bubblePalette(side, "light").background;
+
+  const openActions = useCallback(
+    (rect: Rect) => {
+      if (!actions || reactionKey === undefined) return;
+      const lifted = (
+        <View style={[styles.liftedFrame, { width: rect.width }]}>
+          <BubbleOutline side={side} tail={tail} padding={padding}>
+            {children}
+          </BubbleOutline>
+        </View>
+      );
+      const request: MessageActionsRequest = {
+        rect,
+        side,
+        tail,
+        bubble: lifted,
+        wash: washing,
+        selected: reactionToSelection(reaction),
+        onSelect: (selection) => setReaction(reactionKey, selection),
+        onAction,
+      };
+      actions.open(request);
+    },
+    [actions, reactionKey, side, tail, padding, children, washing, reaction, onAction],
+  );
+
+  const handleLongPress = useCallback(() => {
+    const node = host.current;
+    if (!node) return;
+    node.measureInWindow((x, y, width, height) => {
+      if (width <= 0 || height <= 0) return;
+      openActions({ x, y, width, height });
+    });
+  }, [openActions]);
 
   const content = (
     <Animated.View
@@ -210,38 +263,50 @@ export const ChatBubble = memo(function ChatBubble({
     </Animated.View>
   );
 
-  return (
+  const pressable = (
     <View style={[styles.row, side === "user" ? styles.rowUser : styles.rowAgent]}>
-      {menu ? (
-        <ContextMenu>
-          {/* A menu needs the trigger that knows how to open it. */}
-          <ContextMenuTrigger
-            onPressIn={onPressIn}
-            onPressOut={onPressOut}
-            onPress={onPress}
-            style={styles.shrink}
-          >
-            {content}
-          </ContextMenuTrigger>
-          <ContextMenuContent>{menu}</ContextMenuContent>
-        </ContextMenu>
-      ) : (
-        // Without a menu the bubble is still tappable, but it must not mount a menu
-        // trigger that has no menu to open.
-        <PressHighlight
-          onPressIn={onPressIn}
-          onPressOut={onPressOut}
-          onPress={onPress}
-          style={styles.shrink}
-          highlightStyle={styles.noHighlight}
-          accessibilityRole={onPress ? "button" : undefined}
+      <PressHighlight
+        ref={host}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
+        onPress={onPress}
+        onLongPress={interactive && actions ? handleLongPress : undefined}
+        delayLongPress={LONG_PRESS_MS}
+        pressRetentionOffset={MOVE_TOLERANCE}
+        style={styles.shrink}
+        highlightStyle={styles.noHighlight}
+        accessibilityRole={onPress ? "button" : undefined}
+      >
+        {content}
+      </PressHighlight>
+      {reaction ? (
+        <View
+          pointerEvents="none"
+          style={[
+            styles.reaction,
+            side === "user"
+              ? { right: balloonSlot.side }
+              : { left: balloonSlot.side },
+          ]}
         >
-          {content}
-        </PressHighlight>
-      )}
+          <Tapback
+            reaction={"type" in reaction ? reaction.type : undefined}
+            emoji={"emoji" in reaction ? reaction.emoji : undefined}
+            own
+            side={side === "user" ? "left" : "right"}
+            animateIn
+          />
+        </View>
+      ) : null}
     </View>
   );
+
+  return reaction ? <View style={styles.slot}>{pressable}</View> : pressable;
 });
+
+function reactionToSelection(reaction: Reaction | undefined): TapbackSelection | undefined {
+  return reaction;
+}
 
 const styles = StyleSheet.create(() => ({
   row: {
@@ -263,6 +328,9 @@ const styles = StyleSheet.create(() => ({
     maxWidth: BUBBLE_MAX_WIDTH,
     minWidth: BUBBLE_MIN_WIDTH,
   },
+  liftedFrame: {
+    alignItems: "flex-start",
+  },
   body: {
     borderRadius: BUBBLE_RADIUS,
     flexShrink: 1,
@@ -271,6 +339,13 @@ const styles = StyleSheet.create(() => ({
     position: "absolute",
     top: 0,
     left: 0,
+  },
+  reaction: {
+    position: "absolute",
+    top: balloonSlot.top,
+  },
+  slot: {
+    paddingTop: balloonSlot.marginTop,
   },
   // The bubble animates its own press scale; a second flash would double it.
   noHighlight: {

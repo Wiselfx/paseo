@@ -5,6 +5,7 @@ import { router } from "expo-router";
 import { ArrowLeft } from "lucide-react-native";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { ImessageNavBar } from "@/fork/imessage/nav-bar";
 import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { SidebarMenuToggle } from "@/components/headers/sidebar-menu-toggle";
 import {
@@ -32,6 +33,12 @@ interface CompactHeaderProps {
   loading?: boolean;
   /** Icon actions inherit the island chrome through the shared button primitives. */
   actions?: ReactNode;
+  /**
+   * `imessage` floats the leading control, an avatar and a name capsule over the
+   * content, the way iOS 26 Messages does. Opt-in, because every other screen's
+   * header is a flat row and changing them all is not this fork's business.
+   */
+  variant?: "default" | "imessage";
 }
 
 /**
@@ -49,7 +56,9 @@ export function CompactHeader({
   subtitle,
   loading = false,
   actions,
+  variant = "default",
 }: CompactHeaderProps) {
+  const { t } = useTranslation();
   const insets = useSafeAreaInsets();
   const rootStyle = useMemo(
     () => [
@@ -62,6 +71,28 @@ export function CompactHeader({
     ],
     [insets.top, insets.left, insets.right],
   );
+
+  const imessageLeading = useMemo(
+    () => (navigation === "menu" ? <SidebarMenuToggle /> : <BackButton onBack={onBack} />),
+    [navigation, onBack],
+  );
+
+  if (variant === "imessage") {
+    return (
+      <IconButtonChromeProvider value="header-island">
+        <View style={[styles.imessageRoot, { paddingTop: insets.top }]}>
+          <ImessageNavBar
+            name={title ?? ""}
+            subtitle={subtitle}
+            leadingSlot={imessageLeading}
+            actions={actions}
+            leadingLabel={navigation === "back" ? t("common.actions.back") : undefined}
+            testID="header-imessage"
+          />
+        </View>
+      </IconButtonChromeProvider>
+    );
+  }
 
   return (
     <IconButtonChromeProvider value="header-island">
@@ -141,6 +172,10 @@ function BackButton({ onBack }: { onBack?: () => void }) {
 const styles = StyleSheet.create((theme) => ({
   root: {
     paddingHorizontal: theme.spacing[3],
+  },
+  // The floating bar spans the screen; its own controls carry the edge insets.
+  imessageRoot: {
+    width: "100%",
   },
   row: {
     height: HEADER_INNER_HEIGHT_MOBILE,

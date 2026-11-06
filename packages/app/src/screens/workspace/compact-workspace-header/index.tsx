@@ -81,6 +81,7 @@ export function CompactWorkspaceHeader({
     <IconButtonChromeProvider value="header-island">
       {headerVariant === "compact" ? (
         <CompactHeader
+          variant="imessage"
           navigation="menu"
           title={title}
           titleTestID="workspace-header-title"

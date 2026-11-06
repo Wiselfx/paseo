@@ -71,12 +71,12 @@ const ThemedSurface = withUnistyles(Surface);
 
 /** Theme callbacks, so Unistyles restyles the bubble without a React re-render. */
 function fillProps(side: BubbleSide) {
-  return (theme: Theme) => ({ fill: bubblePalette(side, theme.colors.background).tail });
+  return (theme: Theme) => ({ fill: bubblePalette(side, theme.colorScheme).tail });
 }
 
 function surfaceProps(side: BubbleSide, transparent: boolean) {
   return (theme: Theme) => ({
-    color: transparent ? "transparent" : bubblePalette(side, theme.colors.background).background,
+    color: transparent ? "transparent" : bubblePalette(side, theme.colorScheme).background,
   });
 }
 
@@ -149,15 +149,19 @@ function BubbleOutline({ side, tail, padding, children, testID }: BubbleOutlineP
       testID={testID}
     >
       {outline && size ? (
-        <Svg
-          pointerEvents="none"
-          style={styles.fill}
-          width={size.width}
-          height={size.height}
-          viewBox={`0 0 ${size.width} ${size.height}`}
-        >
-          <ThemedPath d={outline} uniProps={fillProps(side)} />
-        </Svg>
+        // The drawing sits in an out-of-flow layer on purpose: a sized Svg that is
+        // a laid-out child of the view it is measuring can feed its own size back
+        // into `onLayout`, and the bubble grows on every frame. Absolute positioning
+        // is what breaks that loop.
+        <View pointerEvents="none" style={styles.overlay}>
+          <Svg
+            width={size.width}
+            height={size.height}
+            viewBox={`0 0 ${size.width} ${size.height}`}
+          >
+            <ThemedPath d={outline} uniProps={fillProps(side)} />
+          </Svg>
+        </View>
       ) : null}
       {children}
     </ThemedSurface>
@@ -243,15 +247,19 @@ const styles = StyleSheet.create(() => ({
   row: {
     flexDirection: "row",
     width: "100%",
+    // A bubble can never be wider than the column it lives in, whatever the text.
+    maxWidth: "100%",
   },
   rowUser: { justifyContent: "flex-end" },
   rowAgent: { justifyContent: "flex-start" },
   shrink: {
     flexShrink: 1,
+    minWidth: 0,
     maxWidth: "100%",
   },
   frame: {
     flexShrink: 1,
+    flexGrow: 0,
     maxWidth: BUBBLE_MAX_WIDTH,
     minWidth: BUBBLE_MIN_WIDTH,
   },
@@ -259,8 +267,10 @@ const styles = StyleSheet.create(() => ({
     borderRadius: BUBBLE_RADIUS,
     flexShrink: 1,
   },
-  fill: {
-    ...StyleSheet.absoluteFillObject,
+  overlay: {
+    position: "absolute",
+    top: 0,
+    left: 0,
   },
   // The bubble animates its own press scale; a second flash would double it.
   noHighlight: {

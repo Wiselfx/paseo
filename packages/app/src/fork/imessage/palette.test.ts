@@ -1,58 +1,72 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  AGENT_GREY,
-  IMESSAGE_BLUE,
+  MESSAGES_PALETTE,
   bubblePalette,
   isLightSurface,
   relativeLuminance,
 } from "./palette";
 
 describe("relativeLuminance", () => {
-  it("reads the ends of the range", () => {
-    expect(relativeLuminance("#000000")).toBeCloseTo(0, 3);
-    expect(relativeLuminance("#ffffff")).toBeCloseTo(1, 3);
+  it("reads black and white", () => {
+    expect(relativeLuminance("#000000")).toBe(0);
+    expect(relativeLuminance("#ffffff")).toBeCloseTo(1);
   });
 
-  it("accepts short hex and ignores alpha", () => {
-    expect(relativeLuminance("#fff")).toBeCloseTo(1, 3);
-    expect(relativeLuminance("#00000000")).toBeCloseTo(0, 3);
+  it("survives shorthand and alpha", () => {
+    expect(relativeLuminance("#fff")).toBeCloseTo(1);
+    expect(relativeLuminance("#000000ff")).toBe(0);
   });
 
-  it("treats unparseable input as a dark surface", () => {
+  it("treats junk as black rather than throwing", () => {
     expect(relativeLuminance("not-a-colour")).toBe(0);
+    expect(relativeLuminance("#12")).toBe(0);
   });
 });
 
 describe("isLightSurface", () => {
-  it("classifies the app's real surfaces", () => {
+  it("classifies the two page colours", () => {
     expect(isLightSurface("#ffffff")).toBe(true);
     expect(isLightSurface("#181B1A")).toBe(false);
     expect(isLightSurface("#000000")).toBe(false);
   });
+});
 
-  it("flips the agent grey with the surface", () => {
-    expect(bubblePalette("agent", "#ffffff").background).toBe(AGENT_GREY.light);
-    expect(bubblePalette("agent", "#181B1A").background).toBe(AGENT_GREY.dark);
+describe("bubblePalette", () => {
+  it("is blue for you and grey for them, in both appearances", () => {
+    expect(bubblePalette("user", "light").background).toBe(MESSAGES_PALETTE.light.outgoing);
+    expect(bubblePalette("user", "dark").background).toBe(MESSAGES_PALETTE.dark.outgoing);
+    expect(bubblePalette("agent", "light").background).toBe("#E9E9EB");
+    expect(bubblePalette("agent", "dark").background).toBe("#262629");
   });
 
-  it("keeps the user blue identical in both appearances", () => {
-    expect(bubblePalette("user", "#ffffff").background).toBe(IMESSAGE_BLUE);
-    expect(bubblePalette("user", "#181B1A").background).toBe(IMESSAGE_BLUE);
+  it("keeps the tail identical to the body, so the seam never shows", () => {
+    for (const side of ["user", "agent"] as const) {
+      for (const appearance of ["light", "dark"] as const) {
+        const palette = bubblePalette(side, appearance);
+        expect(palette.tail).toBe(palette.background);
+      }
+    }
   });
 
-  it("pairs each bubble with readable text", () => {
-    const light = bubblePalette("agent", "#ffffff");
-    const dark = bubblePalette("agent", "#181B1A");
-    const contrast = (a: string, b: string) => {
-      const [high, low] = [relativeLuminance(a), relativeLuminance(b)].sort((x, y) => y - x) as [
-        number,
-        number,
-      ];
-      return (high + 0.05) / (low + 0.05);
-    };
-    expect(contrast(light.foreground, light.background)).toBeGreaterThan(12);
-    expect(contrast(dark.foreground, dark.background)).toBeGreaterThan(9);
-    expect(contrast(bubblePalette("user", "#fff").foreground, IMESSAGE_BLUE)).toBeGreaterThan(3.5);
+  it("puts white on blue and the measured ink on grey", () => {
+    expect(bubblePalette("user", "light").foreground).toBe("#FFFFFF");
+    expect(bubblePalette("user", "dark").foreground).toBe("#FFFFFF");
+    expect(bubblePalette("agent", "light").foreground).toBe("#000000");
+    expect(bubblePalette("agent", "dark").foreground).toBe("#FFFFFF");
+  });
+
+  it("carries the measured screen-space endpoints", () => {
+    expect(bubblePalette("user", "light").gradient).toEqual({
+      top: "#5AC8FA",
+      bottom: "#0088FF",
+      screenHeight: 874,
+    });
+    expect(bubblePalette("user", "dark").gradient.top).toBe("#409CFF");
+  });
+
+  it("uses the measured secondary label for marks inside the bubble", () => {
+    expect(bubblePalette("agent", "light").muted).toBe("#8A8A8E");
+    expect(bubblePalette("agent", "dark").muted).toBe("#8D8D93");
   });
 });

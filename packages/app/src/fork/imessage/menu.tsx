@@ -20,6 +20,7 @@ import {
   Copy,
   Ellipsis,
   Languages,
+  SquarePen,
   TextCursorInput,
   type LucideIcon,
 } from "lucide-react-native";
@@ -28,7 +29,7 @@ import type { Theme } from "@/styles/theme";
 
 import { PressHighlight } from "@/components/ui/press-highlight";
 
-export type MenuIconName = "copy" | "translate" | "select" | "more";
+export type MenuIconName = "copy" | "translate" | "select" | "more" | "edit";
 
 export type ContextMenuItem =
   | { id: string; label: string; icon?: MenuIconName; destructive?: boolean; disabled?: boolean }
@@ -72,6 +73,7 @@ const ICONS: Record<MenuIconName, LucideIcon> = {
   translate: Languages,
   select: TextCursorInput,
   more: Ellipsis,
+  edit: SquarePen,
 };
 
 interface RowProps {

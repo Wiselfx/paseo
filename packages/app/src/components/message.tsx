@@ -15,6 +15,7 @@ import type { TFunction } from "i18next";
 import { ChatBubble } from "@/fork/imessage/bubble";
 import { bubblePalette } from "@/fork/imessage/palette";
 import { PhotoBubble } from "@/fork/imessage/photo-bubble";
+import type { ContextMenuItem } from "@/fork/imessage/menu";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -392,6 +393,10 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
 
 const MESSAGE_TEXT_DATASET = { messageText: "true" };
 
+/** Copy, and the retract-and-edit pair Paseo models as a conversation rewind. */
+const USER_MESSAGE_MENU: ContextMenuItem[] = [{ id: "copy", label: "Copy", icon: "copy" }];
+const EDIT_MENU_ITEM: ContextMenuItem = { id: "edit", label: "Edit", icon: "edit" };
+
 /** A photo bubble has no text inset: the image runs to the balloon's edge. */
 const ZERO_PADDING = { x: 0, y: 0 } as const;
 
@@ -575,6 +580,7 @@ interface UserMessageBubbleProps {
   reactionKey: string | undefined;
   action: ((id: string) => void) | undefined;
   padding: { x: number; y: number } | undefined;
+  menuItems: ContextMenuItem[];
   children: ReactNode;
 }
 
@@ -585,6 +591,7 @@ function UserMessageBubble({
   reactionKey,
   action,
   padding,
+  menuItems,
   children,
 }: UserMessageBubbleProps) {
   if (photoRun) return photoRun;
@@ -594,6 +601,7 @@ function UserMessageBubble({
       tail={isLastInGroup}
       reactionKey={reactionKey}
       onAction={action}
+      menuItems={menuItems}
       contentPadding={padding}
     >
       {children}
@@ -778,18 +786,28 @@ export const UserMessage = memo(function UserMessage({
     void copyToClipboard(message);
   }, [message]);
   // The long-press overlay runs its own measured menu; this maps a row to the same action.
-  const handleBubbleAction = useCallback(
-    (id: string) => {
-      if (id === "copy") copyMessage();
-    },
-    [copyMessage],
-  );
   const handleRewind = useCallback(
     (input: { mode: RewindMode; rewoundText: string }) => {
       return rewindMutation.rewindAgent(input);
     },
     [rewindMutation],
   );
+  /**
+   * The long-press overlay's rows. Copy is always available; Edit is Retract in this app —
+   * a conversation rewind that puts the text back in the composer — and only exists when the
+   * agent can rewind at all.
+   */
+  const handleBubbleAction = useCallback(
+    (id: string) => {
+      if (id === "copy") copyMessage();
+      if (id === "edit") void handleRewind({ mode: "conversation", rewoundText: message });
+    },
+    [copyMessage, handleRewind, message],
+  );
+  const bubbleMenuItems = useMemo<ContextMenuItem[]>(() => {
+    const copy = USER_MESSAGE_MENU[0]!;
+    return capabilities && messageId ? [copy, EDIT_MENU_ITEM] : [copy];
+  }, [capabilities, messageId]);
 
   const containerStyle = useMemo(
     () =>
@@ -858,6 +876,7 @@ export const UserMessage = memo(function UserMessage({
           reactionKey={bubbleKey}
           action={bubbleAction}
           padding={bubblePadding}
+          menuItems={bubbleMenuItems}
         >
           {preview}
         </UserMessageBubble>

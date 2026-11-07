@@ -19,7 +19,9 @@ import { useMemo } from "react";
 import { StyleSheet, View } from "react-native";
 import { useAppSettings } from "@/hooks/use-settings";
 import { Mascot, type MascotSignal } from "./mascot";
+import { crabSheetSource } from "./sheets";
 import { mascotLevel, type MascotReading } from "./mascot-signals";
+import { MASCOT_ANIMATION } from "./mascot";
 
 export interface ComposerMascotProps {
   /** The agent is working (thinking or tool calls in flight). */
@@ -72,7 +74,7 @@ export function ComposerMascot({
   const level = useMemo(() => mascotLevel(reading), [reading]);
   const state = (didError ? "error" : (level.animation as MascotSignal)) satisfies MascotSignal;
 
-  const source = useMemo(() => ({ uri: "" }), []);
+  const source = crabSheetSource(MASCOT_ANIMATION[state]);
 
   if (!character) return null;
 

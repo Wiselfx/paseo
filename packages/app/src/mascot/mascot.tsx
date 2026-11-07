@@ -21,6 +21,7 @@
  */
 
 import { useEffect, useMemo, useState } from "react";
+import { crabSheetSource } from "./sheets";
 import { Image, View, type ImageStyle } from "react-native";
 import { useReducedMotion } from "react-native-reanimated";
 
@@ -52,7 +53,7 @@ export interface MascotSheet {
 }
 
 /** Transparent margin one frame cell carries, from `mascot-player.ts` GUTTER. */
-export const MAScot_GUTTER = 1;
+export const MAScot_GUTTER = 0;
 
 /** Frames per second of the crab (Claude Code's own pace). */
 export const MAScot_FRAME_MS = 80;
@@ -118,7 +119,7 @@ export const MASCOT_ANIMATION: Record<MascotSignal, string> = {
 export interface MascotProps {
   state: MascotSignal;
   /** Sheet source for the current state. Resolved by the caller from the assets. */
-  source: { uri: string } | number;
+  source?: { uri: string } | number;
   /** Logical pixels per cell stride (crab: 2). */
   scale?: number;
   /** Display width of one cell in points. */
@@ -130,10 +131,11 @@ export interface MascotProps {
  * Plays one mascot sheet. The strip translates inside a clipped window;
  * reduced motion shows the sheet's still frame instead of stepping.
  */
-export function Mascot({ state, source, scale = 2, testID }: MascotProps) {
+export function Mascot({ state, scale = 2, testID }: MascotProps) {
   const reducedMotion = useReducedMotion();
   const animation = MASCOT_ANIMATION[state];
   const sheet = CRAB_SHEETS[animation] ?? CRAB_SHEETS["idle"]!;
+  const sheetSource = crabSheetSource(animation);
   const [frame, setFrame] = useState(sheet.still);
 
   useEffect(() => {
@@ -172,7 +174,7 @@ export function Mascot({ state, source, scale = 2, testID }: MascotProps) {
 
   return (
     <View testID={testID} style={windowStyle} pointerEvents="none">
-      <Image source={source} style={stripStyle} />
+      <Image source={sheetSource} style={stripStyle} />
     </View>
   );
 }

@@ -228,6 +228,7 @@ export const ChatBubble = memo(function ChatBubble({
   style,
   contentPadding,
 }: ChatBubbleProps) {
+  const longPressed = useRef(false);
   const { pressStyle, onPressIn, onPressOut } = usePressFeedback(interactive);
   const padding = contentPadding ?? DEFAULT_PADDING;
   const windowWidth = useWindowDimensions().width;
@@ -283,10 +284,9 @@ export const ChatBubble = memo(function ChatBubble({
     if (!menuEnabled || !actions) return;
     const node = host.current;
     if (!node) return;
-    // The reference `use-long-press.ts` fires once at the end of the hold with a single cue:
-    // the haptic belongs to the pickup, not to touch-down. Fire it here, where the hold
-    // actually activates, so a scroll start never ticks.
+    // Haptic only when the hold activates, so a scroll start never ticks.
     touchSenses();
+    longPressed.current = true;
     node.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
       openActions({ x, y, width, height });
@@ -294,8 +294,17 @@ export const ChatBubble = memo(function ChatBubble({
   }, [actions, menuEnabled, openActions]);
 
   const runPress = useCallback(() => {
+    if (longPressed.current) return;
     onPress?.();
   }, [onPress]);
+  const tapIn = useCallback(() => {
+    longPressed.current = false;
+    onPressIn();
+  }, [onPressIn]);
+  const tapOut = useCallback(() => {
+    onPressOut();
+    longPressed.current = false;
+  }, [onPressOut]);
 
 
   // Accessibility owner is the gesture host View below; the inner Animated.View no longer
@@ -322,8 +331,8 @@ export const ChatBubble = memo(function ChatBubble({
         delayLongPress={LONG_PRESS_MS}
         onLongPress={handleLongPress}
         onPress={onPress === undefined ? undefined : runPress}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
+        onPressIn={tapIn}
+        onPressOut={tapOut}
       >
         {content}
       </Pressable>

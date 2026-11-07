@@ -2367,7 +2367,6 @@ const styles = StyleSheet.create((theme: Theme) => ({
     position: "relative",
   },
   inputWrapper: {
-    ...(Platform.OS === "ios" ? { overflow: "hidden" as const } : {}),
     flexShrink: 1,
     flexDirection: "column",
     gap: theme.spacing[3],
@@ -2377,6 +2376,10 @@ const styles = StyleSheet.create((theme: Theme) => ({
     borderWidth: theme.borderWidth[1],
     borderColor: "transparent",
     borderRadius: 20,
+    boxShadow:
+      theme.colorScheme === "light"
+        ? "0 6px 24px rgba(0,0,0,0.10)"
+        : "inset 0 0 0 0.3333px rgba(255,255,255,0.0385), inset 0 0 0 0.6667px rgba(255,255,255,0.032), inset 0 0 0 1px rgba(255,255,255,0.061)",
     // Fork (imessage): measured on the iOS 26 composer — 10 above and below a 20pt line,
     // 16 of left inset, which puts a one-line field at 40.33 tall.
     paddingTop: {

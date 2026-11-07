@@ -34,6 +34,8 @@ interface FloatingHeaderLayoutProps {
   header: ReactNode;
   /** Float only when the content supports visual-top clearance. */
   floating: boolean;
+  /** Scroll content under the floating bar instead of below it. */
+  underlap?: boolean;
   children: (topOverlayInset: number) => ReactNode;
 }
 
@@ -41,7 +43,7 @@ interface FloatingHeaderLayoutProps {
  * Stacks a header above content, or floats it over the content behind a fade. Children keep the
  * same tree position in both modes, so toggling `floating` never remounts them.
  */
-export function FloatingHeaderLayout({ header, floating, children }: FloatingHeaderLayoutProps) {
+export function FloatingHeaderLayout({ header, floating, underlap, children }: FloatingHeaderLayoutProps) {
   const overlayHostName = useId();
   const [headerHeight, setHeaderHeight] = useState(0);
   const handleHeaderLayout = useCallback((event: LayoutChangeEvent) => {
@@ -49,6 +51,8 @@ export function FloatingHeaderLayout({ header, floating, children }: FloatingHea
   }, []);
 
   const overlayClearance = floating ? headerHeight : 0;
+  // Underlap hands the content the top of the screen; the bar floats above it.
+  const topOverlayInset = underlap || !floating ? 0 : headerHeight;
 
   return (
     <View style={styles.root}>
@@ -56,18 +60,20 @@ export function FloatingHeaderLayout({ header, floating, children }: FloatingHea
       <View style={styles.content}>
         <OverlayClearanceContext.Provider value={overlayClearance}>
           <OverlayHostContext.Provider value={floating ? overlayHostName : null}>
-            {children(floating ? headerHeight : 0)}
+            {children(topOverlayInset)}
           </OverlayHostContext.Provider>
         </OverlayClearanceContext.Provider>
       </View>
       {floating ? (
         <View style={styles.overlay} pointerEvents="box-none">
-          <EdgeFade
-            edge="top"
-            solidFraction={FADE_SOLID_FRACTION}
-            backdrop="surfaceWorkspace"
-            style={styles.fade}
-          />
+          {underlap ? null : (
+            <EdgeFade
+              edge="top"
+              solidFraction={FADE_SOLID_FRACTION}
+              backdrop="surfaceWorkspace"
+              style={styles.fade}
+            />
+          )}
           <View
             testID="floating-header"
             collapsable={false}

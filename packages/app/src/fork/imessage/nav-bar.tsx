@@ -165,10 +165,13 @@ export const ImessageNavBar = memo(function ImessageNavBar({
   const letters = initials ?? initialsOf(name);
 
   return (
-    <View style={styles.root} testID={testID}>
-      <View style={styles.bar}>
+    <View style={styles.root} pointerEvents="box-none" testID={testID}>
+      <View style={styles.bar} pointerEvents="box-none">
         {leadingSlot ? (
-          <View style={styles.roundBox}>{leadingSlot}</View>
+          <View style={styles.roundBox}>
+            <GlassSurface radius={ROUND_SIZE / 2} cast="nav-round" style={styles.roundGlass} />
+            {leadingSlot}
+          </View>
         ) : (
         <RoundButton onPress={onPressLeading} accessibilityLabel={leadingLabel ?? "Back"}>
           {leading === "back" ? (
@@ -194,7 +197,7 @@ export const ImessageNavBar = memo(function ImessageNavBar({
         </RoundButton>
         )}
 
-        <View style={styles.avatar}>
+        <View style={styles.avatar} pointerEvents="none">
           <Avatar size={AVATAR_SIZE} initials={letters} name={name} />
         </View>
 
@@ -246,6 +249,8 @@ const styles = StyleSheet.create((theme) => ({
     width: ROUND_SIZE,
     height: ROUND_SIZE,
     borderRadius: ROUND_SIZE / 2,
+    alignItems: "center",
+    justifyContent: "center",
   },
   roundGlass: {
     ...StyleSheet.absoluteFillObject,

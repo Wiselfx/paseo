@@ -16,7 +16,7 @@ import { ChatBubble } from "@/fork/imessage/bubble";
 import { bubblePalette } from "@/fork/imessage/palette";
 import { PhotoBubble } from "@/fork/imessage/photo-bubble";
 import { AttachmentCard } from "@/fork/imessage/attachment-card";
-import type { ContextMenuItem } from "@/fork/imessage/menu";
+import { IOS_MESSAGE_MENU, type ContextMenuItem } from "@/fork/imessage/menu";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { RewindMenu, type RewindMode } from "@/components/rewind/rewind-menu";
 import { useRewindAgentMutation } from "@/components/rewind/use-rewind-agent-mutation";
@@ -323,6 +323,8 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   text: {
     color: "#FFFFFF",
     fontSize: theme.fontSize.content,
+    flexShrink: 1,
+    minWidth: 0,
     ...(isWeb
       ? {
           lineHeight: Math.round(theme.fontSize.content * 1.4),
@@ -432,7 +434,7 @@ const UserMessagePhotoRun = memo(function UserMessagePhotoRun({
           key={image.id}
           image={image}
           tail={isLastInGroup && index === images.length - 1}
-          reactionKey={index === 0 && messageId ? `user:${messageId}` : undefined}
+          reactionKey={messageId ? `user:${messageId}:${image.id}` : undefined}
           accessibilityLabel={accessibilityLabel}
           onOpen={onOpen}
         />
@@ -489,6 +491,7 @@ interface UserMessagePreviewProps {
   attachmentContainerStyle: React.ComponentProps<typeof View>["style"];
   onOpen: (image: UserMessageImageAttachment) => void;
   imageLabel: string;
+  selectable?: boolean;
   t: TFunction;
 }
 
@@ -508,6 +511,7 @@ const UserMessagePreview = memo(function UserMessagePreview({
   attachmentContainerStyle,
   onOpen,
   imageLabel,
+  selectable = false,
   t,
 }: UserMessagePreviewProps) {
   if (isFileCard) {
@@ -551,7 +555,7 @@ const UserMessagePreview = memo(function UserMessagePreview({
         </View>
       ) : null}
       {hasText ? (
-        <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
+        <Text selectable={selectable} style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
           {message}
         </Text>
       ) : null}
@@ -600,6 +604,7 @@ interface UserMessageBubbleProps {
   padding: { x: number; y: number } | undefined;
   tone: "auto" | "grey";
   menuItems: ContextMenuItem[];
+  menuEnabled: boolean;
   children: ReactNode;
 }
 
@@ -612,6 +617,7 @@ function UserMessageBubble({
   padding,
   tone,
   menuItems,
+  menuEnabled,
   children,
 }: UserMessageBubbleProps) {
   if (photoRun) return photoRun;
@@ -623,6 +629,7 @@ function UserMessageBubble({
       reactionKey={reactionKey}
       onAction={action}
       menuItems={menuItems}
+      menuEnabled={menuEnabled}
       contentPadding={padding}
     >
       {children}
@@ -765,6 +772,7 @@ export const UserMessage = memo(function UserMessage({
   const isCompact = useIsCompactFormFactor();
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
+  const [selectable, setSelectable] = useState(false);
   const [lightboxMetadata, setLightboxMetadata] = useState<UserMessageImageAttachment | null>(null);
   const handleLightboxClose = useCallback(() => setLightboxMetadata(null), []);
   const lightboxSource = useMemo<ImageLightboxSource | null>(
@@ -824,13 +832,16 @@ export const UserMessage = memo(function UserMessage({
     (id: string) => {
       if (id === "copy") copyMessage();
       if (id === "edit") void handleRewind({ mode: "conversation", rewoundText: message });
+      if (id === "select") setSelectable(true);
     },
-    [copyMessage, handleRewind, message],
+    [copyMessage, handleRewind, message, setSelectable],
   );
   const bubbleMenuItems = useMemo<ContextMenuItem[]>(() => {
     const copy = USER_MESSAGE_MENU[0]!;
-    return capabilities && messageId ? [copy, EDIT_MENU_ITEM] : [copy];
-  }, [capabilities, messageId]);
+    if (!hasText) return [copy];
+    const select = IOS_MESSAGE_MENU.find((item) => "id" in item && item.id === "select")!;
+    return capabilities && messageId ? [copy, select, EDIT_MENU_ITEM] : [copy, select];
+  }, [capabilities, hasText, messageId]);
 
   const containerStyle = useMemo(
     () =>
@@ -869,6 +880,7 @@ export const UserMessage = memo(function UserMessage({
       attachmentContainerStyle={attachmentPreviewContainerStyle}
       onOpen={setLightboxMetadata}
       imageLabel={t("composer.attachments.openImage")}
+      selectable={selectable}
       t={t}
     />
   );
@@ -903,6 +915,7 @@ export const UserMessage = memo(function UserMessage({
           padding={bubblePadding}
           tone={bubbleTone}
           menuItems={bubbleMenuItems}
+          menuEnabled={!selectable}
         >
           {preview}
         </UserMessageBubble>

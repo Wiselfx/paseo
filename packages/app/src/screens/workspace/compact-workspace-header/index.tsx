@@ -1,11 +1,10 @@
-import { Fragment, useMemo, type ReactNode } from "react";
+import { Fragment, type ReactNode } from "react";
 import { useTranslation } from "react-i18next";
 import { CompactHeader } from "@/components/headers/compact-header";
 import {
   EXPLORER_TOGGLE_KEYS,
   WorkspaceExplorerToggle,
 } from "@/screens/workspace/workspace-explorer-toggle";
-import { WorkspaceHeaderProjectRow } from "@/screens/workspace/workspace-header-project-row";
 import {
   useWindowLayout,
   resolveWorkspaceActionPlacement,
@@ -36,29 +35,16 @@ interface CompactWorkspaceHeaderProps {
 export function CompactWorkspaceHeader({
   isLoading,
   title,
-  subtitle,
-  isSubtitleDistinct,
   onToggleExplorer,
   explorerToggleLabel,
   explorerToggleAccessibilityState,
   children,
   tabSwitcher,
-  serverId,
   headerVariant,
   actionsActive,
 }: CompactWorkspaceHeaderProps) {
   const { t } = useTranslation();
   const actionsInBar = resolveWorkspaceActionPlacement(useWindowLayout()) === "vertical-bar";
-  const projectRow = useMemo(
-    () => (
-      <WorkspaceHeaderProjectRow
-        subtitle={subtitle}
-        isSubtitleDistinct={isSubtitleDistinct}
-        serverId={serverId}
-      />
-    ),
-    [subtitle, isSubtitleDistinct, serverId],
-  );
   const symbols = {
     "tab-count": tabSwitcher,
     overflow: children,
@@ -85,7 +71,7 @@ export function CompactWorkspaceHeader({
           navigation="menu"
           title={title}
           titleTestID="workspace-header-title"
-          subtitle={projectRow}
+          subtitle={undefined}
           loading={isLoading}
           actions={actionsInBar ? undefined : actions}
         />

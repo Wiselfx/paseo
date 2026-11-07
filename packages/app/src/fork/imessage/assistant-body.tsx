@@ -91,12 +91,15 @@ const BlockBubble = memo(function BlockBubble({
         reactionKey={reactionKey}
         onAction={handleAction}
         menuItems={TEXT_MENU}
+        menuEnabled={!selectable}
         contentPadding={bare ? BARE_LINK_PADDING : undefined}
       >
         {bare ? (
           <LinkPreview url={text.trim()} />
         ) : (
-          <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} />
+          <View style={styles.markdownWrap}>
+            <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} />
+          </View>
         )}
       </ChatBubble>
     </Popping>
@@ -173,6 +176,10 @@ export function ImessageAssistantBody({
 }
 
 const styles = StyleSheet.create(() => ({
+  markdownWrap: {
+    maxWidth: "100%",
+    flexShrink: 1,
+  },
   stack: {
     flexDirection: "column",
     // Measured iOS cluster gaps: 4.33 inside a group, 10.2 between groups.

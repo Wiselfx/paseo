@@ -27,11 +27,11 @@ import {
   type ViewStyle,
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import type { Theme } from "@/styles/theme";
 
-import { PressHighlight } from "@/components/ui/press-highlight";
+import { Gesture, GestureDetector } from "react-native-gesture-handler";
 
 import {
   type MessageActionsRequest,
@@ -206,6 +206,8 @@ export interface ChatBubbleProps {
   reactionKey?: string;
   /** A static render (the typing balloon, the lifted copy) takes no presses. */
   interactive?: boolean;
+  /** False while text selection owns the long press, so the menu cannot steal it. */
+  menuEnabled?: boolean;
   accessibilityLabel?: string;
   testID?: string;
   style?: StyleProp<ViewStyle>;
@@ -223,6 +225,7 @@ export const ChatBubble = memo(function ChatBubble({
   menuItems,
   reactionKey,
   interactive = true,
+  menuEnabled = true,
   accessibilityLabel,
   testID,
   style,
@@ -283,6 +286,33 @@ export const ChatBubble = memo(function ChatBubble({
     });
   }, [openActions]);
 
+  const runPress = useCallback(() => {
+    onPress?.();
+  }, [onPress]);
+
+  const gesture = useMemo(() => {
+    // One touch-down acknowledgement for both outcomes: the long press begins tracking on the
+    // first touch, so its `onBegin` is the press state. The tap must not also fire it, or a
+    // touch-down would tick twice.
+    const longPress = Gesture.LongPress()
+      .minDuration(LONG_PRESS_MS)
+      .maxDistance(MOVE_TOLERANCE)
+      .enabled(interactive && menuEnabled)
+      .onBegin(() => runOnJS(onPressIn)())
+      .onStart(() => {
+        if (actions) runOnJS(handleLongPress)();
+      })
+      .onFinalize(() => runOnJS(onPressOut)());
+    const tap = Gesture.Tap()
+      .maxDistance(MOVE_TOLERANCE)
+      .onEnd((_event, success) => {
+        if (success) runOnJS(runPress)();
+      })
+      .onFinalize(() => runOnJS(onPressOut)());
+    // First to activate wins: a release before 500ms is a tap, a 500ms hold cancels the tap.
+    return Gesture.Race(longPress, tap);
+  }, [actions, handleLongPress, interactive, menuEnabled, onPressIn, onPressOut, runPress]);
+
   const content = (
     <Animated.View
       style={[styles.frame, pressStyle, style]}
@@ -297,20 +327,11 @@ export const ChatBubble = memo(function ChatBubble({
 
   const pressable = (
     <View style={[styles.row, side === "user" ? styles.rowUser : styles.rowAgent]}>
-      <PressHighlight
-        ref={host}
-        onPressIn={onPressIn}
-        onPressOut={onPressOut}
-        onPress={onPress}
-        onLongPress={interactive && actions ? handleLongPress : undefined}
-        delayLongPress={LONG_PRESS_MS}
-        pressRetentionOffset={MOVE_TOLERANCE}
-        style={styles.shrink}
-        highlightStyle={styles.noHighlight}
-        accessibilityRole={onPress ? "button" : undefined}
-      >
-        {content}
-      </PressHighlight>
+      <GestureDetector gesture={gesture}>
+        <View ref={host} collapsable={false} style={styles.shrink}>
+          {content}
+        </View>
+      </GestureDetector>
       {reaction ? (
         <View
           pointerEvents="none"
@@ -373,6 +394,7 @@ const styles = StyleSheet.create(() => ({
   body: {
     borderRadius: BUBBLE_RADIUS,
     flexShrink: 1,
+    maxWidth: BUBBLE_MAX_WIDTH,
   },
   overlay: {
     position: "absolute",
@@ -385,9 +407,5 @@ const styles = StyleSheet.create(() => ({
   },
   slot: {
     paddingTop: balloonSlot.marginTop,
-  },
-  // The bubble animates its own press scale; a second flash would double it.
-  noHighlight: {
-    backgroundColor: "transparent",
   },
 }));

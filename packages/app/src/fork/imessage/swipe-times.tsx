@@ -46,6 +46,7 @@ const SPRING = { damping: 36, stiffness: 400, mass: 1 } as const;
 const offset = makeMutable(0);
 
 function rubberBand(value: number): number {
+  "worklet";
   if (value > 0) return value * 0.25;
   const limit = swipeTimesMetrics.distance;
   if (value < -limit) return -limit - (Math.abs(value) - limit) * 0.25;

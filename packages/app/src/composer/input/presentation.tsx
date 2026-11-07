@@ -113,25 +113,31 @@ export function ComposerInputPresentation({
           pointerEvents={inputPointerEvents}
         >
           {fullscreen ? null : <ComposerGlass radius={COMPOSER_RADIUS} />}
-          {fullscreen ? null : attachmentSlot}
-          <View style={fullscreen ? styles.fullscreenTextSurface : styles.inlineTextSurface}>
-            {surface}
-            {showFullscreenButton && !fullscreen ? (
-              <Button
-                variant="ghost"
-                size="sm"
-                accessibilityLabel={t("composer.input.fullscreen")}
-                leftIcon={maximizeIcon}
-                onPointerDown={keepEditorFocused}
-                onPress={onEnter}
-                style={enterStyle}
-                hitSlop={8}
-              >
-                {null}
-              </Button>
-            ) : null}
-          </View>
-          {fullscreen ? null : toolbar}
+          {fullscreen ? (
+            <View style={styles.fullscreenTextSurface}>{surface}</View>
+          ) : (
+            <View style={styles.inlineClip}>
+              {attachmentSlot}
+              <View style={styles.inlineTextSurface}>
+                {surface}
+                {showFullscreenButton ? (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    accessibilityLabel={t("composer.input.fullscreen")}
+                    leftIcon={maximizeIcon}
+                    onPointerDown={keepEditorFocused}
+                    onPress={onEnter}
+                    style={enterStyle}
+                    hitSlop={8}
+                  >
+                    {null}
+                  </Button>
+                ) : null}
+              </View>
+              {toolbar}
+            </View>
+          )}
         </View>
       </ComposerFullscreenBody>
       {fullscreen ? (
@@ -147,6 +153,12 @@ export function ComposerInputPresentation({
 
 const styles = StyleSheet.create((theme) => ({
   inline: { flexShrink: 1, position: "relative" },
+  inlineClip: {
+    flexShrink: 1,
+    overflow: "hidden",
+    borderRadius: COMPOSER_RADIUS,
+    gap: theme.spacing[3],
+  },
   inlineTextSurface: { flexShrink: 1, position: "relative" },
   iconButton: {
     width: TOOLBAR_CONTROL_HEIGHT,

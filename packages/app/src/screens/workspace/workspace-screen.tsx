@@ -3625,6 +3625,7 @@ function WorkspaceScreenContent({
       <FloatingHeaderLayout
         header={compactHeaderLayout.header}
         floating={compactHeaderLayout.floating}
+        underlap={compactHeaderLayout.floating}
       >
         {(topOverlayInset) => (
           <StreamTopOverlayProvider value={topOverlayInset}>

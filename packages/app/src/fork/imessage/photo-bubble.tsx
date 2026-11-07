@@ -12,7 +12,7 @@
  * drawn by the bubble behind the photo (the photo's bottom edge is flat where the tail meets it).
  */
 import { useEffect, useMemo, useState } from "react";
-import { Image, StyleSheet, View } from "react-native";
+import { Image, StyleSheet, useWindowDimensions, View } from "react-native";
 import { useAttachmentPreviewUrl } from "@/attachments/use-attachment-preview-url";
 import type { AttachmentMetadata } from "@/attachments/types";
 
@@ -32,6 +32,7 @@ export interface PhotoBubbleProps {
 
 export function PhotoBubble({ image, accessibilityLabel }: PhotoBubbleProps) {
   const uri = useAttachmentPreviewUrl(image);
+  const { width: windowWidth } = useWindowDimensions();
   const [aspect, setAspect] = useState<number | null>(null);
 
   useEffect(() => {
@@ -53,15 +54,16 @@ export function PhotoBubble({ image, accessibilityLabel }: PhotoBubbleProps) {
   }, [uri]);
 
   const box = useMemo(() => {
+    const balloonWidth = Math.min(PHOTO_BALLOON.width, windowWidth - 24);
     const ratio = aspect ?? 0.75;
     const height = Math.round(
       Math.min(
         PHOTO_BALLOON.maxHeight,
-        Math.max(PHOTO_BALLOON.minHeight, PHOTO_BALLOON.width * ratio),
+        Math.max(PHOTO_BALLOON.minHeight, balloonWidth * ratio),
       ),
     );
-    return { width: PHOTO_BALLOON.width, height };
-  }, [aspect]);
+    return { width: balloonWidth, height };
+  }, [aspect, windowWidth]);
 
   const imageStyle = useMemo(() => [box, styles.image], [box]);
   const source = useMemo(() => ({ uri: uri ?? "" }), [uri]);

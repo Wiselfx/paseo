@@ -39,6 +39,8 @@ interface CompactHeaderProps {
    * header is a flat row and changing them all is not this fork's business.
    */
   variant?: "default" | "imessage";
+  /** iMessage only: tapping the name pill. Wire Paseo tabs here. */
+  onImessageTitlePress?: () => void;
 }
 
 /**
@@ -57,6 +59,7 @@ export function CompactHeader({
   loading = false,
   actions,
   variant = "default",
+  onImessageTitlePress,
 }: CompactHeaderProps) {
   const { t } = useTranslation();
   const insets = useSafeAreaInsets();
@@ -80,10 +83,11 @@ export function CompactHeader({
   if (variant === "imessage") {
     return (
       <IconButtonChromeProvider value="header-island">
-        <View style={[styles.imessageRoot, { paddingTop: insets.top }]}>
+        <View style={[styles.imessageRoot, { paddingTop: insets.top, backgroundColor: "transparent" }]}>
           <ImessageNavBar
             name={title ?? ""}
             leadingSlot={imessageLeading}
+            onPressTitle={onImessageTitlePress}
             leadingLabel={navigation === "back" ? t("common.actions.back") : undefined}
             testID="header-imessage"
           />

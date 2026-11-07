@@ -25,6 +25,7 @@ interface CompactWorkspaceHeaderProps {
   explorerToggleLabel: string;
   explorerToggleAccessibilityState: { expanded: boolean };
   tabSwitcher: ReactNode;
+  onTabSwitcherTitlePress?: () => void;
   /** Workspace overflow menu. */
   children: ReactNode;
   headerVariant: "compact" | "full";
@@ -40,6 +41,7 @@ export function CompactWorkspaceHeader({
   explorerToggleAccessibilityState,
   children,
   tabSwitcher,
+  onTabSwitcherTitlePress,
   headerVariant,
   actionsActive,
 }: CompactWorkspaceHeaderProps) {
@@ -74,6 +76,7 @@ export function CompactWorkspaceHeader({
           subtitle={undefined}
           loading={isLoading}
           actions={actionsInBar ? undefined : actions}
+          onImessageTitlePress={onTabSwitcherTitlePress}
         />
       ) : null}
       <WindowLayoutActions active={actionsActive}>{actions}</WindowLayoutActions>

@@ -41,10 +41,9 @@ import {
   type Rect,
   useOptionalMessageActions,
 } from "./message-actions";
-import { EmojiPicker } from "./emoji-picker";
 import type { ContextMenuItem } from "./menu";
 import { bubblePalette } from "./palette";
-import { setReaction, useReaction, type Reaction } from "./reactions";
+import { useReaction } from "./reactions";
 import { touchSenses } from "./senses";
 import {
   BUBBLE_MIN_WIDTH,
@@ -54,7 +53,6 @@ import {
   TAIL_BOX,
   bubblePath,
 } from "./shape";
-import type { TapbackSelection } from "./tapback-bar";
 import { Tapback, balloonSlot } from "./tapback";
 
 export type BubbleSide = "user" | "agent";
@@ -238,7 +236,6 @@ export const ChatBubble = memo(function ChatBubble({
   const reaction = useReaction(reactionKey);
   const actions = useOptionalMessageActions();
   const host = useRef<View>(null);
-  const [emojiOpen, setEmojiOpen] = useState(false);
 
   const washing = bubblePalette(side, "light").background;
 
@@ -259,27 +256,13 @@ export const ChatBubble = memo(function ChatBubble({
         bubble: lifted,
         wash: washing,
         items: menuItems,
-        selected: reactionKey === undefined ? undefined : reactionToSelection(reaction),
-        onSelect: (selection) => {
-          if (reactionKey !== undefined) setReaction(reactionKey, selection);
-        },
         onAction,
-        onPickEmoji: () => setEmojiOpen(true),
       };
       actions.open(request);
     },
-    [actions, reactionKey, side, tone, tail, padding, children, washing, reaction, onAction, menuItems],
+    [actions, side, tone, tail, padding, children, washing, onAction, menuItems],
   );
 
-  const closeEmojiPicker = useCallback(() => setEmojiOpen(false), []);
-  const pickEmoji = useCallback(
-    (emoji: string) => {
-      setEmojiOpen(false);
-      actions?.close();
-      if (reactionKey !== undefined) setReaction(reactionKey, { emoji });
-    },
-    [actions, reactionKey],
-  );
 
   const handleLongPress = useCallback(() => {
     if (!menuEnabled || !actions) return;
@@ -361,18 +344,9 @@ export const ChatBubble = memo(function ChatBubble({
   );
 
   const contentNode = reaction ? <View style={styles.slot}>{pressable}</View> : pressable;
-
-  return (
-    <>
-      {contentNode}
-      {emojiOpen ? <EmojiPicker onSelect={pickEmoji} onClose={closeEmojiPicker} /> : null}
-    </>
-  );
+  return contentNode;
 });
 
-function reactionToSelection(reaction: Reaction | undefined): TapbackSelection | undefined {
-  return reaction;
-}
 
 const styles = StyleSheet.create(() => ({
   row: {

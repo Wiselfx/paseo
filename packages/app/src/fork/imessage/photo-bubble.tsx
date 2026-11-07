@@ -66,7 +66,7 @@ export function PhotoBubble({ image, accessibilityLabel }: PhotoBubbleProps) {
   }, [aspect, windowWidth]);
 
   const imageStyle = useMemo(() => [box, styles.image], [box]);
-  const source = useMemo(() => ({ uri: uri ?? "" }), [uri]);
+  const source = useMemo(() => (uri ? { uri } : undefined), [uri]);
 
   if (!uri) {
     return <View style={[box, styles.placeholder]} />;
@@ -76,7 +76,7 @@ export function PhotoBubble({ image, accessibilityLabel }: PhotoBubbleProps) {
     <Image
       source={source}
       style={imageStyle}
-      resizeMode="cover"
+      resizeMode="contain"
       accessible={accessibilityLabel !== undefined}
       accessibilityLabel={accessibilityLabel}
     />

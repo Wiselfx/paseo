@@ -3896,10 +3896,10 @@ function WorkspaceMarkdownLinks({
 const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: "transparent",
   },
   containerWorkspaceBackground: {
-    backgroundColor: theme.colors.surfaceWorkspace,
+    backgroundColor: "transparent",
   },
   threePaneRow: {
     // Keep the Explorer overlay below the workspace sheet host on web as well as native.
@@ -4096,7 +4096,7 @@ const styles = StyleSheet.create((theme) => ({
   content: {
     flex: 1,
     minHeight: 0,
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: "transparent",
     position: "relative",
   },
   mobileMountedTabSlot: {
@@ -4105,7 +4105,7 @@ const styles = StyleSheet.create((theme) => ({
   contentPlaceholder: {
     flex: 1,
     minHeight: 0,
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: "transparent",
   },
   emptyState: {
     flex: 1,

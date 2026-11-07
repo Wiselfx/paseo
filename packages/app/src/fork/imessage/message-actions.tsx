@@ -48,7 +48,6 @@ import Animated, {
   Easing,
   useAnimatedStyle,
   useSharedValue,
-  withDelay,
   withTiming,
 } from "react-native-reanimated";
 import { withUnistyles } from "react-native-unistyles";
@@ -59,8 +58,7 @@ import { PressHighlight } from "@/components/ui/press-highlight";
 import { GlassSurface } from "./glass";
 import { IOS_MESSAGE_MENU, contextMenuPanel, type ContextMenuItem } from "./menu";
 import { bubblePalette, withAlpha } from "./palette";
-import { TapbackBar, tapbackBarMetrics, type TapbackSelection } from "./tapback-bar";
-import { TapbackDetails } from "./tapback-details";
+import { tapbackBarMetrics } from "./tapback-bar";
 import type { BubbleSide } from "./bubble";
 
 export interface Rect {
@@ -118,12 +116,9 @@ export interface MessageActionsRequest {
   bubble: ReactNode;
   /** Bubble fill, so the menu's glass picks the colour up. */
   wash: string;
-  selected?: TapbackSelection;
   /** Rows for this message. Defaults to Copy: Paseo has no Translate, and a dead row is worse. */
   items?: ContextMenuItem[];
-  onSelect?: (selection: TapbackSelection) => void;
   onAction?: (id: string) => void;
-  onPickEmoji?: () => void;
 }
 
 interface MessageActionsApi {
@@ -273,7 +268,7 @@ interface OverlayProps {
 
 function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProps) {
   const frame = useWindowDimensions();
-  const { rect, side, tail, bubble, wash, selected, onSelect, onAction, onPickEmoji } = request;
+  const { rect, side, tail, bubble, wash, onAction } = request;
   const outgoing = side === "user";
 
   const menuItems = request.items ?? DEFAULT_MENU;
@@ -284,37 +279,24 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
     [rect, side, tail, frame, menuHeight],
   );
 
-  const handleSelect = useCallback(
-    (selection: TapbackSelection) => {
-      onSelect?.(selection);
-      onClose();
-    },
-    [onSelect, onClose],
-  );
 
   const dim = useSharedValue(0);
   const lift = useSharedValue(0);
   const panel = useSharedValue(0);
-  const bar = useSharedValue(0);
 
   useEffect(() => {
     if (open) {
       dim.value = withTiming(1, FADE);
       lift.value = withTiming(1, { duration: messageActionsTiming.lift, easing: SPRING });
       panel.value = withTiming(1, { duration: messageActionsTiming.menu, easing: SPRING });
-      bar.value = withDelay(
-        messageActionsTiming.barDelay,
-        withTiming(1, { duration: messageActionsTiming.barDuration, easing: SPRING }),
-      );
       return;
     }
     dim.value = withTiming(0, EXIT);
     lift.value = withTiming(0, EXIT);
     panel.value = withTiming(0, EXIT);
-    bar.value = withTiming(0, EXIT);
     const timer = setTimeout(onExited, messageActionsTiming.exit);
     return () => clearTimeout(timer);
-  }, [open, dim, lift, panel, bar, onExited]);
+  }, [open, dim, lift, panel, onExited]);
 
   const dimStyle = useAnimatedStyle(() => ({ opacity: dim.value }));
 
@@ -331,16 +313,6 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
     transform: [{ scale: 0.6 + panel.value * 0.4 }],
   }));
 
-  const barStyle = useAnimatedStyle(() => {
-    const width = Math.max(1, layout.barRight - layout.barLeft);
-    return {
-      opacity: Math.min(1, bar.value * 2),
-      transform: [
-        { translateX: (1 - bar.value) * (outgoing ? (layout.pickerX - width / 2) * 0.5 : 0) },
-        { scaleX: 0.2 + bar.value * 0.8 },
-      ],
-    };
-  });
 
   // The menu laps the bubble it opened on, and native carries that colour through the glass.
   // A flat tint cannot: it is one value for the whole panel, so the top band reads grey.
@@ -378,19 +350,6 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
         {bubble}
       </Animated.View>
 
-      <Animated.View style={[styles.bar, { left: layout.barLeft, top: layout.barTop }, barStyle]}>
-        <TapbackBar
-          width={Math.max(200, layout.barRight - layout.barLeft)}
-          selection={selected}
-          onSelect={handleSelect}
-          onPickEmoji={onPickEmoji}
-          pickerX={layout.pickerX}
-          pickerSide={layout.pickerSide}
-        />
-      </Animated.View>
-
-      {selected ? <TapbackDetails selection={selected} /> : null}
-
       <Animated.View style={[styles.menu, { left: layout.menuLeft, top: layout.menuTop }, panelStyle]}>
         <ThemedGlass style={StyleSheet.absoluteFill} uniProps={menuGlass} />
         <LinearGradient
@@ -406,6 +365,7 @@ function MessageActionsOverlay({ request, open, onClose, onExited }: OverlayProp
           onClose();
         })}
       </Animated.View>
+
     </View>
   );
 }

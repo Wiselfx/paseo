@@ -147,6 +147,8 @@ interface MobileWorkspaceTabSwitcherProps {
   onCloseTabsAbove: (tabId: string) => Promise<void> | void;
   onCloseTabsBelow: (tabId: string) => Promise<void> | void;
   onCloseOtherTabs: (tabId: string) => Promise<void> | void;
+  /** When the switcher lives behind the iMessage name pill, tapping the pill calls this. */
+  onTitlePress?: () => void;
 }
 
 function MobileWorkspaceTabOption({
@@ -346,6 +348,7 @@ export const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitch
     Keyboard.dismiss();
     setIsOpen(true);
   }, []);
+
 
   const handleNewAgent = useCallback(() => {
     setIsOpen(false);

@@ -19,6 +19,9 @@ export type TailSide = "left" | "right" | "none";
 export const BUBBLE_RADIUS = 20.0107;
 export const BUBBLE_PADDING_X = 13.85;
 export const BUBBLE_PADDING_Y = 10;
+/** Reference `maxWidthRatio = 280.33 / 402` (`tokens.ts:70`), applied on iOS too. */
+export const BUBBLE_MAX_WIDTH_RATIO = 280.33 / 402;
+/** Measured full width at the 402pt reference device; the ratio caps wider screens. */
 export const BUBBLE_MAX_WIDTH = 280.5;
 export const BUBBLE_MIN_WIDTH = 48;
 

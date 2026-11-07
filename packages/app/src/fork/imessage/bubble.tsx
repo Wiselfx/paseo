@@ -18,20 +18,21 @@
  * and 13.85 outside it, and the list has to open 28 points of slot for it. Both numbers are
  * measured (`balloonSlot`).
  */
-import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState, useWindowDimensions, type ReactNode } from "react";
 import {
   View,
+  type GestureResponderEvent,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewProps,
   type ViewStyle,
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import Animated, { runOnJS, useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
+import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import type { Theme } from "@/styles/theme";
 
-import { Gesture, GestureDetector } from "react-native-gesture-handler";
+import { scheduleOnRN } from "react-native-worklets";
 
 import {
   type MessageActionsRequest,
@@ -44,7 +45,6 @@ import { bubblePalette } from "./palette";
 import { setReaction, useReaction, type Reaction } from "./reactions";
 import { touchSenses } from "./senses";
 import {
-  BUBBLE_MAX_WIDTH,
   BUBBLE_MIN_WIDTH,
   BUBBLE_PADDING_X,
   BUBBLE_PADDING_Y,
@@ -110,11 +110,11 @@ interface BubbleOutlineProps {
   tone: BubbleTone;
   tail: boolean;
   padding: { x: number; y: number };
+  maxWidth?: number;
   children: ReactNode;
   testID?: string;
 }
-
-function BubbleOutline({ side, tone, tail, padding, children, testID }: BubbleOutlineProps) {
+function BubbleOutline({ side, tone, tail, padding, maxWidth, children, testID }: BubbleOutlineProps) {
   const [size, setSize] = useState<{ width: number; height: number } | null>(null);
 
   const measure = useCallback((event: LayoutChangeEvent) => {
@@ -143,6 +143,7 @@ function BubbleOutline({ side, tone, tail, padding, children, testID }: BubbleOu
     <ThemedSurface
       style={[
         styles.body,
+        maxWidth !== undefined ? { maxWidth } : null,
         {
           paddingHorizontal: padding.x,
           paddingTop: padding.y,
@@ -175,8 +176,6 @@ function usePressFeedback(active: boolean) {
 
   const onPressIn = useCallback(() => {
     if (!active) return;
-    // Haptic on the way down, never on release: the finger wants to know it landed.
-    touchSenses();
     scale.value = withSpring(PRESS_SCALE, PRESS_IN);
   }, [active, scale]);
   const onPressOut = useCallback(() => {
@@ -201,7 +200,7 @@ export interface ChatBubbleProps {
   menuItems?: ContextMenuItem[];
   /**
    * Identifies this bubble in the reaction store. With a key, the bubble can take a
-   * tapback and show it; without one it is inert in the overlay.
+   * tapback and show it; without one it may still open the menu via Copy/Select.
    */
   reactionKey?: string;
   /** A static render (the typing balloon, the lifted copy) takes no presses. */
@@ -233,6 +232,9 @@ export const ChatBubble = memo(function ChatBubble({
 }: ChatBubbleProps) {
   const { pressStyle, onPressIn, onPressOut } = usePressFeedback(interactive);
   const padding = contentPadding ?? DEFAULT_PADDING;
+  const windowWidth = useWindowDimensions().width;
+  // Reference: `maxWidthRatio = 280.33 / 402` applied on iOS too (`tokens.ts:70`, `message-bubble.tsx:218`).
+  const bubbleMaxWidth = Math.min(windowWidth * (280.33 / 402), windowWidth);
   const reaction = useReaction(reactionKey);
   const actions = useOptionalMessageActions();
   const host = useRef<View>(null);
@@ -242,7 +244,7 @@ export const ChatBubble = memo(function ChatBubble({
 
   const openActions = useCallback(
     (rect: Rect) => {
-      if (!actions || reactionKey === undefined) return;
+      if (!actions) return;
       const lifted = (
         <View style={[styles.liftedFrame, { width: rect.width }]}>
           <BubbleOutline side={side} tone={tone} tail={tail} padding={padding}>
@@ -257,8 +259,10 @@ export const ChatBubble = memo(function ChatBubble({
         bubble: lifted,
         wash: washing,
         items: menuItems,
-        selected: reactionToSelection(reaction),
-        onSelect: (selection) => setReaction(reactionKey, selection),
+        selected: reactionKey === undefined ? undefined : reactionToSelection(reaction),
+        onSelect: (selection) => {
+          if (reactionKey !== undefined) setReaction(reactionKey, selection);
+        },
         onAction,
         onPickEmoji: () => setEmojiOpen(true),
       };
@@ -278,49 +282,99 @@ export const ChatBubble = memo(function ChatBubble({
   );
 
   const handleLongPress = useCallback(() => {
+    if (!menuEnabled || !actions) return;
     const node = host.current;
     if (!node) return;
+    // The reference `use-long-press.ts` fires once at the end of the hold with a single cue:
+    // the haptic belongs to the pickup, not to touch-down. Fire it here, where the hold
+    // actually activates, so a scroll start never ticks.
+    touchSenses();
     node.measureInWindow((x, y, width, height) => {
       if (width <= 0 || height <= 0) return;
       openActions({ x, y, width, height });
     });
-  }, [openActions]);
+  }, [actions, menuEnabled, openActions]);
 
   const runPress = useCallback(() => {
     onPress?.();
   }, [onPress]);
 
-  const gesture = useMemo(() => {
-    // One touch-down acknowledgement for both outcomes: the long press begins tracking on the
-    // first touch, so its `onBegin` is the press state. The tap must not also fire it, or a
-    // touch-down would tick twice.
-    const longPress = Gesture.LongPress()
-      .minDuration(LONG_PRESS_MS)
-      .maxDistance(MOVE_TOLERANCE)
-      .enabled(interactive && menuEnabled)
-      .onBegin(() => runOnJS(onPressIn)())
-      .onStart(() => {
-        if (actions) runOnJS(handleLongPress)();
-      })
-      .onFinalize(() => runOnJS(onPressOut)());
-    const tap = Gesture.Tap()
-      .maxDistance(MOVE_TOLERANCE)
-      .onBegin(() => {
-        if (!menuEnabled) runOnJS(onPressIn)();
-      })
-      .onEnd((_event, success) => {
-        if (success) runOnJS(runPress)();
-      })
-      .onFinalize(() => runOnJS(onPressOut)());
-    // First to activate wins: a release before 500ms is a tap, a 500ms hold cancels the tap.
-    return Gesture.Race(longPress, tap);
-  }, [actions, handleLongPress, interactive, menuEnabled, onPressIn, onPressOut, runPress]);
+  // Manual hold (reference `use-long-press.ts` ports pointer-down/move/up to the responder):
+  // a 500ms timer holds the press, 8pt of travel cancels it outright, and Release before
+  // the timer counts as a tap. A Responder that never panics aborts the scroll, so build
+  // the gesture in JS — not an RNGH Race, which can lose to Tap and never activate.
+  const holdState = useRef({ timer: null as ReturnType<typeof setTimeout> | null, origin: { x: 0; y: 0 }, fired: false, cancelled: false });
+  const clearHold = useCallback(() => {
+    if (holdState.current.timer) clearTimeout(holdState.current.timer);
+    holdState.current.timer = null;
+  }, []);
+  useEffect(() => clearHold, [clearHold]);
+
+  const onResponderGrant = useCallback(
+    (event: GestureResponderEvent) => {
+      if (!interactive) return;
+      onPressIn();
+      clearHold();
+      holdState.current.fired = false;
+      holdState.current.cancelled = false;
+      holdState.current.origin = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
+      if (menuEnabled && actions) {
+        holdState.current.timer = setTimeout(() => {
+          holdState.current.timer = null;
+          holdState.current.fired = true;
+          scheduleOnRN(handleLongPress);
+        }, LONG_PRESS_MS);
+      }
+    },
+    [actions, clearHold, handleLongPress, interactive, menuEnabled, onPressIn],
+  );
+  const onResponderMove = useCallback(
+    (event: GestureResponderEvent) => {
+      const { timer, origin } = holdState.current;
+      if (!timer) return;
+      const traveled = Math.hypot(event.nativeEvent.pageX - origin.x, event.nativeEvent.pageY - origin.y);
+      if (traveled > MOVE_TOLERANCE) {
+        holdState.current.cancelled = true;
+        clearHold();
+        onPressOut();
+      }
+    },
+    [clearHold, onPressOut],
+  );
+  const onResponderRelease = useCallback(() => {
+    const state = holdState.current;
+    if (state.cancelled) {
+      state.cancelled = false;
+      return;
+    }
+    if (state.timer) {
+      clearHold();
+      runPress();
+    }
+    onPressOut();
+  }, [clearHold, onPressOut, runPress]);
+  const onResponderTerminate = useCallback(() => {
+    holdState.current.cancelled = false;
+    clearHold();
+    onPressOut();
+  }, [clearHold, onPressOut]);
+  const holdHandlers = useMemo(
+    () => ({
+      onStartShouldSetResponder: () => interactive,
+      onResponderGrant,
+      onResponderMove,
+      onResponderRelease,
+      onResponderTerminate,
+      onResponderTerminationRequest: () => false,
+    }),
+    [interactive, onResponderGrant, onResponderMove, onResponderRelease, onResponderTerminate],
+  );
 
   // Accessibility owner is the gesture host View below; the inner Animated.View no longer
   // carries its own label to avoid double announcements.
   const content = (
-    <Animated.View style={[styles.frame, pressStyle, style]}>
-      <BubbleOutline side={side} tone={tone} tail={tail} padding={padding} testID={testID}>
+    <Animated.View style={[styles.frame, { maxWidth: bubbleMaxWidth }, pressStyle, style]}>
+      <BubbleOutline side={side} tone={tone} tail={tail} padding={padding} maxWidth={bubbleMaxWidth} testID={testID}>
         {children}
       </BubbleOutline>
     </Animated.View>
@@ -328,19 +382,18 @@ export const ChatBubble = memo(function ChatBubble({
 
   const pressable = (
     <View style={[styles.row, side === "user" ? styles.rowUser : styles.rowAgent]}>
-      <GestureDetector gesture={gesture}>
-        <View
-          ref={host}
-          collapsable={false}
-          style={styles.shrink}
-          accessible={onPress !== undefined || accessibilityLabel !== undefined}
-          accessibilityRole={onPress ? "button" : undefined}
-          accessibilityLabel={accessibilityLabel}
-          onAccessibilityTap={onPress ? runPress : undefined}
-        >
-          {content}
-        </View>
-      </GestureDetector>
+      <View
+        ref={host}
+        collapsable={false}
+        style={styles.shrink}
+        accessible={onPress !== undefined || accessibilityLabel !== undefined}
+        accessibilityRole={onPress ? "button" : undefined}
+        accessibilityLabel={accessibilityLabel}
+        onAccessibilityTap={onPress ? runPress : undefined}
+        {...holdHandlers}
+      >
+        {content}
+      </View>
       {reaction ? (
         <View
           pointerEvents="none"
@@ -394,7 +447,6 @@ const styles = StyleSheet.create(() => ({
   frame: {
     flexShrink: 1,
     flexGrow: 0,
-    maxWidth: BUBBLE_MAX_WIDTH,
     minWidth: BUBBLE_MIN_WIDTH,
   },
   liftedFrame: {
@@ -403,7 +455,6 @@ const styles = StyleSheet.create(() => ({
   body: {
     borderRadius: BUBBLE_RADIUS,
     flexShrink: 1,
-    maxWidth: BUBBLE_MAX_WIDTH,
   },
   overlay: {
     position: "absolute",

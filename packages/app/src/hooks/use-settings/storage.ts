@@ -44,6 +44,16 @@ export type PullRequestOpenLocation = "main" | "side" | "explorer";
 export type SidebarWorkspaceTrailing = "diff" | "timestamp" | "none";
 /** How much of an agent's work the chat shows between the user's message and the reply. */
 export type ChatDisplay = "full" | "collapseToolCalls" | "collapseTurns";
+/** The composer mascot (dsh `mascot` pref): follow the brand, one of the three, or none. */
+export type MascotChoice = "brand" | "crab" | "deepy" | "whalegirl" | "off";
+/** Where the mascot stands (dsh `mascotScope` pref). */
+export type MascotScope = "home" | "all";
+/** The skin's motion mode (dsh Motion tab). */
+export type MotionMode = "system" | "reduced" | "full";
+
+export const MascotChoiceSchema = z.enum(["brand", "crab", "deepy", "whalegirl", "off"]);
+export const MascotScopeSchema = z.enum(["home", "all"]);
+export const MotionModeSchema = z.enum(["system", "reduced", "full"]);
 
 const ThemePreferenceSchema = z.enum([
   ...THEME_OPTIONS.map((option) => option.name),
@@ -107,10 +117,12 @@ export interface AppSettings {
   chatOutlineEnabled: boolean;
   vimKeybindings: boolean;
   sendShortcut: SendShortcut;
-  filePanelAssociations: Record<string, string>;
-  /** Desktop-only preferences for implicit opens into the ordinary side pane. */
-  openInSidePane: OpenInSidePanePreferences;
-  pullRequestOpenLocation: PullRequestOpenLocation;
+  /** Claude-style composer mascot (dsh `mascot` pref). */
+  mascot: MascotChoice;
+  /** Where the mascot stands: home page alone, or home + conversation. */
+  mascotScope: MascotScope;
+  /** Claude-style motion mode (dsh Motion tab): system / reduced / full. */
+  motion: MotionMode;
 }
 
 export type AppSettingsUpdate =
@@ -167,6 +179,9 @@ export const DEFAULT_CLIENT_SETTINGS: AppSettings = {
   filePanelAssociations: {},
   openInSidePane: DEFAULT_OPEN_IN_SIDE_PANE_PREFERENCES,
   pullRequestOpenLocation: "explorer",
+  mascot: "brand",
+  mascotScope: "all",
+  motion: "system",
 };
 
 export const DEFAULT_APP_SETTINGS: Settings = {
@@ -269,6 +284,9 @@ const StoredAppSettingsSchema = z
     chatOutlineEnabled: z.boolean().catch(true),
     vimKeybindings: z.boolean().catch(false),
     sendShortcut: z.enum(["enter", "mod-enter"]).catch("enter"),
+    mascot: MascotChoiceSchema.catch("brand"),
+    mascotScope: MascotScopeSchema.catch("all"),
+    motion: MotionModeSchema.catch("system"),
     filePanelAssociations: z.record(z.string(), z.string()).catch({}),
     openInSidePane: z
       .object({

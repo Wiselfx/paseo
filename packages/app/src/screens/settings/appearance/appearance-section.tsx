@@ -293,7 +293,65 @@ function SyntaxRow({ value, onChange }: SyntaxRowProps) {
     </View>
   );
 }
+// ---------------------------------------------------------------------------
+// Claude-style mascot (dsh `mascot` pref: brand / crab / deepy / whalegirl / off)
+// ---------------------------------------------------------------------------
 
+const MASCOT_CHOICES = [
+  { value: "brand", label: "Follow the brand" },
+  { value: "crab", label: "Crab" },
+  { value: "deepy", label: "Deepy" },
+  { value: "whalegirl", label: "Whale girl" },
+  { value: "off", label: "Off" },
+] as const;
+
+const MASCOT_SCOPE_CHOICES = [
+  { value: "home", label: "Home page only" },
+  { value: "all", label: "Home and conversation" },
+] as const;
+
+const MOTION_CHOICES = [
+  { value: "system", label: "System" },
+  { value: "reduced", label: "Reduced" },
+  { value: "full", label: "Full" },
+] as const;
+
+interface ChoiceRowProps<Value extends string> {
+  title: string;
+  value: Value;
+  choices: ReadonlyArray<{ value: Value; label: string }>;
+  onChange: (value: Value) => void;
+}
+
+function ChoiceRow<Value extends string>({ title, value, choices, onChange }: ChoiceRowProps<Value>) {
+  const selectedLabel = choices.find((entry) => entry.value === value)?.label ?? value;
+  return (
+    <View style={settingsStyles.row}>
+      <View style={settingsStyles.rowContent}>
+        <Text style={settingsStyles.rowTitle}>{title}</Text>
+      </View>
+      <DropdownMenu>
+        <DropdownTrigger accessibilityLabel={`${title}: ${selectedLabel}`}>
+          {selectedLabel}
+        </DropdownTrigger>
+        <DropdownMenuContent side="bottom" align="end" width={220}>
+          {choices.map((entry) => {
+            const handleSelect = () => onChange(entry.value);
+            return (
+              <DropdownMenuItem key={entry.value} selected={value === entry.value} onSelect={handleSelect}>
+                {entry.label}
+              </DropdownMenuItem>
+            );
+          })}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </View>
+  );
+}
+
+ // ---------------------------------------------------------------------------
+ // Page
+ // ---------------------------------------------------------------------------
 // ---------------------------------------------------------------------------
 // Page
 // ---------------------------------------------------------------------------
@@ -416,6 +474,27 @@ export function AppearanceSection() {
     }
   }, [contentSizeDraft, settings.contentFontSize, updateSettings]);
 
+  const handleMascotChange = useCallback(
+    (mascot: AppSettings["mascot"]) => {
+      void updateSettings({ mascot });
+    },
+    [updateSettings],
+  );
+
+  const handleMascotScopeChange = useCallback(
+    (mascotScope: AppSettings["mascotScope"]) => {
+      void updateSettings({ mascotScope });
+    },
+    [updateSettings],
+  );
+
+  const handleMotionChange = useCallback(
+    (motion: AppSettings["motion"]) => {
+      void updateSettings({ motion });
+    },
+    [updateSettings],
+  );
+
   // Live-while-typing: the in-progress drafts drive the preview without
   // committing to the global theme. Empty/invalid fields fall back to the
   // theme value inside the preview.
@@ -485,6 +564,28 @@ export function AppearanceSection() {
             draft={codeSizeDraft}
             onChangeDraft={handleCodeSizeChange}
             onCommit={commitCodeSize}
+          />
+        </View>
+      </SettingsSection>
+      <SettingsSection title="Mascot">
+        <View style={settingsStyles.card}>
+          <ChoiceRow
+            title="Character"
+            value={settings.mascot}
+            choices={MASCOT_CHOICES}
+            onChange={handleMascotChange}
+          />
+          <ChoiceRow
+            title="Where it stands"
+            value={settings.mascotScope}
+            choices={MASCOT_SCOPE_CHOICES}
+            onChange={handleMascotScopeChange}
+          />
+          <ChoiceRow
+            title="Motion"
+            value={settings.motion}
+            choices={MOTION_CHOICES}
+            onChange={handleMotionChange}
           />
         </View>
       </SettingsSection>

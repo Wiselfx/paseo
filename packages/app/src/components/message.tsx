@@ -1,4 +1,5 @@
 import { useDisclosureHold } from "@/agent-stream/disclosure";
+import { SendGrow } from "@/agent-stream/send-grow";
 import { MessagePreview, MessageSender } from "@/components/user-message";
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { getAgentAttachmentPillContent } from "@/attachments/attachment-pill-content";
@@ -370,6 +371,40 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     fontSize: STREAM_METADATA_FONT_SIZE,
   },
 }));
+import type { TFunction } from "i18next";
+
+interface AttachmentPreviewRowProps {
+  attachments: AgentAttachment[];
+  containerStyle: React.ComponentProps<typeof View>["style"];
+  t: TFunction;
+  AttachFrame: typeof AttachmentFrame;
+  AttachLabel: typeof AttachmentLabel;
+  getContent: typeof getAgentAttachmentPillContent;
+}
+
+const AttachmentPreviewRow = memo(function AttachmentPreviewRow({
+  attachments,
+  containerStyle,
+  t,
+  AttachFrame,
+  AttachLabel,
+  getContent,
+}: AttachmentPreviewRowProps) {
+  return (
+    <View style={containerStyle}>
+      {attachments.map((attachment, index) => {
+        const content = getContent(attachment, t);
+        return (
+          <AttachFrame
+            key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
+          >
+            <AttachLabel icon={content.icon} title={content.title} subtitle={content.subtitle} />
+          </AttachFrame>
+        );
+      })}
+    </View>
+  );
+});
 
 interface UserMessageImagePillProps {
   image: UserMessageImageAttachment;
@@ -479,7 +514,8 @@ export const UserMessage = memo(function UserMessage({
         onPointerLeave={handlePointerLeave}
       >
         {sender ? <MessageSender sender={sender} serverId={serverId} /> : null}
-        <View style={userMessageStylesheet.bubble}>
+        <SendGrow testID="user-message-send-grow">
+          <View style={userMessageStylesheet.bubble}>
           <MessagePreview>
             {hasImages ? (
               <View style={imagePreviewContainerStyle}>
@@ -494,22 +530,14 @@ export const UserMessage = memo(function UserMessage({
               </View>
             ) : null}
             {hasAttachments ? (
-              <View style={attachmentPreviewContainerStyle}>
-                {attachments.map((attachment, index) => {
-                  const content = getAgentAttachmentPillContent(attachment, t);
-                  return (
-                    <AttachmentFrame
-                      key={`${attachment.type}:${"number" in attachment ? attachment.number : index}`}
-                    >
-                      <AttachmentLabel
-                        icon={content.icon}
-                        title={content.title}
-                        subtitle={content.subtitle}
-                      />
-                    </AttachmentFrame>
-                  );
-                })}
-              </View>
+              <AttachmentPreviewRow
+                attachments={attachments}
+                containerStyle={attachmentPreviewContainerStyle}
+                t={t}
+                AttachFrame={AttachmentFrame}
+                AttachLabel={AttachmentLabel}
+                getContent={getAgentAttachmentPillContent}
+              />
             ) : null}
             {hasText ? (
               <Text selectable style={userMessageStylesheet.text} dataSet={MESSAGE_TEXT_DATASET}>
@@ -517,7 +545,8 @@ export const UserMessage = memo(function UserMessage({
               </Text>
             ) : null}
           </MessagePreview>
-        </View>
+          </View>
+        </SendGrow>
         {hasText ? (
           <View
             style={trailingRowStyle}

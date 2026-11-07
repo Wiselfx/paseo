@@ -2,10 +2,10 @@ import { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
 import { Summary } from "lucide-react-native";
 import { useDisclosureHold } from "@/agent-stream/disclosure";
+import { RollingFold } from "@/agent-stream/rolling-fold";
 import { ExpandableBadge } from "@/components/message";
 import { useOverviewSummaryLabel } from "@/tool-calls/detail-level/overview/label";
 import type { CollapsedTurn } from "./model";
-
 /**
  * The row a collapsed turn leaves under its user message, styled like a tool-call group.
  * Pressing it opens the turn's rows beneath it.
@@ -26,13 +26,15 @@ export const TurnSummaryLine = memo(function TurnSummaryLine({
   );
 
   return (
-    <ExpandableBadge
-      testID="turn-summary"
-      label={label}
-      icon={Summary}
-      isExpanded={turn.expanded}
-      onToggle={toggle}
-      borderlessWhenExpanded
-    />
+    <RollingFold open={turn.expanded} testID="turn-summary-fold">
+      <ExpandableBadge
+        testID="turn-summary"
+        label={label}
+        icon={Summary}
+        isExpanded={turn.expanded}
+        onToggle={toggle}
+        borderlessWhenExpanded
+      />
+    </RollingFold>
   );
 });

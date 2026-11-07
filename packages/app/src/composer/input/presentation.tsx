@@ -135,8 +135,8 @@ export function ComposerInputPresentation({
                   </Button>
                 ) : null}
               </View>
-              {toolbar}
             </View>
+            {toolbar}
           )}
         </View>
       </ComposerFullscreenBody>

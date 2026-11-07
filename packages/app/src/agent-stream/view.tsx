@@ -70,6 +70,8 @@ import { createStreamPresentation } from "./presentation";
 import { OverviewToolCallGroupView } from "@/tool-calls/detail-level/overview/view";
 import { useWorkVisible } from "@/fork/imessage/work";
 import { SystemMessage } from "@/fork/imessage/system-message";
+import { ScrollEdge } from "@/fork/imessage/scroll-edge";
+import { TypingBubble } from "@/fork/imessage/typing-bubble";
 import { DateSeparator, dayKey, formatClockTime } from "@/fork/imessage/date-separator";
 import { SwipeTimesRow } from "@/fork/imessage/swipe-times";
 import { IndentRail } from "@/components/indent-rail";
@@ -332,6 +334,33 @@ function ScrollToBottomButton({
         </Pressable>
       </Animated.View>
     </View>
+  );
+}
+
+/**
+ * A phone transcript hides its work behind the typing balloon. When the turn has only
+ * reasoning/tool rows there is no assistant body to carry the balloon, so the stream
+ * renders one at the tail. While an assistant message is streaming, its own body owns
+ * the balloon and this row must stay off.
+ */
+function streamShowsTypingRow({
+  isMobile,
+  isTurnActive,
+  hideWork,
+  history,
+  liveHead,
+}: {
+  isMobile: boolean;
+  isTurnActive: boolean;
+  hideWork: boolean;
+  history: StreamLayoutItem[];
+  liveHead: StreamLayoutItem[];
+}): boolean {
+  if (!isMobile || !isTurnActive || !hideWork) return false;
+  return ![...history, ...liveHead].some(
+    (layoutItem) =>
+      layoutItem.phase === "streaming" &&
+      layoutItem.item.kind === "assistant_message",
   );
 }
 
@@ -1256,17 +1285,13 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
     // list (`buildRows` in `message-list.tsx`). `ImessageAssistantBody` already
     // shows a `TypingBubble` while assistant text streams, so the stream row
     // must not duplicate it.
-    const hasStreamingAssistantMessage = useMemo(
-      () =>
-        [...streamLayout.history, ...streamLayout.liveHead].some(
-          (layoutItem) =>
-            layoutItem.phase === "streaming" &&
-            layoutItem.item.kind === "assistant_message",
-        ),
-      [streamLayout.history, streamLayout.liveHead],
-    );
-    const showStreamTypingRow =
-      isMobile && isTurnActive && hideWork && !hasStreamingAssistantMessage;
+    const showStreamTypingRow = streamShowsTypingRow({
+      isMobile,
+      isTurnActive,
+      hideWork,
+      history: streamLayout.history,
+      liveHead: streamLayout.liveHead,
+    });
     return (
       <ChatFind
         agentId={agentId}
@@ -1828,6 +1853,14 @@ const stylesheet = StyleSheet.create((theme) => ({
   forwardListContentContainer: {
     paddingTop: theme.spacing[4],
     paddingBottom: theme.spacing[4],
+  },
+  streamTypingRow: {
+    width: "100%",
+    maxWidth: theme.contentMaxWidth,
+    alignSelf: "center",
+    paddingHorizontal: theme.spacing[2],
+    // Between-groups gap, matching the assistant body's between-groups gap.
+    marginTop: 10.2,
   },
   list: {
     flex: 1,

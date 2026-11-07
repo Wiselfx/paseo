@@ -116,27 +116,29 @@ export function ComposerInputPresentation({
           {fullscreen ? (
             <View style={styles.fullscreenTextSurface}>{surface}</View>
           ) : (
-            <View style={styles.inlineClip}>
-              {attachmentSlot}
-              <View style={styles.inlineTextSurface}>
-                {surface}
-                {showFullscreenButton ? (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    accessibilityLabel={t("composer.input.fullscreen")}
-                    leftIcon={maximizeIcon}
-                    onPointerDown={keepEditorFocused}
-                    onPress={onEnter}
-                    style={enterStyle}
-                    hitSlop={8}
-                  >
-                    {null}
-                  </Button>
-                ) : null}
+            <>
+              <View style={styles.inlineClip}>
+                {attachmentSlot}
+                <View style={styles.inlineTextSurface}>
+                  {surface}
+                  {showFullscreenButton ? (
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      accessibilityLabel={t("composer.input.fullscreen")}
+                      leftIcon={maximizeIcon}
+                      onPointerDown={keepEditorFocused}
+                      onPress={onEnter}
+                      style={enterStyle}
+                      hitSlop={8}
+                    >
+                      {null}
+                    </Button>
+                  ) : null}
+                </View>
               </View>
-            </View>
-            {toolbar}
+              {toolbar}
+            </>
           )}
         </View>
       </ComposerFullscreenBody>

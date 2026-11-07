@@ -65,6 +65,7 @@ export interface MarkdownRendererProps extends MarkdownImageContext {
   lineHeight?: number;
   /** Muted text colour. Compact surfaces only. */
   muted?: boolean;
+  selectable?: boolean;
   streaming?: boolean;
   agentId?: string;
   workspaceId?: string;
@@ -109,9 +110,10 @@ const MarkdownPart = memo(function MarkdownPart({
   onLinkPress,
   agentCommands: _agentCommands,
   commandHints = null,
-  ...imageContext,
+  ...imageContext
 }: MarkdownRendererProps & { commandHints?: CommandHints | null }) {
   const environment = useAssistantFileLinkEnvironment();
+  const actions = useAssistantFileLinkActions();
   const forgeShorthand = useForgeShorthand();
   const client =
     imageContext.client ??

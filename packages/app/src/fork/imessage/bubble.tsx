@@ -18,10 +18,10 @@
  * and 13.85 outside it, and the list has to open 28 points of slot for it. Both numbers are
  * measured (`balloonSlot`).
  */
-import { memo, useCallback, useMemo, useRef, useState, useWindowDimensions, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useRef, useState, type ReactNode } from "react";
 import {
-  Pressable,
   View,
+  useWindowDimensions,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewProps,
@@ -31,6 +31,7 @@ import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-native-reanimated";
 import Svg, { Path } from "react-native-svg";
 import type { Theme } from "@/styles/theme";
+import { PressHighlight } from "@/components/ui/press-highlight";
 
 /** iOS long-press: a 500ms hold that dies after 8 points of travel. */
 const LONG_PRESS_MS = 500;
@@ -319,7 +320,7 @@ export const ChatBubble = memo(function ChatBubble({
 
   const pressable = (
     <View style={[styles.row, side === "user" ? styles.rowUser : styles.rowAgent]}>
-      <Pressable
+      <PressHighlight
         ref={host}
         collapsable={false}
         style={styles.shrink}
@@ -335,7 +336,7 @@ export const ChatBubble = memo(function ChatBubble({
         onPressOut={tapOut}
       >
         {content}
-      </Pressable>
+      </PressHighlight>
       {reaction ? (
         <View
           pointerEvents="none"

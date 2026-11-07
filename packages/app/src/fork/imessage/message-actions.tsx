@@ -41,6 +41,8 @@ import {
   type ViewStyle,
 } from "react-native";
 import { Portal } from "@gorhom/portal";
+import { useFloatingHeaderOverlayHost } from "@/components/floating-header";
+import { useFloatingPanelPortalHostName } from "@/components/ui/floating-panel-portal";
 import { LinearGradient } from "expo-linear-gradient";
 import Animated, {
   Easing,
@@ -228,6 +230,9 @@ const ThemedGlass = withUnistyles(function MenuGlass({
 export function MessageActionsProvider({ children }: { children: ReactNode }) {
   const [request, setRequest] = useState<MessageActionsRequest | null>(null);
   const [visible, setVisible] = useState(false);
+  const headerHost = useFloatingHeaderOverlayHost();
+  const panelHost = useFloatingPanelPortalHostName();
+  const hostName = headerHost ?? panelHost;
 
   const open = useCallback((next: MessageActionsRequest) => {
     setRequest(next);
@@ -246,7 +251,7 @@ export function MessageActionsProvider({ children }: { children: ReactNode }) {
     <MessageActionsContext.Provider value={api}>
       {children}
       {request ? (
-        <Portal>
+        <Portal hostName={hostName}>
           <MessageActionsOverlay
             request={request}
             open={visible}

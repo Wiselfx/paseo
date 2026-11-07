@@ -124,8 +124,6 @@ function RoundButton({
 
 export interface ImessageNavBarProps {
   name: string;
-  /** A second line under the capsule — the workspace it belongs to. */
-  subtitle?: ReactNode;
   /** Initials for the avatar; derived from the name when omitted. */
   initials?: string;
   leading?: "back" | "menu";
@@ -134,8 +132,6 @@ export interface ImessageNavBarProps {
   onPressLeading?: () => void;
   leadingLabel?: string;
   onPressTitle?: () => void;
-  /** Right-hand controls, kept out of the measured layout so they can be app-shaped. */
-  actions?: ReactNode;
   testID?: string;
 }
 
@@ -151,14 +147,12 @@ export function initialsOf(name: string): string {
 
 export const ImessageNavBar = memo(function ImessageNavBar({
   name,
-  subtitle,
   initials,
   leading = "back",
   leadingSlot,
   onPressLeading,
   leadingLabel,
   onPressTitle,
-  actions,
   testID,
 }: ImessageNavBarProps) {
   const press = useControlPress(false);
@@ -227,14 +221,7 @@ export const ImessageNavBar = memo(function ImessageNavBar({
           </PressHighlight>
         </Animated.View>
 
-        {actions ? (
-          <View style={styles.actions} pointerEvents="box-none">
-            <GlassSurface radius={22} cast="nav-round" style={StyleSheet.absoluteFill} pointerEvents="none" />
-            {actions}
-          </View>
-        ) : null}
       </View>
-      {subtitle ? <View style={styles.subtitle}>{subtitle}</View> : null}
     </View>
   );
 });
@@ -307,18 +294,5 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: NAME_SIZE,
     fontWeight: "700",
     flexShrink: 1,
-  },
-  actions: {
-    position: "absolute",
-    right: ROUND_LEFT,
-    top: CONTROL_TOP,
-    height: ROUND_SIZE,
-    flexDirection: "row",
-    alignItems: "center",
-    gap: 8,
-  },
-  subtitle: {
-    alignItems: "center",
-    paddingTop: 2,
   },
 }));

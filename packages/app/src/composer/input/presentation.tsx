@@ -161,7 +161,10 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: COMPOSER_RADIUS,
     gap: theme.spacing[3],
   },
-  inlineTextSurface: { flexShrink: 1, position: "relative" },
+  // Measured on ios-composer.tsx: text sits 16 in from the left and 48 from
+  // the right, 10 above and below a 20pt line. The wrapper does not own the
+  // insets; the text surface does, so the first glyph is never clipped.
+  inlineTextSurface: { flexShrink: 1, position: "relative", paddingTop: 10, paddingBottom: 10, paddingLeft: 16, paddingRight: 48 },
   iconButton: {
     width: TOOLBAR_CONTROL_HEIGHT,
     height: TOOLBAR_CONTROL_HEIGHT,

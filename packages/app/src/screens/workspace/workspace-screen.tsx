@@ -52,7 +52,7 @@ import { SidebarMenuToggle } from "@/components/headers/sidebar-menu-toggle";
 import { ScreenHeader } from "@/components/headers/screen-header";
 import { MenuHeader } from "@/components/headers/menu-header";
 import { FloatingHeaderLayout } from "@/components/floating-header";
-import { StreamTopOverlayProvider, supportsStreamTopOverlay } from "@/agent-stream/top-overlay";
+import { StreamTopOverlayProvider } from "@/agent-stream/top-overlay";
 import {
   CompactWorkspaceHeader,
   MobileWorkspaceTabSwitcher,
@@ -870,9 +870,6 @@ function WorkspaceDocumentTitleEffectSlot({
   );
 }
 
-function floatsHeaderOverContent(activeTab: WorkspaceTabDescriptor | null): boolean {
-  return supportsStreamTopOverlay && activeTab?.kind === "agent";
-}
 
 /** A fullscreen composer covers the compact header; the column lays out without it. */
 function resolveCompactHeaderLayout(input: {
@@ -881,7 +878,11 @@ function resolveCompactHeaderLayout(input: {
   composerFullscreen: boolean;
 }): { header: ReactNode; floating: boolean } {
   if (input.composerFullscreen) return { header: null, floating: false };
-  return { header: input.header, floating: floatsHeaderOverContent(input.activeTab) };
+  // Fork (imessage): the reference nav bar is transparent furniture over the
+  // transcript with content scrolling under it, not an in-flow row with a fade.
+  // Keeping the in-flow/fade path here paints a black slab in the pure-black
+  // theme behind the transparent glass islands.
+  return { header: input.header, floating: true };
 }
 
 function shouldShowWorkspaceScreenHeader(input: {

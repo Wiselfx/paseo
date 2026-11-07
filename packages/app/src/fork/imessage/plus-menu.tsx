@@ -22,6 +22,8 @@
 import { memo, useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { StyleSheet, Text, useWindowDimensions, View } from "react-native";
 import { Portal } from "@gorhom/portal";
+import { useFloatingHeaderOverlayHost } from "@/components/floating-header";
+import { useFloatingPanelPortalHostName } from "@/components/ui/floating-panel-portal";
 import Animated, {
   useAnimatedStyle,
   useSharedValue,
@@ -142,6 +144,8 @@ export interface PlusMenuProps {
 
 export function PlusMenu({ items, open, onClose, onExited }: PlusMenuProps) {
   const frame = useWindowDimensions();
+  const headerHost = useFloatingHeaderOverlayHost();
+  const panelHost = useFloatingPanelPortalHostName();
   const [mounted, setMounted] = useState(open);
   const progress = useSharedValue(open ? 0 : 1);
   const exited = useRef(onExited);
@@ -188,8 +192,9 @@ export function PlusMenu({ items, open, onClose, onExited }: PlusMenuProps) {
   if (!mounted) return null;
 
   return (
-    <Portal>
+    <Portal hostName={headerHost ?? panelHost}>
       <View style={StyleSheet.absoluteFill}>
+        <PlusMenuBackdrop onPress={onClose} />
         {/* Nothing dims: measured, and the sheet is the only thing that ramps. */}
         <Animated.View style={[styles.sheet, sheet, sheetStyle]}>
           <ThemedGlass radius={plusMenuMetrics.radius} style={StyleSheet.absoluteFill} uniProps={tintProps} />

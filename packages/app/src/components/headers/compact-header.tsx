@@ -83,9 +83,7 @@ export function CompactHeader({
         <View style={[styles.imessageRoot, { paddingTop: insets.top }]}>
           <ImessageNavBar
             name={title ?? ""}
-            subtitle={subtitle}
             leadingSlot={imessageLeading}
-            actions={actions}
             leadingLabel={navigation === "back" ? t("common.actions.back") : undefined}
             testID="header-imessage"
           />

@@ -3,7 +3,6 @@ import { View, type LayoutChangeEvent } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { Portal, PortalHost } from "@gorhom/portal";
 import { useRetainedPanelActive } from "@/components/retained-panel";
-import { EdgeFade } from "@/components/ui/edge-fade";
 
 const OverlayClearanceContext = createContext(0);
 const OverlayHostContext = createContext<string | null>(null);
@@ -21,14 +20,12 @@ export function useFloatingHeaderOverlayClearance(): number {
   return useContext(OverlayClearanceContext);
 }
 
-/**
- * How far the fade runs past the header's bottom edge, so content dissolves instead of clipping.
- * iOS 26 lets go at y 160.39 under a bar that ends at 94, so 66 points of overshoot is measured
- * (`ios-scroll-edge.tsx` in the reference kit), not padded.
- */
-const FADE_OVERHANG = 66;
-/** Share of the fade that stays opaque, so the header's title and icons keep contrast. */
-const FADE_SOLID_FRACTION = 0.57;
+/** iMessage overlays render into the floating header's host so they sit above the transcript. */
+export function useFloatingHeaderOverlayHost(): string | null {
+  return useContext(OverlayHostContext);
+}
+
+/** The iMessage bar is transparent; the measured scroll-edge wash does the work the fade used to do. */
 
 interface FloatingHeaderLayoutProps {
   header: ReactNode;
@@ -66,14 +63,6 @@ export function FloatingHeaderLayout({ header, floating, underlap, children }: F
       </View>
       {floating ? (
         <View style={styles.overlay} pointerEvents="box-none">
-          {underlap ? null : (
-            <EdgeFade
-              edge="top"
-              solidFraction={FADE_SOLID_FRACTION}
-              backdrop="surfaceWorkspace"
-              style={styles.fade}
-            />
-          )}
           <View
             testID="floating-header"
             collapsable={false}
@@ -112,14 +101,5 @@ const styles = StyleSheet.create({
     top: 0,
     left: 0,
     right: 0,
-    // The fade's tail lives inside the overlay so Android does not clip it.
-    paddingBottom: FADE_OVERHANG,
-  },
-  fade: {
-    position: "absolute",
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
   },
 });

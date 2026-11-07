@@ -18,10 +18,10 @@
  * and 13.85 outside it, and the list has to open 28 points of slot for it. Both numbers are
  * measured (`balloonSlot`).
  */
-import { memo, useCallback, useEffect, useMemo, useRef, useState, useWindowDimensions, type ReactNode } from "react";
+import { memo, useCallback, useMemo, useRef, useState, useWindowDimensions, type ReactNode } from "react";
 import {
+  Pressable,
   View,
-  type GestureResponderEvent,
   type LayoutChangeEvent,
   type StyleProp,
   type ViewProps,
@@ -32,7 +32,8 @@ import Animated, { useAnimatedStyle, useSharedValue, withSpring } from "react-na
 import Svg, { Path } from "react-native-svg";
 import type { Theme } from "@/styles/theme";
 
-import { scheduleOnRN } from "react-native-worklets";
+/** iOS long-press: a 500ms hold that dies after 8 points of travel. */
+const LONG_PRESS_MS = 500;
 
 import {
   type MessageActionsRequest,
@@ -66,9 +67,6 @@ export type BubbleTone = "auto" | "grey";
 const PRESS_SCALE = 0.97;
 const PRESS_IN = { damping: 22, stiffness: 420, mass: 0.5 } as const;
 const PRESS_OUT = { damping: 14, stiffness: 260, mass: 0.7 } as const;
-/** iOS long-press: a 500ms hold that dies after 8 points of travel. */
-const LONG_PRESS_MS = 500;
-const MOVE_TOLERANCE = 8;
 
 const ThemedPath = withUnistyles(Path);
 
@@ -299,76 +297,6 @@ export const ChatBubble = memo(function ChatBubble({
     onPress?.();
   }, [onPress]);
 
-  // Manual hold (reference `use-long-press.ts` ports pointer-down/move/up to the responder):
-  // a 500ms timer holds the press, 8pt of travel cancels it outright, and Release before
-  // the timer counts as a tap. A Responder that never panics aborts the scroll, so build
-  // the gesture in JS — not an RNGH Race, which can lose to Tap and never activate.
-  const holdState = useRef({ timer: null as ReturnType<typeof setTimeout> | null, origin: { x: 0; y: 0 }, fired: false, cancelled: false });
-  const clearHold = useCallback(() => {
-    if (holdState.current.timer) clearTimeout(holdState.current.timer);
-    holdState.current.timer = null;
-  }, []);
-  useEffect(() => clearHold, [clearHold]);
-
-  const onResponderGrant = useCallback(
-    (event: GestureResponderEvent) => {
-      if (!interactive) return;
-      onPressIn();
-      clearHold();
-      holdState.current.fired = false;
-      holdState.current.cancelled = false;
-      holdState.current.origin = { x: event.nativeEvent.pageX, y: event.nativeEvent.pageY };
-      if (menuEnabled && actions) {
-        holdState.current.timer = setTimeout(() => {
-          holdState.current.timer = null;
-          holdState.current.fired = true;
-          scheduleOnRN(handleLongPress);
-        }, LONG_PRESS_MS);
-      }
-    },
-    [actions, clearHold, handleLongPress, interactive, menuEnabled, onPressIn],
-  );
-  const onResponderMove = useCallback(
-    (event: GestureResponderEvent) => {
-      const { timer, origin } = holdState.current;
-      if (!timer) return;
-      const traveled = Math.hypot(event.nativeEvent.pageX - origin.x, event.nativeEvent.pageY - origin.y);
-      if (traveled > MOVE_TOLERANCE) {
-        holdState.current.cancelled = true;
-        clearHold();
-        onPressOut();
-      }
-    },
-    [clearHold, onPressOut],
-  );
-  const onResponderRelease = useCallback(() => {
-    const state = holdState.current;
-    if (state.cancelled) {
-      state.cancelled = false;
-      return;
-    }
-    if (state.timer) {
-      clearHold();
-      runPress();
-    }
-    onPressOut();
-  }, [clearHold, onPressOut, runPress]);
-  const onResponderTerminate = useCallback(() => {
-    holdState.current.cancelled = false;
-    clearHold();
-    onPressOut();
-  }, [clearHold, onPressOut]);
-  const holdHandlers = useMemo(
-    () => ({
-      onStartShouldSetResponder: () => interactive,
-      onResponderGrant,
-      onResponderMove,
-      onResponderRelease,
-      onResponderTerminate,
-      onResponderTerminationRequest: () => false,
-    }),
-    [interactive, onResponderGrant, onResponderMove, onResponderRelease, onResponderTerminate],
-  );
 
   // Accessibility owner is the gesture host View below; the inner Animated.View no longer
   // carries its own label to avoid double announcements.
@@ -382,7 +310,7 @@ export const ChatBubble = memo(function ChatBubble({
 
   const pressable = (
     <View style={[styles.row, side === "user" ? styles.rowUser : styles.rowAgent]}>
-      <View
+      <Pressable
         ref={host}
         collapsable={false}
         style={styles.shrink}
@@ -390,10 +318,15 @@ export const ChatBubble = memo(function ChatBubble({
         accessibilityRole={onPress ? "button" : undefined}
         accessibilityLabel={accessibilityLabel}
         onAccessibilityTap={onPress ? runPress : undefined}
-        {...holdHandlers}
+        disabled={!interactive}
+        delayLongPress={LONG_PRESS_MS}
+        onLongPress={handleLongPress}
+        onPress={onPress === undefined ? undefined : runPress}
+        onPressIn={onPressIn}
+        onPressOut={onPressOut}
       >
         {content}
-      </View>
+      </Pressable>
       {reaction ? (
         <View
           pointerEvents="none"

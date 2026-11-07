@@ -1249,6 +1249,24 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       () => [...effectiveStreamItems, ...(effectiveStreamHead ?? [])],
       [effectiveStreamItems, effectiveStreamHead],
     );
+    // Fork (imessage): stream-level typing balloon for a thinking-only turn.
+    // While the turn has only reasoning/tool rows they are hidden (`hideWork`)
+    // and no assistant body exists, so the screen would be blank. The reference
+    // kit appends a `typing` row at the between-groups gap at the tail of the
+    // list (`buildRows` in `message-list.tsx`). `ImessageAssistantBody` already
+    // shows a `TypingBubble` while assistant text streams, so the stream row
+    // must not duplicate it.
+    const hasStreamingAssistantMessage = useMemo(
+      () =>
+        [...streamLayout.history, ...streamLayout.liveHead].some(
+          (layoutItem) =>
+            layoutItem.phase === "streaming" &&
+            layoutItem.item.kind === "assistant_message",
+        ),
+      [streamLayout.history, streamLayout.liveHead],
+    );
+    const showStreamTypingRow =
+      isMobile && isTurnActive && hideWork && !hasStreamingAssistantMessage;
     return (
       <ChatFind
         agentId={agentId}
@@ -1289,6 +1307,8 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
                 })}
               </ToolCallExpansionContext.Provider>
             </MessageOuterSpacingProvider>
+            {/* Scroll-edge wash: above the transcript, below the nav bar. */}
+            <ScrollEdge />
             <ChatOutlineRail
               prompts={chatOutline.prompts}
               activePrompt={chatOutline.activePrompt}
@@ -1300,6 +1320,11 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               bottomOffset={scrollToBottomOffset}
               onPress={scrollToBottom}
             />
+            {showStreamTypingRow ? (
+              <View style={stylesheet.streamTypingRow}>
+                <TypingBubble />
+              </View>
+            ) : null}
           </AssistantSelectionCopySurface>
         </ToolCallSheetProvider>
       </ChatFind>

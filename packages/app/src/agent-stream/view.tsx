@@ -122,14 +122,21 @@ import { PluginTimelineItemView, useInstalledTimelineTransform } from "@/plugins
 function renderLiveAuxiliaryNode(input: {
   pendingPermissions: ReactNode;
   turnFooter: ReactNode;
+  typingRow: ReactNode;
   bottomOverlayInset: number;
 }): ReactNode {
-  if (!input.pendingPermissions && !input.turnFooter && input.bottomOverlayInset === 0) {
+  if (
+    !input.pendingPermissions &&
+    !input.turnFooter &&
+    !input.typingRow &&
+    input.bottomOverlayInset === 0
+  ) {
     return null;
   }
   return (
     <>
       {input.turnFooter}
+      {input.typingRow}
       {input.pendingPermissions ? (
         <View style={stylesheet.contentWrapper}>
           <View style={stylesheet.listHeaderContent}>{input.pendingPermissions}</View>
@@ -1214,6 +1221,13 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           viewportRef,
         }),
     );
+    const showStreamTypingRow = streamShowsTypingRow({
+      isMobile,
+      isTurnActive,
+      hideWork,
+      history: streamLayout.history,
+      liveHead: streamLayout.liveHead,
+    });
     const renderLiveAuxiliary = useCallback<StreamSegmentRenderers["renderLiveAuxiliary"]>(() => {
       const existingTailSpacing =
         auxiliary.turnFooter && !auxiliary.pendingPermissions ? TURN_FOOTER_BOTTOM_SPACING : 0;
@@ -1224,9 +1238,19 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       return renderLiveAuxiliaryNode({
         pendingPermissions: auxiliary.pendingPermissions,
         turnFooter: auxiliary.turnFooter,
+        typingRow: showStreamTypingRow ? (
+          <View style={stylesheet.streamTypingRow}>
+            <TypingBubble />
+          </View>
+        ) : null,
         bottomOverlayInset,
       });
-    }, [auxiliary.pendingPermissions, auxiliary.turnFooter, bottomOverlayTailClearance]);
+    }, [
+      auxiliary.pendingPermissions,
+      auxiliary.turnFooter,
+      bottomOverlayTailClearance,
+      showStreamTypingRow,
+    ]);
 
     const renderers = useMemo<StreamSegmentRenderers>(
       () => ({
@@ -1278,20 +1302,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       () => [...effectiveStreamItems, ...(effectiveStreamHead ?? [])],
       [effectiveStreamItems, effectiveStreamHead],
     );
-    // Fork (imessage): stream-level typing balloon for a thinking-only turn.
-    // While the turn has only reasoning/tool rows they are hidden (`hideWork`)
-    // and no assistant body exists, so the screen would be blank. The reference
-    // kit appends a `typing` row at the between-groups gap at the tail of the
-    // list (`buildRows` in `message-list.tsx`). `ImessageAssistantBody` already
-    // shows a `TypingBubble` while assistant text streams, so the stream row
-    // must not duplicate it.
-    const showStreamTypingRow = streamShowsTypingRow({
-      isMobile,
-      isTurnActive,
-      hideWork,
-      history: streamLayout.history,
-      liveHead: streamLayout.liveHead,
-    });
     return (
       <ChatFind
         agentId={agentId}
@@ -1345,11 +1355,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               bottomOffset={scrollToBottomOffset}
               onPress={scrollToBottom}
             />
-            {showStreamTypingRow ? (
-              <View style={stylesheet.streamTypingRow}>
-                <TypingBubble />
-              </View>
-            ) : null}
           </AssistantSelectionCopySurface>
         </ToolCallSheetProvider>
       </ChatFind>
@@ -1855,10 +1860,6 @@ const stylesheet = StyleSheet.create((theme) => ({
     paddingBottom: theme.spacing[4],
   },
   streamTypingRow: {
-    width: "100%",
-    maxWidth: theme.contentMaxWidth,
-    alignSelf: "center",
-    paddingHorizontal: theme.spacing[2],
     // Between-groups gap, matching the assistant body's between-groups gap.
     marginTop: 10.2,
   },

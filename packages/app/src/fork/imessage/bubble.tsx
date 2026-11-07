@@ -304,7 +304,8 @@ export const ChatBubble = memo(function ChatBubble({
   }, [onPressIn]);
   const tapOut = useCallback(() => {
     onPressOut();
-    longPressed.current = false;
+    // Do not clear `longPressed` here: Pressable calls onPressOut before onPress, so
+    // clearing now would let the post-hold onPress through. The next tapIn resets it.
   }, [onPressOut]);
 
 

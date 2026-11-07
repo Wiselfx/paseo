@@ -52,7 +52,7 @@ import type {
 } from "@getpaseo/protocol/agent-types";
 import type { AgentScreenAgent } from "@/hooks/use-agent-screen-state-machine";
 import { useSessionStore } from "@/stores/session-store";
-import { useRevealedText } from "@/hooks/use-revealed-text";
+import { useDshReveal } from "@/hooks/use-dsh-reveal";
 import { useFileExplorerActions } from "@/hooks/use-file-explorer-actions";
 import { useLoadOlderAgentHistory } from "@/hooks/use-load-older-agent-history";
 import { resolveContentMaxWidth, useSettings } from "@/hooks/use-settings";
@@ -1403,7 +1403,7 @@ interface ThoughtSlotProps {
   standalone?: boolean;
 }
 
-// Reasoning text is paced the same way assistant text is; see @/hooks/use-revealed-text.
+// Reasoning text fades in place (DSH reveal: 24 steps from 0.2 over 120ms).
 function ThoughtSlot({
   itemId,
   onInlineDetailsExpandedChangeByItemId,
@@ -1413,13 +1413,13 @@ function ThoughtSlot({
   defaultExpanded,
   standalone,
 }: ThoughtSlotProps) {
-  const revealedText = useRevealedText(text, status === "ready" ? "complete" : "streaming");
+  const revealed = useDshReveal(text, status === "ready" ? "complete" : "streaming");
   return (
     <ToolCallSlot
       itemId={itemId}
       onInlineDetailsExpandedChangeByItemId={onInlineDetailsExpandedChangeByItemId}
       toolName="thinking"
-      args={revealedText}
+      args={revealed.glyphs.map((glyph) => glyph.char).join("")}
       status={status === "ready" ? "completed" : "executing"}
       isLastInSequence={isLastInSequence}
       defaultExpanded={defaultExpanded}

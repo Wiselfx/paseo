@@ -1192,8 +1192,10 @@ export const AssistantMessage = memo(function AssistantMessage({
       renderFullContent ? { text: message, capped: false } : capAssistantMessageForRender(message),
     [message, renderFullContent],
   );
-  const revealedText = useRevealedText(renderedMessage.text, phase);
-  const revealedMessage = renderFullContent ? renderedMessage.text : revealedText;
+  // DSH reveal: characters arrive faint and settle in place (24 steps from
+  // 0.2 opacity over 120ms), never deferring. `useRevealedText` defers by
+  // backlog; the dsh engine fades in place.
+  const revealedMessage = renderedMessage.text;
   const fullMessageByteLength = useMemo(
     () => (renderedMessage.capped && phase === "complete" ? getUtf8ByteLength(message) : null),
     [message, phase, renderedMessage.capped],

@@ -15,6 +15,7 @@ import {
 import { StyleSheet } from "react-native-unistyles";
 import { useComposerFullscreenExit } from "./fullscreen-exit";
 import { resolveGlyphRailOffset } from "./state";
+import { ComposerMascot } from "@/mascot/composer-mascot";
 
 function keepEditorFocused(event: import("react-native").PointerEvent) {
   if (isWeb) event.preventDefault();
@@ -111,6 +112,7 @@ export function ComposerInputPresentation({
           style={fullscreen ? styles.fullscreenInputWrapper : inputWrapperStyle}
           pointerEvents={inputPointerEvents}
         >
+          <ComposerMascot isTurnActive={false} />
           {fullscreen ? null : attachmentSlot}
           <View style={fullscreen ? styles.fullscreenTextSurface : styles.inlineTextSurface}>
             {surface}

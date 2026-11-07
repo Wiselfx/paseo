@@ -13,7 +13,6 @@ import { ImessageAssistantBody } from "@/fork/imessage/assistant-body";
 import type { TFunction } from "i18next";
 
 import { ChatBubble } from "@/fork/imessage/bubble";
-import { bubblePalette } from "@/fork/imessage/palette";
 import { PhotoBubble } from "@/fork/imessage/photo-bubble";
 import { AttachmentCard } from "@/fork/imessage/attachment-card";
 import { IOS_MESSAGE_MENU, type ContextMenuItem } from "@/fork/imessage/menu";
@@ -107,7 +106,6 @@ interface UserMessageProps {
   message: string;
   images?: UserMessageImageAttachment[];
   attachments?: AgentAttachment[];
-  timestamp: number;
   capabilities?: AgentCapabilityFlags;
   client?: DaemonClient | null;
   isFirstInGroup?: boolean;
@@ -365,15 +363,6 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   },
   trailingRowVisible: {
     opacity: 1,
-  },
-  // Fork (imessage): the measured status label — 11pt semibold, -0.25 tracking, secondary ink.
-  // It is the same slot Messages puts "Delivered" in, so the timestamp reads as status, not chrome.
-  timestampText: {
-    color: bubblePalette("user", theme.colorScheme).muted,
-    fontSize: 11,
-    lineHeight: 13,
-    fontWeight: "600",
-    letterSpacing: -0.25,
   },
 }));
 
@@ -640,7 +629,6 @@ function UserMessageBubble({
 interface UserMessageTrailingProps {
   visible: boolean;
   style: React.ComponentProps<typeof View>["style"];
-  timestamp: string;
   capabilities: UserMessageProps["capabilities"];
   messageId: string | undefined;
   message: string;
@@ -654,7 +642,6 @@ interface UserMessageTrailingProps {
 const UserMessageTrailing = memo(function UserMessageTrailing({
   visible,
   style,
-  timestamp,
   capabilities,
   messageId,
   message,
@@ -669,9 +656,6 @@ const UserMessageTrailing = memo(function UserMessageTrailing({
       pointerEvents={visible ? "auto" : "none"}
       testID="user-message-trailing-row"
     >
-      <Text style={userMessageStylesheet.timestampText} testID="user-message-timestamp">
-        {timestamp}
-      </Text>
       {capabilities && messageId ? (
         <RewindMenu
           capabilities={capabilities}
@@ -761,7 +745,6 @@ export const UserMessage = memo(function UserMessage({
   message,
   images = [],
   attachments = [],
-  timestamp,
   capabilities,
   client,
   isFirstInGroup = true,
@@ -803,10 +786,6 @@ export const UserMessage = memo(function UserMessage({
         />
       ) : null,
     [isPhotoRun, images, isLastInGroup, messageId, t, setLightboxMetadata],
-  );
-  const formattedTimestamp = useMemo(
-    () => formatMessageTimestamp(new Date(timestamp)),
-    [timestamp],
   );
   const rewindMutation = useRewindAgentMutation({ serverId, agentId, client, messageId });
 
@@ -888,7 +867,6 @@ export const UserMessage = memo(function UserMessage({
     <UserMessageTrailing
       visible={showTrailingRow}
       style={trailingRowStyle}
-      timestamp={formattedTimestamp}
       capabilities={capabilities}
       messageId={messageId}
       message={message}

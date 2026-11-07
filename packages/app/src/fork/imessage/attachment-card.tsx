@@ -1,21 +1,19 @@
 /**
  * Fork (imessage): the file attachment card.
  *
- * Messages draws a document message as a card, not as text in a bubble, and the card is grey in
- * **both** directions — your own file goes grey too. That is why `ChatBubble` grew a `tone`.
+ * Ported from `ref/message-ui/registry/imessage/message-attachment.tsx` L64-80 (iOS row).
+ * Card 280.5x100 radius 19, icon 44x58 at (18,21), title 17/22 semibold (600) tracked 0
+ * at top 31, subtitle 13/16 at top 53, text at left 74 right 14. Fill/title/subtitle
+ * use the iOS incoming grey + secondary label (ref L51-53, i.e. #e9e9eb/#262629 +
+ * #8a8a8e/#8d8d93), which the reference keeps because the macOS #3b3b3d "reads
+ * wrong beside iOS bubbles" (ref L43-46).
  *
- * Geometry from `message-attachment.tsx` (iOS variant, which that kit marks unverified against a
- * capture; the macOS numbers it was scaled from are measured):
- *
- * - card 280.5 × 100 with the bubble's radius and its tail;
- * - a 44 × 58 page glyph at (18, 21);
- * - the filename at 17/22, ink starting 74 in and its box top 31 below the card's;
- * - the subtitle at 13/16, box top 53.
- *
- * The card fill, filename and subtitle ink are the measured incoming grey and label pair.
- * The glyph is Paseo's own attachment icon rather than Apple's traced document page: the box and
- * the type are ported, the artwork is not, and pretending otherwise would be a lie about the one
- * thing here that is not measured.
+ * Icon delta: the reference renders `DocumentIcon` (ref L95-125), a traced macOS
+ * folded-corner page with gradients/shadow. It is SVG-that-needs-preserveAspectRatio-
+ * none + gradient defs; react-native-svg can draw paths, but the traced silhouette
+ * is artwork, not a measured constant, so Paseo keeps its own attachment icon.
+ * The 44x58 box, the greys and the type are measured; the document silhouette is
+ * the one unported piece and is reported, not faked.
  */
 import { memo, useMemo, type ReactNode } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -25,8 +23,11 @@ import type { Theme } from "@/styles/theme";
 import { bubblePalette } from "./palette";
 
 export const attachmentCardMetrics = {
+  // Reference message-attachment.tsx L73-79 (iOS, unverified against a capture;
+  // macOS L66-72 is measured, iOS is re-proportioned) + L14-22 table.
   width: 280.5,
   height: 100,
+  radius: 19,
   iconWidth: 44,
   iconHeight: 58,
   iconLeft: 18,
@@ -36,9 +37,11 @@ export const attachmentCardMetrics = {
   titleSize: 17,
   titleLine: 22,
   titleTop: 31,
+  titleTracking: 0,
   subtitleSize: 13,
   subtitleLine: 16,
   subtitleTop: 53,
+  subtitleTracking: 0,
 } as const;
 
 const ICON_BOX = {
@@ -57,11 +60,12 @@ interface CardProps {
   title: string;
   subtitle: string;
   icon: ReactNode;
+  background: string;
   titleColor: string;
   subtitleColor: string;
 }
 
-function AttachmentCardBase({ title, subtitle, icon, titleColor, subtitleColor }: CardProps) {
+function AttachmentCardBase({ title, subtitle, icon, background, titleColor, subtitleColor }: CardProps) {
   const titleStyle = useMemo(
     () => [
       styles.title,
@@ -86,8 +90,9 @@ function AttachmentCardBase({ title, subtitle, icon, titleColor, subtitleColor }
     ],
     [subtitleColor],
   );
+  const cardStyle = useMemo(() => [styles.card, { backgroundColor: background }], [background]);
   return (
-    <View style={styles.card}>
+    <View style={cardStyle}>
       <View style={styles.iconBox}>{icon}</View>
       <Text style={titleStyle} numberOfLines={1}>
         {title}
@@ -103,7 +108,11 @@ const ThemedCard = withUnistyles(AttachmentCardBase);
 
 const cardTheme = (theme: Theme) => {
   const palette = bubblePalette("agent", theme.colorScheme);
-  return { titleColor: palette.foreground, subtitleColor: palette.muted };
+  return {
+    background: palette.background,
+    titleColor: palette.foreground,
+    subtitleColor: palette.muted,
+  };
 };
 
 export interface AttachmentCardProps {
@@ -120,6 +129,7 @@ const styles = StyleSheet.create({
   card: {
     width: attachmentCardMetrics.width,
     height: attachmentCardMetrics.height,
+    borderRadius: attachmentCardMetrics.radius,
   },
   iconBox: {
     position: "absolute",
@@ -131,12 +141,12 @@ const styles = StyleSheet.create({
     position: "absolute",
     ...TEXT_BOX,
     fontWeight: "600",
-    letterSpacing: 0,
+    letterSpacing: attachmentCardMetrics.titleTracking,
   },
   subtitle: {
     position: "absolute",
     ...TEXT_BOX,
     fontWeight: "400",
-    letterSpacing: 0,
+    letterSpacing: attachmentCardMetrics.subtitleTracking,
   },
 });

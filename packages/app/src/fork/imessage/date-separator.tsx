@@ -19,10 +19,13 @@ import type { Theme } from "@/styles/theme";
 import { MESSAGES_PALETTE } from "./palette";
 
 export const dateSeparatorMetrics = {
+  // Reference date-separator.tsx L39-40 iOS row: font 11/14, weight 400, dayWeight 500,
+  // gapAbove 0, gapBelow 7.6, midGapAbove 13.33, midGapBelow 6.67.
   fontSize: 11,
   lineHeight: 14,
   weight: "400",
   dayWeight: "500",
+  gapAbove: 0,
   gapBelow: 7.6,
   midGapAbove: 13.33,
   midGapBelow: 6.67,
@@ -130,6 +133,7 @@ export const DateSeparator = memo(function DateSeparator(props: DateSeparatorPro
 const styles = StyleSheet.create({
   first: {
     alignItems: "center",
+    paddingTop: dateSeparatorMetrics.gapAbove,
     paddingBottom: dateSeparatorMetrics.gapBelow,
   },
   mid: {

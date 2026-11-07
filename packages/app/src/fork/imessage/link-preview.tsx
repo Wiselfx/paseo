@@ -1,18 +1,18 @@
 /**
  * Fork (imessage): the link card Messages shows for a bare URL.
  *
- * Measured from `link-preview.tsx`:
+ * Ported from `ref/message-ui/registry/imessage/link-preview.tsx` L54-56 + L92-95.
+ * iOS row (L56): 198x85, radius 19, host 14/17 at padStart 14, disc 34 with
+ * 23 end-inset, contentShift 1.4; macOS measured (L55) is NOT used here because
+ * this lives in a phone transcript. Fill/host/disc come from the reference's
+ * iOS themeVars (L94): incoming grey + secondary label. The compact host uses
+ * secondary label (#8a8a8e / #8d8d93), not the macOS host greys — that pair
+ * belongs to the mac capture (L21). Reference L29-33: no iOS card capture
+ * exists; the iOS numbers are its re-proportioned guess, kept verbatim.
  *
- * - macOS: a 140 × 60 card, radius 14, filled with the incoming grey (#e9e9eb light / #3b3b3d
- *   dark); the hostname is 10pt, its ink 10 in from the card's edge and its baseline 35 below
- *   the card's top; the Safari compass disc is 24 with its right edge 16 from the card's right
- *   edge; both the baseline and the disc centre sit 1 below the card's vertical centre.
- * - iOS has no capture of its card, so it reuses what iOS itself measures: the bubble's radius,
- *   the incoming grey, the secondary label and the 13.85/10 padding. That is what this draws —
- *   a bubble-shaped card rather than a 140-wide mac one, because it lives in a phone transcript.
- *
- * The corner is really one of Apple's continuous corners (superellipse 17.375 / 2.5), which
- * React Native cannot draw; the card takes the best circular radius, as the reference does.
+ * No rich card (title/description/media/richWidth 280.5, title 17/20,
+ * richPad 13.85/10) is ported: linkHost/isBareLink only carry a bare URL's
+ * hostname, so there is no title/description data to render. No fake host data.
  */
 import { memo, useMemo } from "react";
 import { StyleSheet, Text, View } from "react-native";
@@ -21,7 +21,6 @@ import { withUnistyles } from "react-native-unistyles";
 import type { Theme } from "@/styles/theme";
 
 import { bubblePalette } from "./palette";
-import { BUBBLE_RADIUS } from "./shape";
 
 /** Safari's compass in the card's trailing corner, drawn rather than shipped as artwork. */
 function CompassDisc({ size, color }: { size: number; color: string }) {
@@ -49,7 +48,7 @@ function LinkPreviewCard({ host, background, hostColor, discColor }: CardProps) 
       <Text style={hostStyle} numberOfLines={1}>
         {host}
       </Text>
-      <CompassDisc size={24} color={discColor} />
+      <CompassDisc size={linkPreviewMetrics.disc} color={discColor} />
     </View>
   );
 }
@@ -60,7 +59,7 @@ const cardTheme = (theme: Theme) => {
   const palette = bubblePalette("agent", theme.colorScheme);
   return {
     background: palette.background,
-    hostColor: theme.colorScheme === "light" ? "#808084" : "#A6A6A9",
+    hostColor: theme.colorScheme === "light" ? "#8A8A8E" : "#8D8D93",
     discColor: theme.colorScheme === "light" ? "#757576" : "#A7A7A7",
   };
 };
@@ -85,20 +84,39 @@ export const LinkPreview = memo(function LinkPreview({ url }: LinkPreviewProps) 
   return <ThemedCard host={linkHost(url)} uniProps={cardTheme} />;
 });
 
+export const linkPreviewMetrics = {
+  // Reference link-preview.tsx L54-56: ios {width 198, height 85, radius 19, hostSize 14,
+  // hostLineHeight 17, padStart 14, disc 34, discInsetEnd 23, contentShift 1.4,
+  // richWidth 280.5, titleSize 17, titleLineHeight 20, richPadX 13.85, richPadY 10}.
+  // Measured macOS is L55; the iOS row is the reference's own re-proportioned guess
+  // (L29-33 no iOS capture), so the compact card takes the iOS row's measured
+  // bubble-family insets, not the mac 140x60 box.
+  width: 198,
+  height: 85,
+  radius: 19,
+  hostSize: 14,
+  hostLineHeight: 17,
+  padStart: 14,
+  disc: 34,
+  discInsetEnd: 23,
+  contentShift: 1.4,
+} as const;
+
 const styles = StyleSheet.create({
   card: {
-    width: 280.5,
-    height: 60,
-    borderRadius: BUBBLE_RADIUS,
+    width: linkPreviewMetrics.width,
+    height: linkPreviewMetrics.height,
+    borderRadius: linkPreviewMetrics.radius,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    paddingLeft: 13.85,
-    paddingRight: 13.85,
+    paddingLeft: linkPreviewMetrics.padStart,
+    paddingRight: linkPreviewMetrics.discInsetEnd,
   },
   host: {
-    fontSize: 15,
-    letterSpacing: -0.2,
+    fontSize: linkPreviewMetrics.hostSize,
+    lineHeight: linkPreviewMetrics.hostLineHeight,
+    letterSpacing: 0,
     flexShrink: 1,
   },
 });

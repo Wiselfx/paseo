@@ -24,13 +24,25 @@ import type { Theme } from "@/styles/theme";
 import { MESSAGES_PALETTE } from "./palette";
 
 export const systemMessageMetrics = {
+  // iOS row of ref system-message.tsx L163-195: font 11, lineHeight 13.3333,
+  // letterSpacing 0.12, weight 400, emphasisWeight 500, errorWeight 300,
+  // padTop/padBottom 3, gapAbove 13.1667, inset 16. Measured deltas vs the
+  // reference: none on type/spacing — this file already matched. `gapAbove`
+  // is intentionally not in the style: the reference splits it as layout gap
+  // (L148-158, “no gapBelow”), and the transcript row owns it; adding it here
+  // would double-count (see Main's contract: fix measured deltas only). The
+  // constant is recorded here without a new style prop. Punctuation is the
+  // caller’s verbatim text (the reference’s statusTemplates L252-304 are
+  // ChatKit format strings, not a formatting rule for Paseo’s notices).
   fontSize: 11,
   lineHeight: 13.3333,
   letterSpacing: 0.12,
   weight: 400,
+  emphasisWeight: 500,
   errorWeight: 300,
   padTop: 3,
   padBottom: 3,
+  gapAbove: 13.1667,
   inset: 16,
   maxWidth: 370,
 } as const;

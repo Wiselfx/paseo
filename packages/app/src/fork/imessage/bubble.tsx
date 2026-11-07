@@ -305,6 +305,9 @@ export const ChatBubble = memo(function ChatBubble({
       .onFinalize(() => runOnJS(onPressOut)());
     const tap = Gesture.Tap()
       .maxDistance(MOVE_TOLERANCE)
+      .onBegin(() => {
+        if (!menuEnabled) runOnJS(onPressIn)();
+      })
       .onEnd((_event, success) => {
         if (success) runOnJS(runPress)();
       })
@@ -313,12 +316,10 @@ export const ChatBubble = memo(function ChatBubble({
     return Gesture.Race(longPress, tap);
   }, [actions, handleLongPress, interactive, menuEnabled, onPressIn, onPressOut, runPress]);
 
+  // Accessibility owner is the gesture host View below; the inner Animated.View no longer
+  // carries its own label to avoid double announcements.
   const content = (
-    <Animated.View
-      style={[styles.frame, pressStyle, style]}
-      accessible={accessibilityLabel !== undefined}
-      accessibilityLabel={accessibilityLabel}
-    >
+    <Animated.View style={[styles.frame, pressStyle, style]}>
       <BubbleOutline side={side} tone={tone} tail={tail} padding={padding} testID={testID}>
         {children}
       </BubbleOutline>
@@ -328,7 +329,15 @@ export const ChatBubble = memo(function ChatBubble({
   const pressable = (
     <View style={[styles.row, side === "user" ? styles.rowUser : styles.rowAgent]}>
       <GestureDetector gesture={gesture}>
-        <View ref={host} collapsable={false} style={styles.shrink}>
+        <View
+          ref={host}
+          collapsable={false}
+          style={styles.shrink}
+          accessible={onPress !== undefined || accessibilityLabel !== undefined}
+          accessibilityRole={onPress ? "button" : undefined}
+          accessibilityLabel={accessibilityLabel}
+          onAccessibilityTap={onPress ? runPress : undefined}
+        >
           {content}
         </View>
       </GestureDetector>

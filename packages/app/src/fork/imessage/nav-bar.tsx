@@ -227,7 +227,12 @@ export const ImessageNavBar = memo(function ImessageNavBar({
           </PressHighlight>
         </Animated.View>
 
-        {actions ? <View style={styles.actions}>{actions}</View> : null}
+        {actions ? (
+          <View style={styles.actions} pointerEvents="box-none">
+            <GlassSurface radius={22} cast="nav-round" style={StyleSheet.absoluteFill} pointerEvents="none" />
+            {actions}
+          </View>
+        ) : null}
       </View>
       {subtitle ? <View style={styles.subtitle}>{subtitle}</View> : null}
     </View>

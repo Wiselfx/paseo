@@ -33,7 +33,6 @@ import {
   AssistantMessage,
   SpeakMessage,
   UserMessage,
-  Notification,
   ToolCall,
   TodoListCard,
   CompactionMarker,
@@ -70,6 +69,7 @@ import { ToolCallSheetProvider } from "@/components/tool-call-sheet";
 import { createStreamPresentation } from "./presentation";
 import { OverviewToolCallGroupView } from "@/tool-calls/detail-level/overview/view";
 import { useWorkVisible } from "@/fork/imessage/work";
+import { SystemMessage } from "@/fork/imessage/system-message";
 import { DateSeparator, dayKey, formatClockTime } from "@/fork/imessage/date-separator";
 import { SwipeTimesRow } from "@/fork/imessage/swipe-times";
 import { IndentRail } from "@/components/indent-rail";
@@ -970,7 +970,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
             );
 
           case "notification":
-            return <Notification level={item.level} message={item.message} />;
+            return <SystemMessage level={item.level} message={item.message} />;
 
           case "todo_list":
             return <TodoListCard items={item.items} activity={item.activity} />;

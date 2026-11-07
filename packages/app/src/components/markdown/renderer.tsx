@@ -42,17 +42,29 @@ const regularStyle = markdownStyle(false);
 const compactStyle = markdownStyle(true);
 const compactMutedStyle = markdownStyle(true, true);
 
-function pickMarkdownStyle(compact: boolean, muted: boolean) {
-  if (!compact) return regularStyle;
-  return muted ? compactMutedStyle : compactStyle;
+function pickMarkdownStyle(compact: boolean, muted: boolean, fontSize?: number, lineHeight?: number) {
+  if (fontSize === undefined && lineHeight === undefined) {
+    if (!compact) return regularStyle;
+    return muted ? compactMutedStyle : compactStyle;
+  }
+  return (theme: Theme, rt: { breakpoint?: string }) =>
+    createMarkdownStyles(theme, {
+      compact,
+      muted,
+      blockGap: resolveDensity(rt, density.blockGap),
+      fontSize,
+      lineHeight,
+    });
 }
-
 export interface MarkdownRendererProps extends MarkdownImageContext {
   text: string;
   compact?: boolean;
+  /** Optional body font size override (native measured metrics). */
+  fontSize?: number;
+  /** Optional body line height override (native measured pitch). */
+  lineHeight?: number;
   /** Muted text colour. Compact surfaces only. */
   muted?: boolean;
-  selectable?: boolean;
   streaming?: boolean;
   agentId?: string;
   workspaceId?: string;
@@ -87,6 +99,8 @@ const CommandMarkdownPart = memo(function CommandMarkdownPart(props: MarkdownRen
 const MarkdownPart = memo(function MarkdownPart({
   text,
   compact = false,
+  fontSize,
+  lineHeight,
   muted = false,
   selectable = true,
   streaming = false,
@@ -95,10 +109,9 @@ const MarkdownPart = memo(function MarkdownPart({
   onLinkPress,
   agentCommands: _agentCommands,
   commandHints = null,
-  ...imageContext
+  ...imageContext,
 }: MarkdownRendererProps & { commandHints?: CommandHints | null }) {
   const environment = useAssistantFileLinkEnvironment();
-  const actions = useAssistantFileLinkActions();
   const forgeShorthand = useForgeShorthand();
   const client =
     imageContext.client ??
@@ -167,7 +180,7 @@ const MarkdownPart = memo(function MarkdownPart({
           <ThemedMarkdown
             key={key}
             markdown={segment.source}
-            uniProps={pickMarkdownStyle(compact, muted)}
+            uniProps={pickMarkdownStyle(compact, muted, fontSize, lineHeight)}
             flavor="github"
             selectable={selectable}
             md4cFlags={MD4C_FLAGS}

@@ -320,15 +320,15 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
   },
   text: {
     color: "#FFFFFF",
-    fontSize: theme.fontSize.content,
-    flexShrink: 1,
-    minWidth: 0,
+    fontSize: isWeb ? theme.fontSize.content : 17,
     ...(isWeb
       ? {
           lineHeight: Math.round(theme.fontSize.content * 1.4),
           overflowWrap: "anywhere" as const,
         }
-      : {}),
+      : {
+          lineHeight: 20,
+        }),
   },
   imagePreviewContainer: {
     flexDirection: "row",

@@ -11,15 +11,18 @@ export function createMarkdownStyles(
     compact = false,
     muted = false,
     blockGap,
-  }: { compact?: boolean; muted?: boolean; blockGap: number },
+    fontSize: fontSizeOverride,
+    lineHeight: lineHeightOverride,
+  }: { compact?: boolean; muted?: boolean; blockGap: number; fontSize?: number; lineHeight?: number },
 ): { markdownStyle: MarkdownStyle; selectionColor: string; containerStyle?: typeof WEB_CONTAINER } {
-  const fontSize = compact ? theme.fontSize.base : theme.fontSize.content;
+  const fontSize = fontSizeOverride ?? (compact ? theme.fontSize.base : theme.fontSize.content);
+  const lineHeight = lineHeightOverride ?? Math.round(fontSize * 1.4);
   // Every block is followed by the same gap; the library drops it after the last block.
   const block = { marginTop: 0, marginBottom: blockGap };
   const paragraph = {
     fontSize,
     fontFamily: theme.fontFamily.ui,
-    lineHeight: Math.round(fontSize * 1.4),
+    lineHeight,
     color: muted ? theme.colors.foregroundMuted : theme.colors.foreground,
     ...block,
   };

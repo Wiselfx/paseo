@@ -98,7 +98,7 @@ const BlockBubble = memo(function BlockBubble({
           <LinkPreview url={text.trim()} />
         ) : (
           <View style={styles.markdownWrap}>
-            <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} />
+            <MarkdownRenderer {...markdown} text={text} streaming={false} selectable={selectable} fontSize={17} lineHeight={20} />
           </View>
         )}
       </ChatBubble>

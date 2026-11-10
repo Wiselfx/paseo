@@ -43,7 +43,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   container: {
     flexGrow: 1,
-    padding: theme.spacing[6],
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[6],
     paddingBottom: 0,
     alignItems: "center",
   },
@@ -71,7 +72,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   actions: {
     width: "100%",
-    maxWidth: 420,
+    maxWidth: 520,
     gap: theme.spacing[3],
   },
   actionButton: {
@@ -104,13 +105,14 @@ const styles = StyleSheet.create((theme) => ({
     gap: 6,
   },
   setupLinkText: {
-    color: theme.colors.accent,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.sm,
+    fontWeight: theme.fontWeight.normal,
   },
   versionLabel: {
-    color: theme.colors.foregroundMuted,
+    color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     textAlign: "center",
     marginTop: theme.spacing[6],
   },

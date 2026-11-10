@@ -30,6 +30,13 @@ export function BackHeader({ title, rightContent, onBack }: BackHeaderProps) {
 function DesktopBackHeader({ title, rightContent, onBack }: BackHeaderProps) {
   const { theme } = useUnistyles();
   const { t } = useTranslation();
+  const backButtonStyle = useCallback(
+    ({ hovered = false }: { hovered?: boolean }) => [
+      styles.backButton,
+      hovered && styles.backButtonHovered,
+    ],
+    [],
+  );
   const handleBack = useCallback(() => {
     if (onBack) {
       onBack();
@@ -44,11 +51,11 @@ function DesktopBackHeader({ title, rightContent, onBack }: BackHeaderProps) {
         <>
           <Pressable
             onPress={handleBack}
-            style={styles.backButton}
+            style={backButtonStyle}
             accessibilityRole="button"
             accessibilityLabel={t("common.actions.back")}
           >
-            <ArrowLeft size={theme.iconSize.lg} color={theme.colors.foregroundMuted} />
+            <ArrowLeft size={16} color={theme.colors.foregroundMuted} />
           </Pressable>
           {title && <ScreenTitle>{title}</ScreenTitle>}
         </>
@@ -65,6 +72,9 @@ const styles = StyleSheet.create((theme) => ({
   },
   backButton: {
     padding: theme.spacing[2],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.md,
+  },
+  backButtonHovered: {
+    backgroundColor: theme.colors.hover,
   },
 }));

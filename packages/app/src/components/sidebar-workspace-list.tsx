@@ -30,10 +30,11 @@ import {
   type ActiveWorkspaceSelection,
 } from "@/stores/navigation-active-workspace-store";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { density, densityIconBox, densityIconProps } from "@/styles/density";
+import { densityIconBox, densityIconProps } from "@/styles/density";
 import type { Theme } from "@/styles/theme";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 import { type GestureType } from "react-native-gesture-handler";
 import { WorkspaceRenameModal } from "@/components/workspace-rename-modal";
 import { useWorkspaceClipboardActions } from "@/hooks/use-workspace-clipboard-actions";
@@ -363,24 +364,8 @@ function projectKebabStyle({
   return [styles.projectKebabButton, hovered && styles.projectKebabButtonHovered];
 }
 
-function getProjectWorkspaceRowStyle({
-  isDragging,
-  isPressed,
-  selected,
-  isHovered,
-}: {
-  isDragging: boolean;
-  isPressed: boolean;
-  selected: boolean;
-  isHovered: boolean;
-}) {
-  return [
-    styles.workspaceRow,
-    isHovered && styles.workspaceRowHovered,
-    selected && styles.sidebarRowSelected,
-    isDragging && styles.workspaceRowDragging,
-    isPressed && styles.workspaceRowPressed,
-  ];
+function getProjectWorkspaceRowStyle(isDragging: boolean) {
+  return isDragging ? [styles.workspaceRow, styles.workspaceRowDragging] : styles.workspaceRow;
 }
 
 const prBadgeStyles = StyleSheet.create((theme) => ({
@@ -809,14 +794,7 @@ function NewWorkspaceGhostRow({
       }) as Href,
     );
   }, [displayName, onWorkspacePress, worktreeTarget]);
-  const rowStyle = useCallback(
-    ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
-      styles.newWorkspaceGhostRow,
-      hovered && !pressed && styles.newWorkspaceGhostRowHovered,
-      pressed && styles.newWorkspaceGhostRowPressed,
-    ],
-    [],
-  );
+  const rowStyle = styles.newWorkspaceGhostRow;
 
   return (
     <Pressable
@@ -830,6 +808,7 @@ function NewWorkspaceGhostRow({
     >
       {({ hovered, pressed }) => (
         <>
+          <SidebarRowBackground hovered={Boolean(hovered)} pressed={pressed} />
           <View style={styles.newWorkspaceGhostIconSlot}>
             <DensityIcon
               icon={Plus}
@@ -935,19 +914,13 @@ function ProjectHeaderRow({
     interaction.handlePressOut();
   }, [interaction]);
 
-  const projectRowStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => [
-      styles.projectRow,
-      isDragging && styles.projectRowDragging,
-      selected && styles.sidebarRowSelected,
-      isHovered && styles.projectRowHovered,
-      pressed && styles.projectRowPressed,
-    ],
-    [isDragging, selected, isHovered],
-  );
+  const projectRowStyle = isDragging
+    ? [styles.projectRow, styles.projectRowDragging]
+    : styles.projectRow;
 
   const rowChildren = (
     <>
+      <SidebarRowBackground hovered={isHovered} selected={selected} pressed={isPressed} />
       <View style={styles.projectRowLeft}>
         <ProjectLeadingVisual
           displayName={displayName}
@@ -1122,12 +1095,7 @@ function WorkspaceRowInner({
       {({ isHovered, contextMenuOpen, onContextMenuOpenChange, hoverHandlers }) => {
         const isDesktop = !isTouchPlatform;
         const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
-        const workspaceRowStyle = getProjectWorkspaceRowStyle({
-          isDragging,
-          isPressed,
-          selected,
-          isHovered,
-        });
+        const workspaceRowStyle = getProjectWorkspaceRowStyle(isDragging);
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
           <View
@@ -1169,6 +1137,7 @@ function WorkspaceRowInner({
               onPress={handlePress}
               testID={`sidebar-workspace-row-${workspace.workspaceKey}`}
             >
+              <SidebarRowBackground hovered={isHovered} selected={selected} pressed={isPressed} />
               <SidebarWorkspaceRowContent
                 workspace={workspace}
                 hostBadge={hostBadge}
@@ -1176,7 +1145,6 @@ function WorkspaceRowInner({
                 leadingProjectIconDataUri={leadingProjectIconDataUri}
                 serviceSummary={serviceSummary}
                 backdrop={backdrop}
-                isHovered={isHovered}
                 isLoading={isArchiving || isCreating}
                 isCreating={isCreating}
                 shortcutNumber={shortcutNumber}
@@ -2615,22 +2583,17 @@ const styles = StyleSheet.create((theme) => ({
   // the step in reads as belonging to that project. Padding rather than margin, so the hover and
   // pressed fills stay the same box as every other row in the sidebar.
   newWorkspaceGhostRow: {
-    minHeight: density.rowHeight,
+    position: "relative",
+    minHeight: 44,
     marginBottom: theme.spacing[0.5],
     paddingVertical: theme.spacing[2],
     paddingLeft: theme.spacing[4],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    paddingRight: theme.spacing[2],
+    borderRadius: theme.borderRadius.control,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
     userSelect: "none",
-  },
-  newWorkspaceGhostRowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  newWorkspaceGhostRowPressed: {
-    backgroundColor: theme.colors.surface2,
   },
   // The width of a workspace row's status slot, so the label lands on the same rail as the
   // titles above it.
@@ -2655,22 +2618,16 @@ const styles = StyleSheet.create((theme) => ({
   },
   projectRow: {
     position: "relative",
-    minHeight: density.rowHeight,
+    minHeight: 44,
     paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.control,
     marginBottom: theme.spacing[1],
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
     userSelect: "none",
-  },
-  projectRowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  projectRowPressed: {
-    backgroundColor: theme.colors.surface2,
   },
   projectRowDragging: {
     backgroundColor: theme.colors.surface2,
@@ -2679,6 +2636,9 @@ const styles = StyleSheet.create((theme) => ({
     transform: [{ scale: 1.02 }],
     zIndex: 3,
     ...theme.shadow.md,
+  },
+  projectRowPressed: {
+    backgroundColor: theme.colors.pressed,
   },
   projectRowLeft: {
     flexDirection: "row",
@@ -2696,7 +2656,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   projectTitle: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     fontWeight: "400",
     minWidth: 0,
     flexShrink: 1,
@@ -2781,12 +2742,12 @@ const styles = StyleSheet.create((theme) => ({
     right: theme.spacing[2],
   },
   workspaceRow: {
-    minHeight: density.rowHeight,
+    position: "relative",
+    minHeight: 44,
     marginBottom: theme.spacing[0.5],
     paddingVertical: theme.spacing[2],
-    paddingLeft: theme.spacing[2],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.control,
     flexDirection: "column",
     alignItems: "stretch",
     justifyContent: "center",
@@ -2813,12 +2774,6 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
     flexShrink: 0,
   },
-  workspaceRowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  workspaceRowPressed: {
-    backgroundColor: theme.colors.surface2,
-  },
   workspaceRowDragging: {
     backgroundColor: theme.colors.surface2,
     borderWidth: 1,
@@ -2827,8 +2782,8 @@ const styles = StyleSheet.create((theme) => ({
     zIndex: 3,
     ...theme.shadow.md,
   },
-  sidebarRowSelected: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
+  workspaceRowPressed: {
+    backgroundColor: theme.colors.pressed,
   },
   workspaceRowContainer: {
     position: "relative",
@@ -2862,15 +2817,11 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
     fontWeight: "400",
     lineHeight: 20,
-    opacity: 0.76,
     flex: 1,
     minWidth: 0,
   },
   workspaceBranchTextCreating: {
     opacity: 0.92,
-  },
-  workspaceBranchTextHovered: {
-    opacity: 1,
   },
   workspacePrBadgeRow: {
     flexDirection: "row",

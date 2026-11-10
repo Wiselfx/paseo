@@ -233,11 +233,8 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    paddingHorizontal: {
-      xs: theme.spacing[3],
-      md: theme.spacing[6],
-    },
-    paddingTop: theme.spacing[4],
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[3],
   },
   emptyContainer: {
     flex: 1,
@@ -247,8 +244,10 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.spacing[6],
   },
   emptyText: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    textAlign: "center",
   },
   loadingContainer: {
     flex: 1,
@@ -264,10 +263,7 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
   },
   errorsBannerWrap: {
-    paddingHorizontal: {
-      xs: theme.spacing[3],
-      md: theme.spacing[6],
-    },
+    paddingHorizontal: theme.spacing[4],
     paddingTop: theme.spacing[3],
   },
   errorsBanner: {

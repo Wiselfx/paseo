@@ -1,12 +1,13 @@
-import { useCallback } from "react";
+import { useMemo } from "react";
 import { useTranslation } from "react-i18next";
-import { Pressable, Text, View, type PressableStateCallbackType } from "react-native";
+import { Pressable, Text, View } from "react-native";
 import { ChevronDown, ChevronUp } from "lucide-react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { isWeb } from "@/constants/platform";
 import { sidebarWorkspaceRowStyles } from "@/components/sidebar/sidebar-workspace-row-content";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 import { DensityIcon } from "@/components/ui/density-icon";
-import { density, densityIconBox } from "@/styles/density";
+import { densityIconBox } from "@/styles/density";
 
 /**
  * The row that ends a truncated group. It is a workspace row that happens to say "Show more", so
@@ -33,13 +34,8 @@ export function SidebarGroupToggleRow({
   const label = t(
     expanded ? "sidebar.workspace.actions.showLess" : "sidebar.workspace.actions.showMore",
   );
-  const rowStyle = useCallback(
-    ({ hovered = false, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
-      styles.row,
-      indented && sidebarWorkspaceRowStyles.rowIndented,
-      hovered && !pressed && styles.rowHovered,
-      pressed && styles.rowPressed,
-    ],
+  const rowStyle = useMemo(
+    () => [styles.row, indented && sidebarWorkspaceRowStyles.rowIndented],
     [indented],
   );
 
@@ -53,6 +49,7 @@ export function SidebarGroupToggleRow({
     >
       {({ hovered, pressed }) => (
         <>
+          <SidebarRowBackground hovered={Boolean(hovered)} pressed={pressed} />
           <View style={styles.iconSlot}>
             <DensityIcon
               icon={expanded ? ChevronUp : ChevronDown}
@@ -72,22 +69,16 @@ export function SidebarGroupToggleRow({
 const styles = StyleSheet.create((theme) => ({
   // Kept in step with `workspaceRow` in sidebar-workspace-list.tsx and sidebar-status-list.tsx.
   row: {
-    minHeight: density.rowHeight,
+    position: "relative",
+    minHeight: 44,
     marginBottom: theme.spacing[0.5],
     paddingVertical: theme.spacing[2],
-    paddingLeft: theme.spacing[2],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.control,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
     userSelect: "none",
-  },
-  rowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  rowPressed: {
-    backgroundColor: theme.colors.surface2,
   },
   // The width of a workspace row's status slot, so the label lands on the same rail as the
   // titles above it rather than two points to their left.

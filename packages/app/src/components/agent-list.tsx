@@ -24,6 +24,8 @@ import { useArchiveAgent } from "@/hooks/use-archive-agent";
 import { HighlightedText } from "@/components/ui/highlighted-text";
 import { StatusBadge, type StatusBadgeVariant } from "@/components/ui/status-badge";
 import { findHighlightRanges } from "@/components/ui/highlighted-text-segments";
+import { AgentStatusDot } from "@/components/agent-status-dot";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 
 interface AgentListProps {
   agents: AggregatedAgent[];
@@ -201,15 +203,7 @@ function SessionRow({
     [search, workspaceName, agent.title, branch, projectName],
   );
 
-  const pressableStyle = useCallback(
-    ({ pressed, hovered = false }: PressableStateCallbackType & { hovered?: boolean }) => [
-      styles.row,
-      isSelected && styles.rowSelected,
-      Boolean(hovered) && styles.rowHovered,
-      pressed && styles.rowPressed,
-    ],
-    [isSelected],
-  );
+  const pressableStyle = styles.row;
 
   const handlePress = useCallback(() => onPress(agent), [onPress, agent]);
   const handleLongPress = useCallback(() => onLongPress(agent), [onLongPress, agent]);
@@ -223,6 +217,12 @@ function SessionRow({
 
   const agentTitle = (
     <View style={styles.agentTitleRow}>
+      <AgentStatusDot
+        status={agent.status}
+        requiresAttention={agent.requiresAttention}
+        attentionReason={agent.attentionReason}
+        pendingPermissionCount={pendingPermissionCount}
+      />
       <View style={styles.providerIconWrap}>
         <ProviderIcon size={theme.iconSize.sm} color={theme.colors.foregroundMuted} />
       </View>
@@ -244,88 +244,97 @@ function SessionRow({
       accessibilityRole="button"
       testID={`agent-row-${agent.serverId}-${agent.id}`}
     >
-      <View style={styles.rowContent}>
-        <View style={styles.rowTitleRow}>
-          <HighlightedText
-            text={workspaceName || projectName}
-            ranges={workspaceName ? ranges.workspace : ranges.project}
-            style={styles.workspaceTitleText}
-            numberOfLines={1}
-            testID={`agent-row-workspace-${agent.serverId}-${agent.id}`}
+      {({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => (
+        <>
+          <SidebarRowBackground
+            hovered={Boolean(hovered)}
+            selected={isSelected}
+            pressed={pressed}
           />
-          {!isMobile ? (
-            <>
-              <ChevronRight size={theme.iconSize.xs} color={theme.colors.foregroundMuted} />
-              {agentTitle}
-            </>
-          ) : null}
-          <SessionRowBadges
-            agent={agent}
-            archivedIcon={archivedIcon}
-            pendingPermissionCount={pendingPermissionCount}
-            showDesktopAttention={showDesktopAttention}
-          />
-        </View>
-        {isMobile ? agentTitle : null}
-        {isMobile ? (
-          <View style={styles.rowMetaRow}>
-            <HighlightedText
-              text={projectName}
-              ranges={ranges.project}
-              style={styles.sessionMetaText}
-              numberOfLines={1}
-              testID={`agent-row-project-${agent.serverId}-${agent.id}`}
-            />
-            <Text style={styles.sessionMetaSeparator}>·</Text>
-            <HighlightedText
-              text={branch}
-              ranges={ranges.branch}
-              style={styles.sessionMetaText}
-              numberOfLines={1}
-              testID={`agent-row-branch-${agent.serverId}-${agent.id}`}
-            />
-            <Text style={styles.sessionMetaSeparator}>·</Text>
-            <AgentActivityTime date={agent.lastActivityAt} isMobile />
-            {showHostColumn && agent.serverLabel ? (
-              <>
+          <View style={styles.rowContent}>
+            <View style={styles.rowTitleRow}>
+              <HighlightedText
+                text={workspaceName || projectName}
+                ranges={workspaceName ? ranges.workspace : ranges.project}
+                style={styles.workspaceTitleText}
+                numberOfLines={1}
+                testID={`agent-row-workspace-${agent.serverId}-${agent.id}`}
+              />
+              {!isMobile ? (
+                <>
+                  <ChevronRight size={theme.iconSize.xs} color={theme.colors.foregroundMuted} />
+                  {agentTitle}
+                </>
+              ) : null}
+              <SessionRowBadges
+                agent={agent}
+                archivedIcon={archivedIcon}
+                pendingPermissionCount={pendingPermissionCount}
+                showDesktopAttention={showDesktopAttention}
+              />
+            </View>
+            {isMobile ? agentTitle : null}
+            {isMobile ? (
+              <View style={styles.rowMetaRow}>
+                <HighlightedText
+                  text={projectName}
+                  ranges={ranges.project}
+                  style={styles.sessionMetaText}
+                  numberOfLines={1}
+                  testID={`agent-row-project-${agent.serverId}-${agent.id}`}
+                />
                 <Text style={styles.sessionMetaSeparator}>·</Text>
-                <Text style={styles.sessionMetaText} numberOfLines={1}>
-                  {agent.serverLabel}
-                </Text>
-              </>
+                <HighlightedText
+                  text={branch}
+                  ranges={ranges.branch}
+                  style={styles.sessionMetaText}
+                  numberOfLines={1}
+                  testID={`agent-row-branch-${agent.serverId}-${agent.id}`}
+                />
+                <Text style={styles.sessionMetaSeparator}>·</Text>
+                <AgentActivityTime date={agent.lastActivityAt} isMobile />
+                {showHostColumn && agent.serverLabel ? (
+                  <>
+                    <Text style={styles.sessionMetaSeparator}>·</Text>
+                    <Text style={styles.sessionMetaText} numberOfLines={1}>
+                      {agent.serverLabel}
+                    </Text>
+                  </>
+                ) : null}
+              </View>
             ) : null}
           </View>
-        ) : null}
-      </View>
-      {!isMobile ? (
-        <View style={styles.rowColumns}>
-          <HighlightedText
-            text={projectName}
-            ranges={ranges.project}
-            style={styles.columnMeta}
-            numberOfLines={1}
-            testID={`agent-row-project-${agent.serverId}-${agent.id}`}
-          />
-          {showHostColumn ? (
-            <Text style={styles.columnMetaHost} numberOfLines={1}>
-              {agent.serverLabel}
-            </Text>
+          {!isMobile ? (
+            <View style={styles.rowColumns}>
+              <HighlightedText
+                text={projectName}
+                ranges={ranges.project}
+                style={styles.columnMeta}
+                numberOfLines={1}
+                testID={`agent-row-project-${agent.serverId}-${agent.id}`}
+              />
+              {showHostColumn ? (
+                <Text style={styles.columnMetaHost} numberOfLines={1}>
+                  {agent.serverLabel}
+                </Text>
+              ) : null}
+              <HighlightedText
+                text={branch}
+                ranges={ranges.branch}
+                style={styles.columnMeta}
+                numberOfLines={1}
+                testID={`agent-row-branch-${agent.serverId}-${agent.id}`}
+              />
+              <AgentActivityTime date={agent.lastActivityAt} isMobile={false} />
+            </View>
           ) : null}
-          <HighlightedText
-            text={branch}
-            ranges={ranges.branch}
-            style={styles.columnMeta}
-            numberOfLines={1}
-            testID={`agent-row-branch-${agent.serverId}-${agent.id}`}
+          <SessionRowTrailingAttention
+            isMobile={isMobile}
+            showAttentionIndicator={showAttentionIndicator}
+            requiresAttention={agent.requiresAttention}
           />
-          <AgentActivityTime date={agent.lastActivityAt} isMobile={false} />
-        </View>
-      ) : null}
-      <SessionRowTrailingAttention
-        isMobile={isMobile}
-        showAttentionIndicator={showAttentionIndicator}
-        requiresAttention={agent.requiresAttention}
-      />
+        </>
+      )}
     </Pressable>
   );
 }
@@ -559,39 +568,44 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: 0,
   },
   listContent: {
-    paddingHorizontal: {
-      xs: theme.spacing[3],
-      md: theme.spacing[6],
-    },
-    paddingTop: theme.spacing[4],
+    paddingHorizontal: theme.spacing[4],
+    paddingTop: theme.spacing[3],
     paddingBottom: theme.spacing[6],
-    gap: theme.spacing[1],
+    gap: theme.spacing[2],
   },
   sectionHeading: {
-    marginTop: theme.spacing[2],
+    marginTop: theme.spacing[4],
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[3],
-    paddingHorizontal: theme.spacing[3],
-    marginBottom: theme.spacing[2],
+    paddingHorizontal: theme.spacing[1],
+    marginBottom: theme.spacing[1.5],
   },
   sectionTitle: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
-    color: theme.colors.foregroundMuted,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 16,
+    fontWeight: theme.fontWeight.normal,
+    color: theme.colors.foregroundExtraMuted,
   },
   row: {
+    position: "relative",
+    minHeight: 44,
     flexDirection: "row",
     alignItems: "center",
-    paddingVertical: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
+    paddingVertical: 10,
+    paddingHorizontal: 14,
     borderRadius: {
-      xs: theme.borderRadius.lg,
-      md: 0,
+      xs: theme.borderRadius.card,
+      md: theme.borderRadius.control,
     },
-    marginBottom: {
-      xs: theme.spacing[1],
-      md: 0,
+    borderWidth: {
+      xs: theme.borderWidth[1],
+      md: theme.borderWidth[0],
+    },
+    borderColor: theme.colors.border,
+    backgroundColor: {
+      xs: theme.colors.surface1,
+      md: "transparent",
     },
   },
   rowContent: {
@@ -619,7 +633,8 @@ const styles = StyleSheet.create((theme) => ({
   workspaceTitleText: {
     flexShrink: { xs: 1, md: 0 },
     maxWidth: { xs: "100%", md: 320 },
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.foreground,
   },
   rowMetaRow: {
@@ -632,31 +647,24 @@ const styles = StyleSheet.create((theme) => ({
   rowTrailing: {
     marginLeft: theme.spacing[2],
   },
-  rowSelected: {
-    backgroundColor: theme.colors.surface2,
-  },
-  rowHovered: {
-    backgroundColor: theme.colors.surface1,
-  },
-  rowPressed: {
-    backgroundColor: theme.colors.surface2,
-  },
   sessionTitle: {
     flexShrink: 1,
     minWidth: 0,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: "400",
     color: theme.colors.foregroundMuted,
   },
   sessionMetaText: {
     maxWidth: "100%",
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
   },
   sessionMetaSeparator: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
-    opacity: 0.7,
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
   },
   rowColumns: {
     flexDirection: "row",
@@ -665,21 +673,24 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[3],
   },
   columnMeta: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
     flexShrink: 0,
     width: 132,
   },
   columnMetaFixed: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
     flexShrink: 0,
     width: 72,
     textAlign: "right" as const,
   },
   columnMetaHost: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
     flexShrink: 0,
     width: 120,
     marginLeft: theme.spacing[4],

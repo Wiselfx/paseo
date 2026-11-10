@@ -35,7 +35,7 @@ export function SidebarFooterMenuTrigger({
           >
             {({ hovered, pressed, open }) => (
               <>
-                <SidebarFooterIconHighlight visible={pressed || open} />
+                <SidebarFooterIconHighlight hovered={hovered} pressed={pressed || open} />
                 <DensityIcon
                   icon={icon}
                   size="md"

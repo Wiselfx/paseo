@@ -82,7 +82,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
     borderBottomWidth: theme.borderWidth[1],
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
     userSelect: "none",
   },
   left: {

@@ -9,7 +9,6 @@ import { HeaderToggleButton } from "@/components/headers/header-toggle-button";
 import { SidebarMenuToggle } from "@/components/headers/sidebar-menu-toggle";
 import {
   IconButtonChromeProvider,
-  iconButtonChromeGlyphSize,
   mutedIconColorMapping,
 } from "@/components/ui/icon-button-chrome";
 import {
@@ -136,11 +135,7 @@ function BackButton({ onBack }: { onBack?: () => void }) {
       accessibilityRole="button"
       accessibilityLabel={t("common.actions.back")}
     >
-      <ThemedArrowLeft
-        size={iconButtonChromeGlyphSize("large")}
-        strokeWidth={1.5}
-        uniProps={mutedIconColorMapping}
-      />
+      <ThemedArrowLeft size={18} strokeWidth={1.5} uniProps={mutedIconColorMapping} />
     </HeaderToggleButton>
   );
 }
@@ -172,17 +167,19 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
   },
   title: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.foreground,
-    textAlign: "left",
+    textAlign: "center",
   },
   // A title without a subtitle has the header to itself, so it reads one step larger.
   singleLineTitle: {
-    fontSize: theme.fontSize.lg,
-    fontWeight: theme.fontWeight.medium,
+    fontSize: 15,
+    lineHeight: 20,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.foreground,
-    textAlign: "left",
+    textAlign: "center",
   },
   titleSkeleton: {
     width: 140,

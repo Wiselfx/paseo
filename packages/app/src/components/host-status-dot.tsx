@@ -4,6 +4,7 @@ import {
   type HostRuntimeConnectionStatus,
   useHostRuntimeConnectionStatus,
 } from "@/runtime/host-runtime";
+import { STATUS_INDICATOR_FILLED_DOT_SIZE } from "@/utils/status-indicator-geometry";
 
 export function HostStatusDot({ serverId }: { serverId: string }) {
   const status = useHostRuntimeConnectionStatus(serverId);
@@ -19,17 +20,19 @@ function statusStyle(status: HostRuntimeConnectionStatus) {
 
 const styles = StyleSheet.create((theme) => ({
   dot: {
-    width: 8,
-    height: 8,
+    width: STATUS_INDICATOR_FILLED_DOT_SIZE,
+    height: STATUS_INDICATOR_FILLED_DOT_SIZE,
     borderRadius: theme.borderRadius.full,
+    flexShrink: 0,
   },
+  // The status-dot band, not the status glyph band: a 6px disc has to read at a glance.
   dotOnline: {
-    backgroundColor: theme.colors.statusSuccess,
+    backgroundColor: theme.colors.statusDotSuccess,
   },
   dotConnecting: {
-    backgroundColor: theme.colors.statusWarning,
+    backgroundColor: theme.colors.statusDotWarning,
   },
   dotOffline: {
-    backgroundColor: theme.colors.statusDanger,
+    backgroundColor: theme.colors.statusDotDanger,
   },
 }));

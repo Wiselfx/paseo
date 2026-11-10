@@ -1748,7 +1748,7 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
   },
   composerTitleContainer: {
-    marginBottom: theme.spacing[8],
+    marginBottom: theme.spacing[6],
     paddingLeft: theme.spacing[6],
     paddingRight: theme.spacing[4],
   },

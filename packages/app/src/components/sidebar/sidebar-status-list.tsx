@@ -8,14 +8,7 @@ import {
   type Ref,
 } from "react";
 import { useTranslation } from "react-i18next";
-import {
-  View,
-  Text,
-  Pressable,
-  ScrollView,
-  type GestureResponderEvent,
-  type PressableStateCallbackType,
-} from "react-native";
+import { View, Text, Pressable, ScrollView, type GestureResponderEvent } from "react-native";
 import { NestableScrollContainer } from "react-native-draggable-flatlist";
 import type { GestureType } from "react-native-gesture-handler";
 import { navigateToWorkspace } from "@/stores/navigation-active-workspace-store";
@@ -28,7 +21,7 @@ import type { HostBadgeModel } from "@/hosts/appearance";
 import { isWeb as platformIsWeb, isNative as platformIsNative } from "@/constants/platform";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { StyleSheet } from "react-native-unistyles";
-import { density, densityIconBox, densityIconProps } from "@/styles/density";
+import { densityIconBox, densityIconProps } from "@/styles/density";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import { withUnistyles } from "react-native-unistyles";
 import {
@@ -61,6 +54,7 @@ import {
 } from "@/components/sidebar/sidebar-workspace-row-content";
 import { useOpenKebabMenuVisibility } from "@/components/sidebar/use-open-kebab-menu-visibility";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 import { getStatusDotColor } from "@/utils/status-dot-color";
 import { selectWorkspaceServiceSummary } from "@/components/sidebar/workspace-meta-row";
 import {
@@ -460,14 +454,7 @@ function StatusGroupHeader({
   }, [group.key, toggleWorkspaceGroupCollapsed]);
   const handleHoverIn = useCallback(() => setIsHovered(true), []);
   const handleHoverOut = useCallback(() => setIsHovered(false), []);
-  const rowStyle = useCallback(
-    ({ pressed }: PressableStateCallbackType) => [
-      styles.statusGroupRow,
-      isHovered && styles.statusGroupRowHovered,
-      pressed && styles.statusGroupRowPressed,
-    ],
-    [isHovered],
-  );
+  const rowStyle = styles.statusGroupRow;
   const accessibilityState = useMemo(() => ({ expanded: !collapsed }), [collapsed]);
 
   return (
@@ -480,6 +467,7 @@ function StatusGroupHeader({
         onPress={handlePress}
         testID={`sidebar-status-group-${group.key}`}
       >
+        <SidebarRowBackground hovered={isHovered} pressed={false} />
         <View style={styles.statusGroupRowLeft}>
           <View style={styles.statusGroupLeadingVisualSlot}>
             <StatusGroupLeadingVisual
@@ -884,13 +872,7 @@ function StatusWorkspaceRowInnerContent({
           isTouchPlatform,
           showShortcut,
         });
-        const workspaceRowStyle = getStatusWorkspaceRowStyle({
-          isPressed,
-          selected,
-          isHovered,
-          inStatusGroup,
-          isDragging,
-        });
+        const workspaceRowStyle = getStatusWorkspaceRowStyle(inStatusGroup, isDragging);
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
           <View
@@ -932,6 +914,7 @@ function StatusWorkspaceRowInnerContent({
               onPress={handlePress}
               testID={`sidebar-workspace-row-${workspace.workspaceKey}`}
             >
+              <SidebarRowBackground hovered={isHovered} selected={selected} pressed={isPressed} />
               <SidebarWorkspaceRowContent
                 workspace={workspace}
                 hostBadge={hostBadge}
@@ -939,7 +922,6 @@ function StatusWorkspaceRowInnerContent({
                 leadingProjectIconDataUri={projectIconDataUri}
                 serviceSummary={serviceSummary}
                 backdrop={backdrop}
-                isHovered={isHovered}
                 isLoading={isArchiving}
                 shortcutNumber={shortcutNumber}
                 showShortcutBadge={showShortcutBadge}
@@ -1059,26 +1041,11 @@ function StatusWorkspaceActionSlot({
   );
 }
 
-function getStatusWorkspaceRowStyle({
-  isPressed,
-  selected,
-  isHovered,
-  inStatusGroup,
-  isDragging,
-}: {
-  isPressed: boolean;
-  selected: boolean;
-  isHovered: boolean;
-  inStatusGroup: boolean;
-  isDragging: boolean;
-}) {
+function getStatusWorkspaceRowStyle(inStatusGroup: boolean, isDragging: boolean) {
   return [
     styles.workspaceRow,
     inStatusGroup && sidebarWorkspaceRowStyles.rowIndented,
-    isHovered && styles.workspaceRowHovered,
-    selected && styles.sidebarRowSelected,
     isDragging && styles.workspaceRowDragging,
-    isPressed && styles.workspaceRowPressed,
   ];
 }
 
@@ -1104,22 +1071,17 @@ const styles = StyleSheet.create((theme) => ({
   },
   statusWorkspaceListContainer: {},
   statusGroupRow: {
-    minHeight: density.rowHeight,
+    position: "relative",
+    minHeight: 44,
     paddingVertical: theme.spacing[2],
     paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.control,
     marginBottom: theme.spacing[2],
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
     userSelect: "none",
-  },
-  statusGroupRowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  statusGroupRowPressed: {
-    backgroundColor: theme.colors.surface2,
   },
   statusGroupRowLeft: {
     flexDirection: "row",
@@ -1145,7 +1107,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   statusGroupTitle: {
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     fontWeight: "400",
     minWidth: 0,
     flexShrink: 1,
@@ -1154,23 +1117,20 @@ const styles = StyleSheet.create((theme) => ({
     position: "relative",
   },
   workspaceRow: {
-    minHeight: density.rowHeight,
+    position: "relative",
+    minHeight: 44,
     marginBottom: theme.spacing[0.5],
     paddingVertical: theme.spacing[2],
-    paddingLeft: theme.spacing[2],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.control,
     flexDirection: "column",
     alignItems: "stretch",
     justifyContent: "flex-start",
     gap: theme.spacing[1],
     userSelect: "none",
   },
-  workspaceRowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
   workspaceRowPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
   },
   workspaceRowDragging: {
     backgroundColor: theme.colors.surface2,
@@ -1179,8 +1139,5 @@ const styles = StyleSheet.create((theme) => ({
     transform: [{ scale: 1.02 }],
     zIndex: 3,
     ...theme.shadow.md,
-  },
-  sidebarRowSelected: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
   },
 }));

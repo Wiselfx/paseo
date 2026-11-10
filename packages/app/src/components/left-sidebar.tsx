@@ -49,11 +49,7 @@ import {
   SIDEBAR_FOOTER_ACTIONS,
   type SidebarFooterAction,
 } from "@/components/sidebar-footer-layout";
-import {
-  controlSizingForLayout,
-  mapLayout,
-  TOOLBAR_CONTROL_SIZES,
-} from "@/components/ui/control-geometry";
+import { controlSizingForLayout, TOOLBAR_CONTROL_SIZES } from "@/components/ui/control-geometry";
 import { SidebarResizeHandle } from "@/components/sidebar-resize-handle";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { SidebarSectionHeader } from "@/components/sidebar/sidebar-section-header";
@@ -96,6 +92,8 @@ type SidebarTheme = ReturnType<typeof useUnistyles>["theme"];
 
 /** The footer icon line's inset; the overflow layout counts it as space the buttons can't use. */
 const FOOTER_ROW_PADDING = SPACING[2];
+/** Between two footer icons, and between their highlight fills. */
+const FOOTER_ICON_GAP = SPACING[2];
 
 const DEV_BUILD_LABEL = process.env.EXPO_PUBLIC_PASEO_DEV_BUILD_LABEL?.trim() || null;
 
@@ -319,7 +317,7 @@ function FooterIconButton({
         >
           {({ hovered, pressed }) => (
             <>
-              <SidebarFooterIconHighlight visible={pressed} />
+              <SidebarFooterIconHighlight hovered={Boolean(hovered)} pressed={pressed} />
               <DensityIcon
                 icon={icon}
                 size="md"
@@ -437,7 +435,8 @@ function SidebarFooter({
     () =>
       resolveSidebarFooterLayout({
         rowWidth,
-        controlSize: TOOLBAR_CONTROL_SIZES[controlSizingForLayout(isCompactLayout)],
+        controlSize:
+          TOOLBAR_CONTROL_SIZES[controlSizingForLayout(isCompactLayout)] + FOOTER_ICON_GAP,
         rowPadding: FOOTER_ROW_PADDING,
         actions: SIDEBAR_FOOTER_ACTIONS,
       }),
@@ -938,7 +937,7 @@ const styles = StyleSheet.create((theme) => ({
     gap: 2,
     paddingBottom: theme.spacing[1.5],
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
   },
   sidebarHeaderGroupFlush: {
     paddingTop: 0,
@@ -964,7 +963,7 @@ const styles = StyleSheet.create((theme) => ({
   }),
   desktopSidebarBorder: (hasDivision: boolean) => ({
     borderRightWidth: hasDivision ? 0 : 1,
-    borderRightColor: theme.colors.border,
+    borderRightColor: theme.colors.divider,
     backgroundColor: theme.colors.surfaceSidebar,
   }),
   sidebarDragArea: {
@@ -999,14 +998,15 @@ const styles = StyleSheet.create((theme) => ({
   },
   footerContainer: {
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.divider,
   },
   // Buttons sit edge to edge; their own inset spaces the glyphs.
   // As tall as its buttons from the first frame, which places none until the row has measured.
   sidebarFooter: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: mapLayout(density.iconButton, (height) => height + theme.spacing[1.5] * 2),
+    minHeight: 48,
+    gap: FOOTER_ICON_GAP,
     paddingHorizontal: FOOTER_ROW_PADDING,
     paddingVertical: theme.spacing[1.5],
   },

@@ -5,7 +5,6 @@ import { StyleSheet } from "react-native-unistyles";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { isNative } from "@/constants/platform";
-import { density } from "@/styles/density";
 
 /** A sidebar section label such as "Pinned" or "Workspaces". A section with `onToggle`
  * collapses from its title; children sit at the trailing edge as its actions. */
@@ -81,15 +80,16 @@ function CollapsibleTitle({
 
 const styles = StyleSheet.create((theme) => ({
   header: {
-    minHeight: density.rowHeight,
+    minHeight: 24,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
-    // The title lands at spacing[2] to align with the rows' leading icons. Trailing actions
-    // are icon buttons whose painted glyph stops inside the SVG box, so 4px aligns the ink
-    // rather than the box to the row rail.
-    paddingLeft: theme.spacing[2],
+    marginTop: theme.spacing[4],
+    marginBottom: theme.spacing[1.5],
+    // The label sits at the same inset as the rows' text, with the trailing actions pulled
+    // right so their painted glyph stops on the row rail.
+    paddingLeft: 10,
     paddingRight: 4,
     userSelect: "none",
   },
@@ -99,12 +99,13 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[1],
-    marginLeft: -theme.spacing[2],
-    paddingHorizontal: theme.spacing[2],
+    marginLeft: -10,
+    paddingHorizontal: 10,
   },
   title: {
-    color: theme.colors.foregroundMuted,
+    color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     fontWeight: theme.fontWeight.normal,
   },
   actions: {

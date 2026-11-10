@@ -1,25 +1,17 @@
-import { View } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 
 /**
- * The round highlight behind a sidebar footer icon. It is a layer inside the button rather than a
+ * The highlight behind a sidebar footer icon. It is a layer inside the button rather than a
  * radius on it: web hit-testing follows `border-radius`, so a round button would stop taking taps
- * near the corners of its square finger-sized target.
+ * near the corners of its square finger-sized target. Square with the control's 8px radius, and
+ * timed like every other row wash.
  */
-export function SidebarFooterIconHighlight({ visible }: { visible: boolean }) {
-  return <View pointerEvents="none" style={[styles.highlight, visible && styles.visible]} />;
+export function SidebarFooterIconHighlight({
+  hovered,
+  pressed,
+}: {
+  hovered: boolean;
+  pressed: boolean;
+}) {
+  return <SidebarRowBackground hovered={hovered} pressed={pressed} />;
 }
-
-const styles = StyleSheet.create((theme) => ({
-  highlight: {
-    position: "absolute",
-    top: 0,
-    right: 0,
-    bottom: 0,
-    left: 0,
-    borderRadius: theme.borderRadius.full,
-  },
-  visible: {
-    backgroundColor: theme.colors.interactionHighlight,
-  },
-}));

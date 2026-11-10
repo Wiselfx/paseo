@@ -13,6 +13,6 @@ export function SidebarSeparator({ testID }: { testID?: string } = {}) {
 const styles = StyleSheet.create((theme) => ({
   line: {
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
   },
 }));

@@ -4,7 +4,8 @@ import { StyleSheet } from "react-native-unistyles";
 import { HEADER_INNER_HEIGHT, HEADER_INNER_HEIGHT_MOBILE } from "@/constants/layout";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { Shortcut } from "@/components/ui/shortcut";
-import { density, densityIconBox } from "@/styles/density";
+import { densityIconBox } from "@/styles/density";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 
 type SidebarHeaderRowVariant = "header" | "compact" | "inline";
@@ -58,7 +59,6 @@ export function SidebarHeaderRow({
   const [isPressed, setIsPressed] = useState(false);
   const handlePressIn = useCallback(() => setIsPressed(true), []);
   const handlePressOut = useCallback(() => setIsPressed(false), []);
-  const isHighlighted = isHovered || isActive;
   const iconSize = variant === "header" ? "md" : "sm";
 
   let right = trailing ?? null;
@@ -69,10 +69,11 @@ export function SidebarHeaderRow({
   return (
     <View ref={rowRef} collapsable={false} style={getContainerStyle(variant)}>
       <View
-        style={[styles.row, isHighlighted && styles.rowHighlighted, isPressed && styles.rowPressed]}
+        style={styles.row}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
+        <SidebarRowBackground hovered={isHovered} selected={isActive} pressed={isPressed} />
         <Pressable
           onPress={onPress}
           onPressIn={handlePressIn}
@@ -87,15 +88,11 @@ export function SidebarHeaderRow({
           style={styles.button}
         >
           {icon ? (
-            <DensityIcon
-              icon={icon}
-              size={iconSize}
-              color={isHighlighted ? "foreground" : "foregroundMuted"}
-            />
+            <DensityIcon icon={icon} size={iconSize} color="foregroundMuted" />
           ) : (
             <View style={variant === "header" ? styles.iconSpacer : styles.iconSpacerCompact} />
           )}
-          <Text style={[styles.label, isHighlighted && styles.labelHighlighted]}>{label}</Text>
+          <Text style={styles.label}>{label}</Text>
         </Pressable>
         {right === null ? null : (
           <Pressable
@@ -125,7 +122,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
     justifyContent: "center",
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
     userSelect: "none",
   },
   containerCompact: {
@@ -139,31 +136,20 @@ const styles = StyleSheet.create((theme) => ({
     userSelect: "none",
   },
   row: {
+    position: "relative",
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
-    // Same row geometry as the settings sidebar items. Shorter than the header
-    // strip so the hover highlight clears the strip's bottom separator.
-    minHeight: density.tightRowHeight,
-    borderRadius: theme.borderRadius.lg,
-  },
-  rowHighlighted: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
-  // The workspace rows' pressed fill.
-  rowPressed: {
-    backgroundColor: theme.colors.surface2,
+    borderRadius: theme.borderRadius.control,
   },
   button: {
     flex: 1,
     minWidth: 0,
+    height: 44,
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[2],
-    minHeight: density.tightRowHeight,
-    paddingVertical: theme.spacing[1],
-    // Match the project rows' inner padding so the icons align on one vertical
-    // edge with the list below.
-    paddingHorizontal: theme.spacing[2],
+    gap: 10,
+    paddingHorizontal: 10,
   },
   iconSpacer: { width: densityIconBox("md"), height: densityIconBox("md") },
   iconSpacerCompact: { width: densityIconBox("sm"), height: densityIconBox("sm") },
@@ -171,9 +157,6 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.normal,
-    color: theme.colors.foregroundMuted,
-  },
-  labelHighlighted: {
     color: theme.colors.foreground,
   },
   trailing: {

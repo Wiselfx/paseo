@@ -4,7 +4,6 @@ import { View, Text, type GestureResponderEvent } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import type { HostBadgeModel } from "@/hosts/appearance";
 import type { SidebarWorkspaceEntry } from "@/hooks/use-sidebar-workspaces-list";
-import { density } from "@/styles/density";
 import type { SidebarSurfaceBackdrop } from "@/styles/surface-backdrop";
 import type { DraggableListDragHandleProps } from "@/components/draggable-list.types";
 import type { ShortcutKey } from "@/utils/format-shortcut";
@@ -34,6 +33,7 @@ import {
 } from "@/components/sidebar/sidebar-workspace-row-content";
 import { useOpenKebabMenuVisibility } from "@/components/sidebar/use-open-kebab-menu-visibility";
 import { getSidebarRowBackdrop } from "@/components/sidebar/sidebar-row-backdrop";
+import { SidebarRowBackground } from "@/components/sidebar/sidebar-row-background";
 import { selectWorkspaceServiceSummary } from "@/components/sidebar/workspace-meta-row";
 import {
   SidebarWorkspaceTrailingContent,
@@ -273,12 +273,9 @@ function WorkspaceRowBody({
       {({ isHovered, contextMenuOpen, onContextMenuOpenChange, hoverHandlers }) => {
         const isDesktop = !isTouchPlatform;
         const serviceSummary = isDesktop ? selectWorkspaceServiceSummary(workspace.scripts) : null;
-        const workspaceRowStyle = getWorkspaceRowStyle({
-          isDragging,
-          isPressed,
-          selected,
-          isHovered,
-        });
+        const workspaceRowStyle = isDragging
+          ? [styles.workspaceRow, styles.workspaceRowDragging]
+          : styles.workspaceRow;
         const backdrop = getSidebarRowBackdrop({ isDragging, isPressed, selected, isHovered });
         return (
           <View
@@ -320,12 +317,12 @@ function WorkspaceRowBody({
               onPress={handlePress}
               testID={`sidebar-workspace-row-${workspace.workspaceKey}`}
             >
+              <SidebarRowBackground hovered={isHovered} selected={selected} pressed={isPressed} />
               <SidebarWorkspaceRowContent
                 workspace={workspace}
                 hostBadge={hostBadge}
                 serviceSummary={serviceSummary}
                 backdrop={backdrop}
-                isHovered={isHovered}
                 isLoading={isArchiving || isCreating}
                 isCreating={isCreating}
                 shortcutNumber={shortcutNumber}
@@ -460,26 +457,6 @@ function WorkspaceRowTrailingActions({
   );
 }
 
-function getWorkspaceRowStyle({
-  isDragging,
-  isPressed,
-  selected,
-  isHovered,
-}: {
-  isDragging: boolean;
-  isPressed: boolean;
-  selected: boolean;
-  isHovered: boolean;
-}) {
-  return [
-    styles.workspaceRow,
-    isHovered && styles.workspaceRowHovered,
-    selected && styles.sidebarRowSelected,
-    isDragging && styles.workspaceRowDragging,
-    isPressed && styles.workspaceRowPressed,
-  ];
-}
-
 export const MemoSidebarWorkspaceRow = memo(SidebarWorkspaceRow);
 
 const styles = StyleSheet.create((theme) => ({
@@ -487,23 +464,20 @@ const styles = StyleSheet.create((theme) => ({
     position: "relative",
   },
   workspaceRow: {
-    minHeight: density.rowHeight,
-    marginBottom: theme.spacing[1],
+    position: "relative",
+    minHeight: 44,
+    marginBottom: theme.spacing[0.5],
     paddingVertical: theme.spacing[2],
-    paddingLeft: theme.spacing[2],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    paddingHorizontal: theme.spacing[2],
+    borderRadius: theme.borderRadius.control,
     flexDirection: "column",
     alignItems: "stretch",
     justifyContent: "center",
     gap: theme.spacing[1],
     userSelect: "none",
   },
-  workspaceRowHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
-  },
   workspaceRowPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
   },
   workspaceRowDragging: {
     backgroundColor: theme.colors.surface2,
@@ -512,9 +486,6 @@ const styles = StyleSheet.create((theme) => ({
     transform: [{ scale: 1.02 }],
     zIndex: 3,
     ...theme.shadow.md,
-  },
-  sidebarRowSelected: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
   },
   workspaceCreatingText: {
     color: theme.colors.foregroundMuted,

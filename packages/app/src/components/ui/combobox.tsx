@@ -31,7 +31,7 @@ import { StyleSheet, useUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 import { BottomSheetScrollView, type BottomSheetBackgroundProps } from "@gorhom/bottom-sheet";
-import Animated, { FadeIn, FadeOut } from "react-native-reanimated";
+import Animated, { Easing, Keyframe, useReducedMotion } from "react-native-reanimated";
 import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Check, File, Folder, Search } from "lucide-react-native";
 import {
@@ -65,13 +65,30 @@ import { FloatingSurface } from "@/components/ui/floating";
 import { useDismissKeyboardOnOpen } from "@/components/ui/keyboard-dismiss";
 import { useDismissibleOverlay } from "@/components/ui/overlay-dismissal";
 import { getOverlayRoot, OverlayLayerProvider, useOverlayLayer } from "@/lib/overlay-root";
-import { density, densityIconBox } from "@/styles/density";
+import { densityIconBox } from "@/styles/density";
 import { DensityIcon } from "@/components/ui/density-icon";
 import { buildDesktopFrameStyle } from "./combobox-frame-style";
+import { MENU_ITEM_HEIGHT } from "./menu/menu-geometry";
+import { popoverShadow } from "./popover-shadow";
+import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 
 export { buildDesktopFrameStyle } from "./combobox-frame-style";
 
 const IS_WEB = isWeb;
+const POPOVER_EASING = Easing.bezier(
+  CLAUDE_EASE.out[0],
+  CLAUDE_EASE.out[1],
+  CLAUDE_EASE.out[2],
+  CLAUDE_EASE.out[3],
+);
+const POPOVER_ENTERING = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.97 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: POPOVER_EASING },
+}).duration(CLAUDE_DURATION.open);
+const POPOVER_EXITING = new Keyframe({
+  0: { opacity: 1, transform: [{ scale: 1 }] },
+  100: { opacity: 0, transform: [{ scale: 0.99 }], easing: POPOVER_EASING },
+}).duration(CLAUDE_DURATION.feedback);
 
 export type ComboboxOption = ComboboxOptionModel;
 export type ComboboxDesktopPlacement = "top-start" | "bottom-start";
@@ -1192,6 +1209,7 @@ function DesktopComboboxOptionsBody(props: {
 
 function DesktopComboboxBody(props: DesktopBodyProps): ReactElement | null {
   const active = useRetainedPanelActive();
+  const reducedMotion = useReducedMotion();
   const setOverlayScope = props.setOverlayScope;
   const setFloatingRef = useCallback(
     (node: View | null) => {
@@ -1218,8 +1236,8 @@ function DesktopComboboxBody(props: DesktopBodyProps): ReactElement | null {
         <Pressable style={styles.desktopBackdrop} onPress={props.handleClose} />
         <FloatingSurface
           testID="combobox-desktop-container"
-          entering={props.shouldUseDesktopFade ? FadeIn.duration(100) : undefined}
-          exiting={props.shouldUseDesktopFade ? FadeOut.duration(100) : undefined}
+          entering={props.shouldUseDesktopFade && !reducedMotion ? POPOVER_ENTERING : undefined}
+          exiting={props.shouldUseDesktopFade && !reducedMotion ? POPOVER_EXITING : undefined}
           style={styles.desktopContainer}
           frameStyle={props.desktopFrameStyle}
           ref={setFloatingRef}
@@ -1676,11 +1694,11 @@ const styles = StyleSheet.create((theme) => ({
   searchInputContainer: {
     flexDirection: "row",
     alignItems: "center",
-    paddingHorizontal: theme.spacing[3],
+    paddingHorizontal: 7,
     gap: theme.spacing[2],
     backgroundColor: theme.colors.surface1,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
     ...(IS_WEB ? {} : { marginHorizontal: theme.spacing[1] }),
   },
   searchInput: {
@@ -1692,11 +1710,11 @@ const styles = StyleSheet.create((theme) => ({
   comboboxItem: {
     flexDirection: "row",
     alignItems: "center",
-    minHeight: density.rowHeight,
+    minHeight: MENU_ITEM_HEIGHT,
     gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
-    borderRadius: 0,
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.md,
     ...(IS_WEB
       ? {}
       : {
@@ -1705,22 +1723,22 @@ const styles = StyleSheet.create((theme) => ({
         }),
   },
   comboboxItemHovered: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.hover,
   },
   comboboxItemHoveredElevated: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   comboboxItemPressed: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.pressed,
   },
   comboboxItemPressedElevated: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
   },
   comboboxItemActive: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.hover,
   },
   comboboxItemDisabled: {
-    opacity: 0.55,
+    opacity: 0.6,
   },
   comboboxItemTrailingSlot: {
     width: densityIconBox("md"),
@@ -1748,7 +1766,8 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
   },
   comboboxItemLabel: {
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.foreground,
     flexShrink: 0,
   },
@@ -1777,9 +1796,7 @@ const styles = StyleSheet.create((theme) => ({
     textAlign: "left",
   },
   comboboxScrollContent: {
-    paddingBottom: theme.spacing[8],
-    paddingHorizontal: theme.spacing[2],
-    paddingTop: theme.spacing[1],
+    padding: theme.spacing[1.5],
   },
   desktopOverlay: {
     flex: 1,
@@ -1796,11 +1813,11 @@ const styles = StyleSheet.create((theme) => ({
     left: 0,
   },
   desktopContainer: {
-    backgroundColor: theme.colors.surface0,
-    borderRadius: theme.borderRadius.lg,
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.borderRadius.card,
     borderWidth: 1,
     borderColor: theme.colors.border,
-    ...theme.shadow.md,
+    boxShadow: popoverShadow(theme.colorScheme),
     maxHeight: 400,
     overflow: "hidden",
   },
@@ -1809,7 +1826,7 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: 0,
   },
   desktopScrollContent: {
-    paddingVertical: theme.spacing[1],
+    padding: theme.spacing[1.5],
   },
   desktopChildrenScrollContent: {
     // No padding — custom children (e.g. model selector) control their own spacing

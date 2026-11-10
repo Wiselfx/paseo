@@ -79,7 +79,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
-    marginBottom: theme.spacing[3],
+    marginBottom: theme.spacing[2],
     marginLeft: theme.spacing[1],
   },
   // Mirrors the header's marginLeft, so the link's glyph and the title's sit on matching rails.

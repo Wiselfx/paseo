@@ -80,12 +80,13 @@ export function iconButtonChromeStyle({
   round = false,
   style,
 }: IconButtonChromeOptions): StyleProp<ViewStyle> {
-  const highlighted = state?.active || state?.hovered || state?.pressed || state?.open;
+  const highlighted = state?.active || state?.hovered || state?.open;
   return [
     resolveIconButtonFrame(size, compact),
     round ? styles.round : null,
     style,
     highlighted ? styles.highlighted : null,
+    state?.pressed ? styles.pressed : null,
     disabled ? styles.disabled : null,
   ];
 }
@@ -111,7 +112,7 @@ const styles = StyleSheet.create((theme) => ({
     width: bySizing(ICON_BUTTON_SIZES.large),
     height: bySizing(ICON_BUTTON_SIZES.large),
     padding: 0,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.control,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -122,7 +123,7 @@ const styles = StyleSheet.create((theme) => ({
     width: ICON_BUTTON_SIZES.small.pointer,
     height: ICON_BUTTON_SIZES.small.pointer,
     padding: 0,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.control,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -133,7 +134,7 @@ const styles = StyleSheet.create((theme) => ({
     width: ICON_BUTTON_SIZES.small.touch,
     height: ICON_BUTTON_SIZES.small.touch,
     padding: 0,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.control,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -144,7 +145,10 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: theme.borderRadius.full,
   },
   highlighted: {
-    backgroundColor: theme.colors.interactionHighlight,
+    backgroundColor: theme.colors.hover,
+  },
+  pressed: {
+    backgroundColor: theme.colors.pressed,
   },
   disabled: {
     opacity: theme.opacity[50],

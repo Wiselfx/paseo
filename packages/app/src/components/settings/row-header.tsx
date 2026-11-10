@@ -125,10 +125,10 @@ const styles = StyleSheet.create((theme) => ({
     marginRight: theme.spacing[2],
   },
   hovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   pressed: {
-    backgroundColor: theme.colors.surface3,
+    backgroundColor: theme.colors.pressed,
   },
   // Optical: the chevron's ink sits about 4px inside its box whether it points right or down; this
   // puts the ink on the card's trailing rail, where the switch and the reports' refresh buttons end.

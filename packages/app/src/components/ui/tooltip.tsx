@@ -25,6 +25,7 @@ import {
 } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
+import { popoverShadow } from "@/components/ui/popover-shadow";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import { FloatingSurface } from "@/components/ui/floating";
 import { useRetainedPanelActive } from "@/components/retained-panel";
@@ -602,11 +603,11 @@ const styles = StyleSheet.create((theme) => ({
   content: {
     paddingVertical: theme.spacing[1],
     paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius.xl,
+    borderRadius: theme.borderRadius.card,
     backgroundColor: theme.colors.popover,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    ...theme.shadow.md,
+    borderColor: theme.colors.border,
+    boxShadow: popoverShadow(theme.colorScheme),
     zIndex: 1000,
   },
 }));

@@ -15,6 +15,7 @@ import {
 import { Dimensions, View, type Role, type StyleProp, type ViewStyle } from "react-native";
 import { FadeIn, FadeOut } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
+import { popoverShadow } from "@/components/ui/popover-shadow";
 import { Portal } from "@gorhom/portal";
 import { OverlayLayerProvider, useOverlayLayer } from "@/lib/overlay-root";
 import { FloatingSurface } from "@/components/ui/floating";
@@ -429,9 +430,9 @@ const styles = StyleSheet.create((theme) => ({
   surface: {
     backgroundColor: theme.colors.popover,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius.xl,
-    ...theme.shadow.md,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.card,
+    boxShadow: popoverShadow(theme.colorScheme),
     zIndex: 1000,
   },
 }));

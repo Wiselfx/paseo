@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useMemo, useState } from "react";
 import {
   Pressable,
   type GestureResponderEvent,
@@ -10,10 +10,13 @@ import Animated, {
   interpolateColor,
   useAnimatedStyle,
   useDerivedValue,
+  useReducedMotion,
   withTiming,
 } from "react-native-reanimated";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { switchGeometryForLayout, type SwitchGeometry } from "@/components/ui/control-geometry";
+import { focusRingStyle, isKeyboardFocusVisible } from "@/components/ui/focus-ring";
+import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 import { useContainedControlSize } from "@/components/ui/control-size";
 import { useIsCompactFormFactor } from "@/constants/layout";
 import type { Theme } from "@/styles/theme";
@@ -27,7 +30,12 @@ interface SwitchProps {
   style?: StyleProp<ViewStyle>;
 }
 
-const TIMING = { duration: 180, easing: Easing.inOut(Easing.ease) };
+const THUMB_EASING = Easing.bezier(
+  CLAUDE_EASE.out[0],
+  CLAUDE_EASE.out[1],
+  CLAUDE_EASE.out[2],
+  CLAUDE_EASE.out[3],
+);
 
 interface SwitchTrackProps {
   value: boolean;
@@ -36,6 +44,7 @@ interface SwitchTrackProps {
   trackOnColor: string;
   thumbOffColor: string;
   thumbOnColor: string;
+  reducedMotion: boolean;
 }
 
 function SwitchTrack({
@@ -45,8 +54,14 @@ function SwitchTrack({
   trackOnColor,
   thumbOffColor,
   thumbOnColor,
+  reducedMotion,
 }: SwitchTrackProps) {
-  const progress = useDerivedValue(() => withTiming(value ? 1 : 0, TIMING));
+  const progress = useDerivedValue(() =>
+    withTiming(value ? 1 : 0, {
+      duration: reducedMotion ? 0 : CLAUDE_DURATION.feedback,
+      easing: THUMB_EASING,
+    }),
+  );
 
   const trackAnimatedStyle = useAnimatedStyle(() => ({
     backgroundColor: interpolateColor(progress.value, [0, 1], [trackOffColor, trackOnColor]),
@@ -115,6 +130,8 @@ export function Switch({
     [disabled, onValueChange, value],
   );
 
+  const [focused, setFocused] = useState(false);
+  const reducedMotion = useReducedMotion();
   const size = useContainedControlSize() ?? "md";
   const isCompact = useIsCompactFormFactor();
   const geometry = useMemo(() => switchGeometryForLayout(size, isCompact), [size, isCompact]);
@@ -124,11 +141,16 @@ export function Switch({
     () => [
       styles.switchControl,
       { minHeight: geometry.reservedHeight },
-      disabled ? styles.disabled : null,
       style,
+      focused ? focusRingStyle() : null,
+      disabled ? styles.disabled : null,
     ],
-    [disabled, geometry.reservedHeight, style],
+    [disabled, geometry.reservedHeight, style, focused],
   );
+  const handleFocus = useCallback(() => {
+    if (isKeyboardFocusVisible()) setFocused(true);
+  }, []);
+  const handleBlur = useCallback(() => setFocused(false), []);
 
   return (
     <Pressable
@@ -140,9 +162,11 @@ export function Switch({
       accessibilityLabel={accessibilityLabel}
       aria-checked={value}
       testID={testID}
+      onFocus={handleFocus}
+      onBlur={handleBlur}
       style={pressableStyle}
     >
-      <ThemedSwitchTrack value={value} geometry={geometry} />
+      <ThemedSwitchTrack value={value} geometry={geometry} reducedMotion={reducedMotion} />
     </Pressable>
   );
 }

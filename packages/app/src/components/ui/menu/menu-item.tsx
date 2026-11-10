@@ -19,6 +19,7 @@ import { AdaptiveTextInput } from "@/components/adaptive-modal-sheet";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import type { Theme } from "@/styles/theme";
+import { focusRingStyle } from "@/components/ui/focus-ring";
 import { MenuDepthProvider, useMenuContext } from "./menu-context";
 import { MENU_ITEM_HEIGHT } from "./menu-geometry";
 
@@ -326,6 +327,7 @@ export function MenuItem({
       destructive && !isSuccess ? styles.itemTextDestructive : null,
       isSuccess ? styles.itemTextSuccess : null,
       muted && !isDisabled ? styles.itemTextMuted : null,
+      isDisabled ? styles.itemTextDisabled : null,
     ],
     [destructive, isSuccess, muted, isDisabled],
   );
@@ -382,11 +384,11 @@ export function MenuItem({
 
 const styles = StyleSheet.create((theme) => ({
   page: {
-    paddingVertical: theme.spacing[1],
+    padding: theme.spacing[1.5],
     gap: MENU_ROW_GAP,
   },
   labelContainer: {
-    paddingHorizontal: theme.spacing[3],
+    paddingHorizontal: 7,
     paddingTop: theme.spacing[2],
     paddingBottom: theme.spacing[1],
   },
@@ -407,7 +409,7 @@ const styles = StyleSheet.create((theme) => ({
   separator: {
     height: 1,
     marginVertical: theme.spacing[1],
-    backgroundColor: theme.colors.borderAccent,
+    backgroundColor: theme.colors.divider,
   },
   // A hint with `trailing` is a key on the left edge and its value on the right, so the values
   // line up down the menu's right rail instead of ragging with the length of each key.
@@ -443,9 +445,8 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     minHeight: MENU_ITEM_HEIGHT,
     gap: theme.spacing[2],
-    marginHorizontal: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[1],
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderWidth: theme.borderWidth[1],
     borderColor: "transparent",
     borderRadius: theme.borderRadius.md,
@@ -458,16 +459,15 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     minHeight: MENU_ITEM_HEIGHT,
-    marginHorizontal: theme.spacing[1],
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: theme.spacing[1],
+    paddingHorizontal: 7,
+    paddingVertical: 2,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.border,
     borderRadius: theme.borderRadius.md,
     backgroundColor: theme.colors.surface2,
   },
   fieldFocused: {
-    borderColor: theme.colors.borderAccent,
+    ...focusRingStyle(),
   },
   fieldInput: {
     flex: 1,
@@ -478,26 +478,29 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: 0,
   },
   itemHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   itemPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
   },
   // The row you are inside, not the value you chose. A chosen value is marked by its check.
   itemActive: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   itemDisabled: {
-    opacity: 0.5,
+    opacity: 0.6,
   },
   itemMuted: {
     opacity: 0.72,
   },
   itemText: {
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
     lineHeight: MENU_ITEM_LINE_HEIGHT,
     color: theme.colors.foreground,
     fontWeight: theme.fontWeight.normal,
+  },
+  itemTextDisabled: {
+    color: theme.colors.foregroundExtraMuted,
   },
   itemTextMuted: {
     color: theme.colors.foregroundMuted,

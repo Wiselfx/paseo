@@ -18,6 +18,7 @@ import {
 } from "react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { ChevronDown } from "lucide-react-native";
+import { focusRingStyle, isKeyboardFocusVisible } from "@/components/ui/focus-ring";
 import { ICON_SIZE, type Theme } from "@/styles/theme";
 
 const ThemedChevronDown = withUnistyles(ChevronDown);
@@ -52,16 +53,14 @@ export const ComboboxTrigger = forwardRef<View, ComboboxTriggerProps>(function C
   const [focused, setFocused] = useState(false);
   const pressableStyle = useCallback(
     ({ pressed, hovered = false }: PressableStateCallbackType & { hovered?: boolean }) => {
-      if (typeof style === "function") {
-        return style({ pressed, hovered, focused });
-      }
-      return style;
+      const base = typeof style === "function" ? style({ pressed, hovered, focused }) : style;
+      return [base, focused ? focusRingStyle() : null];
     },
     [focused, style],
   );
   const handleFocus = useCallback(
     (event: NativeSyntheticEvent<TargetedEvent>) => {
-      setFocused(true);
+      if (isKeyboardFocusVisible()) setFocused(true);
       onFocus?.(event);
     },
     [onFocus],

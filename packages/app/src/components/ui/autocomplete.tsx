@@ -24,6 +24,8 @@ import {
 } from "lucide-react-native";
 import type { MatchRange } from "@getpaseo/protocol/search/text-match";
 import { useIsCompactFormFactor } from "@/constants/layout";
+import { bySizing, TOUCH_TARGET } from "@/components/ui/control-geometry";
+import { popoverShadow } from "@/components/ui/popover-shadow";
 import type { Theme } from "@/styles/theme";
 import { Button } from "./button";
 import { HighlightedText } from "./highlighted-text";
@@ -337,32 +339,33 @@ export function Autocomplete({
 const styles = StyleSheet.create((theme: Theme) => ({
   container: {
     flexShrink: 1,
-    // Keep a complete selectable row (36), list padding (8), and borders (2).
+    // A selectable row, the list's 6px inset, and the two borders.
     minHeight: 46,
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius.lg,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.card,
     overflow: "hidden",
-    ...theme.shadow.md,
+    boxShadow: popoverShadow(theme.colorScheme),
   },
   scrollView: {
     flexGrow: 0,
     flexShrink: 1,
   },
   scrollContent: {
-    paddingVertical: theme.spacing[1],
+    padding: theme.spacing[1.5],
   },
   item: {
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    minHeight: 36,
-    paddingHorizontal: theme.spacing[3],
-    paddingVertical: theme.spacing[2],
+    minHeight: bySizing({ touch: TOUCH_TARGET, pointer: 32 }),
+    paddingHorizontal: 7,
+    paddingVertical: 2,
+    borderRadius: theme.borderRadius.md,
   },
   itemActive: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   itemIcon: {
     width: 16,
@@ -373,7 +376,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
     flexShrink: 0,
     maxWidth: "60%",
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: theme.fontWeight.normal,
   },
   itemArgumentHint: {

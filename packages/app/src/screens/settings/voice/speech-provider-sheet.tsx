@@ -551,7 +551,7 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
   },
   rowHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   rowPressed: {
     backgroundColor: theme.colors.surface3,

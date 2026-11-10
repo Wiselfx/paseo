@@ -9,6 +9,7 @@ import {
   type LayoutValue,
   type SizingValue,
 } from "./control-sizing";
+import { focusRingStyle } from "./focus-ring";
 
 /**
  * Controls come in two sizes. `md` is the default and the right size almost everywhere;
@@ -53,11 +54,18 @@ const CONTROL_SIZES = {
   md: { touch: TOUCH_TARGET, pointer: 32 },
 } satisfies Record<ControlSize, SizingValue>;
 
+/**
+ * Fields are one step taller than the button beside them: a 36px pointer field
+ * reads as an input rather than a chip, while touch keeps the 44pt target.
+ */
+const INPUT_SIZES = {
+  sm: { touch: 32, pointer: 28 },
+  md: { touch: TOUCH_TARGET, pointer: 36 },
+} satisfies Record<ControlSize, SizingValue>;
+
 /** Pointer-sized header controls run tighter than `sm` so they fit the 36pt header. */
 const POINTER_HEADER_CONTROL_HEIGHT = 26;
 const SEGMENTED_INSET = 2;
-const CONTROL_FOCUS_RING_WIDTH = 2;
-const CONTROL_FOCUS_RING_OFFSET = 1;
 const FIELD_TEXT_LINE_HEIGHT_RATIO = 1.4;
 
 /**
@@ -69,6 +77,12 @@ const FIELD_TEXT_LINE_HEIGHT_RATIO = 1.4;
 export const CONTROL_HEIGHTS = {
   sm: bySizing(CONTROL_SIZES.sm),
   md: bySizing(CONTROL_SIZES.md),
+} satisfies Record<ControlSize, LayoutValue>;
+
+/** Field heights: the same ladder with a taller pointer-sized `md`. */
+export const INPUT_HEIGHTS = {
+  sm: bySizing(INPUT_SIZES.sm),
+  md: bySizing(INPUT_SIZES.md),
 } satisfies Record<ControlSize, LayoutValue>;
 
 /** A framed control in a header row, such as a split button. Touch-sized it is an `sm` control. */
@@ -231,7 +245,7 @@ function switchSize(trackWidth: number, trackHeight: number, thumbSize: number) 
   return { trackWidth, trackHeight, thumbSize, thumbTravel: trackWidth - thumbSize - inset * 2 };
 }
 
-const SWITCH_POINTER = switchSize(34, 20, 16);
+const SWITCH_POINTER = switchSize(36, 20, 16);
 const SWITCH_TOUCH = switchSize(44, 26, 22);
 
 /**
@@ -367,20 +381,20 @@ export function createControlGeometry(theme: Theme) {
   const fieldTextSmLineHeight = fieldLineHeight(theme.fontSize.sm);
   const fieldTextMdLineHeight = fieldLineHeight(theme.fontSize.base);
   const fieldControlSm = {
-    minHeight: CONTROL_HEIGHTS.sm,
-    paddingHorizontal: theme.spacing[2],
-    paddingVertical: mapLayout(CONTROL_HEIGHTS.sm, (height) =>
+    minHeight: INPUT_HEIGHTS.sm,
+    paddingHorizontal: 10,
+    paddingVertical: mapLayout(INPUT_HEIGHTS.sm, (height) =>
       fieldVerticalPadding(height, fieldTextSmLineHeight, controlBorderWidth),
     ),
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.control,
   };
   const fieldControlMd = {
-    minHeight: CONTROL_HEIGHTS.md,
-    paddingHorizontal: theme.spacing[3],
-    paddingVertical: mapLayout(CONTROL_HEIGHTS.md, (height) =>
+    minHeight: INPUT_HEIGHTS.md,
+    paddingHorizontal: 10,
+    paddingVertical: mapLayout(INPUT_HEIGHTS.md, (height) =>
       fieldVerticalPadding(height, fieldTextMdLineHeight, controlBorderWidth),
     ),
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.control,
   };
   const fieldTextSm = {
     fontSize: theme.fontSize.sm,
@@ -396,21 +410,23 @@ export function createControlGeometry(theme: Theme) {
     buttonSm: {
       minHeight: CONTROL_HEIGHTS.sm,
       paddingHorizontal: theme.spacing[3],
-      borderRadius: theme.borderRadius.full,
+      borderRadius: theme.borderRadius.control,
     },
     buttonMd: {
       minHeight: CONTROL_HEIGHTS.md,
       paddingHorizontal: bySizing({ touch: theme.spacing[6], pointer: theme.spacing[4] }),
-      borderRadius: theme.borderRadius.full,
+      borderRadius: theme.borderRadius.control,
     },
-    // A button with only an icon is a circle of its size's height.
+    // A button with only an icon is a square of its size's height.
     buttonIconOnlySm: { width: CONTROL_HEIGHTS.sm, paddingHorizontal: 0 },
     buttonIconOnlyMd: { width: CONTROL_HEIGHTS.md, paddingHorizontal: 0 },
     buttonTextSm: {
       fontSize: theme.fontSize.sm,
+      lineHeight: 16,
     },
     buttonTextMd: {
-      fontSize: theme.fontSize.base,
+      fontSize: 13,
+      lineHeight: 18,
     },
     alert,
     formTextInputSm: {
@@ -435,41 +451,40 @@ export function createControlGeometry(theme: Theme) {
       borderColor: theme.colors.borderAccent,
     },
     controlActive: {
-      borderColor: theme.colors.borderAccent,
-      outlineColor: theme.colors.accent,
-      outlineOffset: CONTROL_FOCUS_RING_OFFSET,
-      outlineStyle: "solid" as const,
-      outlineWidth: CONTROL_FOCUS_RING_WIDTH,
+      ...focusRingStyle(),
+      borderWidth: controlBorderWidth,
     },
     controlFocusRingColor: {
-      outlineColor: theme.colors.accent,
+      outlineColor: focusRingStyle().borderColor,
     },
     controlDisabled: {
       opacity: theme.opacity[50],
     },
     segmentedContainerSm: {
       minHeight: CONTROL_HEIGHTS.sm,
-      padding: 0,
+      padding: SEGMENTED_INSET,
     },
     segmentedContainerMd: {
       minHeight: CONTROL_HEIGHTS.md,
-      padding: 0,
+      padding: SEGMENTED_INSET,
     },
     segmentedSegmentSm: {
       minHeight: mapLayout(CONTROL_HEIGHTS.sm, (height) => height - SEGMENTED_INSET * 2),
       paddingHorizontal: theme.spacing[2],
-      borderRadius: theme.borderRadius.full,
+      borderRadius: theme.borderRadius.md,
     },
     segmentedSegmentMd: {
       minHeight: mapLayout(CONTROL_HEIGHTS.md, (height) => height - SEGMENTED_INSET * 2),
       paddingHorizontal: theme.spacing[3],
-      borderRadius: theme.borderRadius.full,
+      borderRadius: theme.borderRadius.md,
     },
     segmentedLabelSm: {
-      fontSize: theme.fontSize.sm,
+      fontSize: 11,
+      lineHeight: 14,
     },
     segmentedLabelMd: {
-      fontSize: theme.fontSize.base,
+      fontSize: theme.fontSize.sm,
+      lineHeight: 16,
     },
   };
 }

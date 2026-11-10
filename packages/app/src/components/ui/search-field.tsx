@@ -2,6 +2,8 @@ import { useCallback, useRef, useState, type ReactElement } from "react";
 import { Pressable, View } from "react-native";
 import { Search, X } from "lucide-react-native";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
+import { createControlGeometry } from "@/components/ui/control-geometry";
+import { focusRingStyle } from "@/components/ui/focus-ring";
 import type { Theme } from "@/styles/theme";
 import {
   EditingTextInput as TextInput,
@@ -11,12 +13,11 @@ import {
 const ThemedSearch = withUnistyles(Search);
 const ThemedX = withUnistyles(X);
 const ThemedTextInput = withUnistyles(TextInput, (theme: Theme) => ({
-  // Placeholders sit at foregroundMuted and no dimmer — see docs/design.md §14.
-  placeholderTextColor: theme.colors.foregroundMuted,
+  placeholderTextColor: theme.colors.foregroundExtraMuted,
   selectionColor: theme.colors.foreground,
 }));
 
-const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const mutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundExtraMuted });
 
 export interface SearchFieldProps {
   value: string;
@@ -88,35 +89,36 @@ export function SearchField({
 
 const SEARCH_FIELD_MAX_WIDTH = 420;
 
-const styles = StyleSheet.create((theme) => ({
-  field: {
-    flexDirection: "row",
-    alignItems: "center",
-    gap: theme.spacing[2],
-    flex: 1,
-    minWidth: 0,
-    maxWidth: SEARCH_FIELD_MAX_WIDTH,
-    paddingVertical: theme.spacing[1.5],
-    paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borderRadius.md,
-    backgroundColor: theme.colors.surface1,
-    borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.border,
-  },
-  fieldFocused: {
-    borderColor: theme.colors.borderAccent,
-    backgroundColor: theme.colors.surface2,
-  },
-  input: {
-    flex: 1,
-    minWidth: 0,
-    padding: 0,
-    height: 20,
-    // The browser's focus ring would sit inside the field's own focus border.
-    // `outlineWidth` is typed on ViewStyle since RN 0.81 and is a no-op on
-    // native, so this needs neither a cast nor a platform branch.
-    outlineWidth: 0,
-    color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
-  },
-}));
+const styles = StyleSheet.create((theme) => {
+  const geometry = createControlGeometry(theme);
+
+  return {
+    field: {
+      ...geometry.fieldControlMd,
+      flexDirection: "row",
+      alignItems: "center",
+      gap: theme.spacing[2],
+      flex: 1,
+      minWidth: 0,
+      maxWidth: SEARCH_FIELD_MAX_WIDTH,
+      backgroundColor: theme.colors.surface1,
+      borderWidth: theme.borderWidth[1],
+      borderColor: theme.colors.border,
+      // Checked after the shared ring so the input itself never paints a second one.
+      outlineWidth: 0,
+    },
+    fieldFocused: {
+      ...focusRingStyle(),
+    },
+    input: {
+      flex: 1,
+      minWidth: 0,
+      padding: 0,
+      height: 20,
+      outlineWidth: 0,
+      color: theme.colors.foreground,
+      fontSize: theme.fontSize.base,
+      lineHeight: 20,
+    },
+  };
+});

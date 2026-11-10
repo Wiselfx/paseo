@@ -21,10 +21,12 @@ import {
   type StyleProp,
   type ViewStyle,
 } from "react-native";
-import { Keyframe, runOnJS } from "react-native-reanimated";
+import { Easing, Keyframe, runOnJS, useReducedMotion } from "react-native-reanimated";
 import { StyleSheet } from "react-native-unistyles";
 import { FloatingScrollView, FloatingSurface } from "@/components/ui/floating";
 import { isWeb } from "@/constants/platform";
+import { popoverShadow } from "@/components/ui/popover-shadow";
+import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 import type { KeyboardFocusScope } from "@/keyboard/actions";
 import { getOverlayRoot, OverlayLayerProvider, useOverlayLayer } from "@/lib/overlay-root";
 import {
@@ -42,26 +44,35 @@ import {
 } from "../anchor";
 
 const SCROLL_CONTENT_STYLE = { flexGrow: 1 } as const;
-const CONTENT_ENTERING_DURATION_MS = 150;
+const CONTENT_ENTERING_DURATION_MS = CLAUDE_DURATION.open;
+const CONTENT_EXITING_DURATION_MS = CLAUDE_DURATION.feedback;
+const POPOVER_EASING = Easing.bezier(
+  CLAUDE_EASE.out[0],
+  CLAUDE_EASE.out[1],
+  CLAUDE_EASE.out[2],
+  CLAUDE_EASE.out[3],
+);
 
 const contentEntering = new Keyframe({
   0: { opacity: 0, transform: [{ scale: 0.97 }] },
-  100: { opacity: 1, transform: [{ scale: 1 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: POPOVER_EASING },
 }).duration(CONTENT_ENTERING_DURATION_MS);
 
-/** `contentEntering` for the browser's own animation engine. Both default to linear easing. */
+/** `contentEntering` for the browser's own animation engine. */
 const WEB_CONTENT_ENTERING_KEYFRAMES: PropertyIndexedKeyframes = {
   opacity: [0, 1],
   transform: ["scale(0.97)", "scale(1)"],
 };
 
-/** Web plays the same keyframes itself; see `useWebContentEntering`. */
-const nativeContentEntering = isWeb ? undefined : contentEntering;
+const WEB_CONTENT_ENTERING_OPTIONS: KeyframeAnimationOptions = {
+  duration: CONTENT_ENTERING_DURATION_MS,
+  easing: `cubic-bezier(${CLAUDE_EASE.out.join(", ")})`,
+};
 
 const contentExiting = new Keyframe({
   0: { opacity: 1, transform: [{ scale: 1 }] },
-  100: { opacity: 0, transform: [{ scale: 0.97 }] },
-}).duration(100);
+  100: { opacity: 0, transform: [{ scale: 0.99 }], easing: POPOVER_EASING },
+}).duration(CONTENT_EXITING_DURATION_MS);
 
 /**
  * On web the surface enters through the Web Animations API rather than Reanimated. Reanimated's
@@ -73,17 +84,19 @@ const contentExiting = new Keyframe({
 function useWebContentEntering({
   placed,
   surfaceNativeID,
+  reducedMotion,
 }: {
   placed: boolean;
   surfaceNativeID: string;
+  reducedMotion: boolean;
 }): void {
   useLayoutEffect(() => {
-    if (!isWeb || !placed || typeof document === "undefined") return undefined;
+    if (!isWeb || !placed || reducedMotion || typeof document === "undefined") return undefined;
     const animation = document
       .getElementById(surfaceNativeID)
-      ?.animate(WEB_CONTENT_ENTERING_KEYFRAMES, CONTENT_ENTERING_DURATION_MS);
+      ?.animate(WEB_CONTENT_ENTERING_KEYFRAMES, WEB_CONTENT_ENTERING_OPTIONS);
     return () => animation?.cancel();
-  }, [placed, surfaceNativeID]);
+  }, [placed, reducedMotion, surfaceNativeID]);
 }
 
 /**
@@ -253,6 +266,7 @@ export function AnchoredSurface({
 }: AnchoredSurfaceProps): ReactElement | null {
   const { t } = useTranslation();
   const surfaceNativeID = useId();
+  const reducedMotion = useReducedMotion();
   const { position, actualPlacement, visibleContentSize, onContentLayout } = useAnchoredPosition({
     open,
     anchorRect,
@@ -270,7 +284,7 @@ export function AnchoredSurface({
   // final position; web starts its own animation on placement.
   const placed = position !== null;
 
-  useWebContentEntering({ placed, surfaceNativeID });
+  useWebContentEntering({ placed, surfaceNativeID, reducedMotion });
 
   useEffect(() => {
     if (!isWeb || !open || !placed || typeof document === "undefined") return undefined;
@@ -355,9 +369,9 @@ export function AnchoredSurface({
           dataSet={surfaceDataSet}
           style={styles.content}
           frameStyle={frameStyle}
-          entering={placed ? nativeContentEntering : undefined}
+          entering={placed && !reducedMotion ? contentEntering : undefined}
           exiting={
-            !placed || isWeb || !onExited
+            !placed || isWeb || !onExited || reducedMotion
               ? undefined
               : contentExiting.withCallback((finished) => {
                   "worklet";
@@ -480,9 +494,9 @@ const styles = StyleSheet.create((theme) => ({
   content: {
     backgroundColor: theme.colors.surface1,
     borderWidth: 1,
-    borderColor: theme.colors.borderAccent,
-    borderRadius: theme.borderRadius.lg,
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.card,
     overflow: "hidden",
-    ...theme.shadow.md,
+    boxShadow: popoverShadow(theme.colorScheme),
   },
 }));

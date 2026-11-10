@@ -85,7 +85,36 @@ vi.mock("react-native", () => ({
       typeof children === "function" ? children({ pressed: false, hovered: false }) : children,
     ),
   ActivityIndicator: () => React.createElement("span", { "data-testid": "activity-indicator" }),
+  FlatList: () => null,
+  Image: () => null,
+  ScrollView: ({ children }: { children?: React.ReactNode }) =>
+    React.createElement("div", null, children),
+  TextInput: () => null,
 }));
+
+vi.mock("react-native-reanimated", () => {
+  class MockKeyframe {
+    duration() {
+      return this;
+    }
+    withCallback() {
+      return this;
+    }
+  }
+  return {
+    default: {
+      View: ({ children }: { children?: React.ReactNode }) =>
+        React.createElement("div", null, children),
+    },
+    Easing: { bezier: () => "ease", linear: "linear", out: (value: unknown) => value },
+    Keyframe: MockKeyframe,
+    runOnJS: (fn: unknown) => fn,
+    useAnimatedStyle: (factory: () => unknown) => factory(),
+    useReducedMotion: () => false,
+    useSharedValue: (value: unknown) => ({ value }),
+    withTiming: (value: unknown) => value,
+  };
+});
 
 vi.mock("react-native-unistyles", () => ({
   StyleSheet: {

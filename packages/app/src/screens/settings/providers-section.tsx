@@ -539,7 +539,7 @@ const styles = StyleSheet.create((theme) => ({
     minHeight: 56,
   },
   rowHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   skeletonIcon: {
     width: 20,

@@ -9,7 +9,13 @@ import {
 } from "react";
 import { View, useWindowDimensions, type StyleProp, type ViewStyle } from "react-native";
 import { Portal } from "@gorhom/portal";
-import Animated, { useAnimatedReaction, useAnimatedStyle } from "react-native-reanimated";
+import Animated, {
+  Easing,
+  Keyframe,
+  useAnimatedReaction,
+  useAnimatedStyle,
+  useReducedMotion,
+} from "react-native-reanimated";
 import { scheduleOnRN } from "react-native-worklets";
 import { useSafeAreaInsets } from "react-native-safe-area-context";
 import {
@@ -23,9 +29,22 @@ import {
 } from "@/components/ui/floating-panel-portal";
 import { KeyboardTranslateView, useKeyboardAnchor, useKeyboardShift } from "@/keyboard/shift";
 import { SPACING } from "@/styles/theme";
+import { StyleSheet } from "react-native-unistyles";
 import { inlineUnistylesStyle } from "@/styles/unistyles-inline-style";
+import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 
 const OFFSET_FROM_ANCHOR = SPACING[3];
+
+const POPOVER_EASING = Easing.bezier(
+  CLAUDE_EASE.out[0],
+  CLAUDE_EASE.out[1],
+  CLAUDE_EASE.out[2],
+  CLAUDE_EASE.out[3],
+);
+const POPOVER_ENTERING = new Keyframe({
+  0: { opacity: 0, transform: [{ scale: 0.97 }] },
+  100: { opacity: 1, transform: [{ scale: 1 }], easing: POPOVER_EASING },
+}).duration(CLAUDE_DURATION.open);
 
 interface RelativeAnchorRect {
   x: number;
@@ -61,6 +80,7 @@ export function AutocompletePopover({
   const safeAreaInsets = useSafeAreaInsets();
   const portalHostName = useFloatingPanelPortalHostName();
   const { isMoving } = useKeyboardShift();
+  const reducedMotion = useReducedMotion();
   const anchor = useKeyboardAnchor();
   const { measureAtRest } = anchor;
   const measurementGeneration = useRef(0);
@@ -147,7 +167,11 @@ export function AutocompletePopover({
       {showPopover ? (
         <Portal hostName={portalHostName}>
           <KeyboardTranslateView {...anchor.translation} style={baseStyle}>
-            <Animated.View testID="composer-autocomplete-popover" style={heightStyle}>
+            <Animated.View
+              testID="composer-autocomplete-popover"
+              entering={reducedMotion ? undefined : POPOVER_ENTERING}
+              style={[heightStyle, styles.popover]}
+            >
               <Autocomplete
                 options={options}
                 selectedIndex={selectedIndex}
@@ -161,3 +185,9 @@ export function AutocompletePopover({
     </View>
   );
 }
+
+const styles = StyleSheet.create({
+  popover: {
+    transformOrigin: "bottom left",
+  },
+});

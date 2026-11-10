@@ -22,7 +22,7 @@ const styles = StyleSheet.create((theme) => ({
 }));
 
 const ThemedTextInput = withUnistyles(EditingTextInput, (theme) => ({
-  placeholderTextColor: theme.colors.foregroundMuted,
+  placeholderTextColor: theme.colors.foregroundExtraMuted,
 }));
 
 export const AdaptiveTextInput = forwardRef<EditingTextInputHandle, AdaptiveTextInputProps>(

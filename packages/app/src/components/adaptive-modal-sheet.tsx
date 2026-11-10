@@ -14,7 +14,7 @@ import {
   type BottomSheetBackgroundProps,
 } from "@gorhom/bottom-sheet";
 import { Gesture, GestureDetector } from "react-native-gesture-handler";
-import Animated from "react-native-reanimated";
+import Animated, { Easing, useReducedMotion } from "react-native-reanimated";
 import { ArrowLeft, Search, X, type LucideIcon } from "lucide-react-native";
 import {
   IsolatedBottomSheetModal,
@@ -29,13 +29,14 @@ import { useKeyboardVisibility } from "@/hooks/use-keyboard-visibility";
 import { SafeAreaInsetsContext, useSafeAreaInsets } from "react-native-safe-area-context";
 import { AdaptiveTextInput } from "@/components/adaptive-text-input";
 import { useDismissibleOverlay } from "@/components/ui/overlay-dismissal";
+import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 export { AdaptiveTextInput, type AdaptiveTextInputProps } from "@/components/adaptive-text-input";
 
 // Horizontal indent token shared by the sheet header (title, back arrow,
 // leading icon, search input icon) and any row primitive rendered inside the
 // sheet body. Rows whose leading icon should line up with the header must
 // match this padding.
-export const SHEET_HORIZONTAL_PADDING_SCALE = 6;
+export const SHEET_HORIZONTAL_PADDING_SCALE = 4;
 
 // The header's close button grows outward from its glyph, so the glyph's
 // trailing rail is the content inset plus this padding. Rows whose trailing
@@ -83,7 +84,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   desktopOverlay: {
     ...StyleSheet.absoluteFill,
-    backgroundColor: "rgba(0,0,0,0.55)",
+    backgroundColor: theme.colors.scrim,
     justifyContent: "center",
     alignItems: "center",
     padding: theme.spacing[6],
@@ -96,14 +97,14 @@ const styles = StyleSheet.create((theme) => ({
     maxHeight: "85%",
     flexShrink: 1,
     minHeight: 0,
-    backgroundColor: theme.colors.surface0,
-    borderRadius: theme.borderRadius.xl,
+    backgroundColor: theme.colors.surface1,
+    borderRadius: theme.borderRadius["2xl"],
     borderWidth: 1,
-    borderColor: theme.colors.surface2,
+    borderColor: theme.colors.border,
   },
   headerContainer: {
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.surface2,
+    borderBottomColor: theme.colors.divider,
   },
   headerRow: {
     paddingHorizontal: theme.spacing[SHEET_HORIZONTAL_PADDING_SCALE],
@@ -113,7 +114,7 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
   },
   headerBackButton: {
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.control,
   },
   headerLeadingSlot: {
     alignItems: "center",
@@ -125,8 +126,9 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
   },
   title: {
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.medium,
+    fontSize: theme.fontSize.content,
+    lineHeight: 20,
+    fontWeight: theme.fontWeight.semibold,
   },
   headerActions: {
     flexDirection: "row",
@@ -135,7 +137,7 @@ const styles = StyleSheet.create((theme) => ({
   },
   closeButton: {
     padding: theme.spacing[SHEET_HEADER_CLOSE_PADDING_SCALE],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.control,
   },
   // Without a header the close button floats over the card's top-right corner.
   floatingClose: {
@@ -224,7 +226,7 @@ const styles = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[SHEET_HORIZONTAL_PADDING_SCALE],
     paddingVertical: theme.spacing[3],
     borderTopWidth: 1,
-    borderTopColor: theme.colors.surface2,
+    borderTopColor: theme.colors.divider,
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
@@ -232,8 +234,10 @@ const styles = StyleSheet.create((theme) => ({
   },
 }));
 
-const WEB_EXIT_DURATION_MS = 160;
-const WEB_ENTER_DURATION_MS = 160;
+const WEB_EXIT_DURATION_MS = CLAUDE_DURATION.feedback;
+const WEB_ENTER_DURATION_MS = CLAUDE_DURATION.sheet;
+const WEB_SNAP_EASING = `cubic-bezier(${CLAUDE_EASE.snap.join(", ")})`;
+const WEB_OUT_EASING = `cubic-bezier(${CLAUDE_EASE.out.join(", ")})`;
 const WEB_ENTER_ANIMATION_NAME = "paseo-modal-enter";
 
 // The desktop card fades in; the dim lands at once, so the screen behind is never seen undimmed
@@ -253,7 +257,7 @@ ensureWebEnterKeyframes();
 const WEB_ENTER_STYLE = {
   animationName: WEB_ENTER_ANIMATION_NAME,
   animationDuration: `${WEB_ENTER_DURATION_MS}ms`,
-  animationTimingFunction: "ease-out",
+  animationTimingFunction: WEB_SNAP_EASING,
 } as unknown as ViewStyle;
 
 /** The compact sheet's surface: Gorhom's `backgroundComponent` for every bottom sheet. */
@@ -263,18 +267,24 @@ export function SheetBackground({ style }: BottomSheetBackgroundProps) {
     () => [
       style,
       {
-        backgroundColor: theme.colors.surface0,
+        backgroundColor: theme.colors.surface1,
         borderTopLeftRadius: theme.borderRadius["2xl"],
         borderTopRightRadius: theme.borderRadius["2xl"],
       },
     ],
-    [style, theme.colors.surface0, theme.borderRadius],
+    [style, theme.colors.surface1, theme.borderRadius],
   );
   return <Animated.View pointerEvents="none" style={combinedStyle} />;
 }
 
 const ThemedBottomSheetHandle = withUnistyles(BottomSheetHandle, (theme) => ({
-  indicatorStyle: { backgroundColor: theme.colors.palette.zinc[600] },
+  style: { paddingVertical: 8 },
+  indicatorStyle: {
+    width: 36,
+    height: 4,
+    borderRadius: theme.borderRadius.full,
+    backgroundColor: theme.colors.foregroundExtraMuted,
+  },
 }));
 
 /** The compact sheet's drag handle: Gorhom's `handleComponent` for every bottom sheet. */
@@ -652,9 +662,24 @@ export function AdaptiveModalSheet({
   contextBridge = null,
 }: AdaptiveModalSheetProps) {
   const { t } = useTranslation();
+  const { theme } = useUnistyles();
+  const reducedMotion = useReducedMotion();
   const isMobile = useIsCompactFormFactor();
   const isKeyboardVisible = useKeyboardVisibility(visible);
   const resolvedSnapPoints = useMemo(() => snapPoints ?? ["65%", "90%"], [snapPoints]);
+  const backdropOpacity = theme.colorScheme === "dark" ? 0.55 : 0.25;
+  const sheetAnimationConfigs = useMemo(
+    () => ({
+      duration: reducedMotion ? 0 : CLAUDE_DURATION.sheet,
+      easing: Easing.bezier(
+        CLAUDE_EASE.snap[0],
+        CLAUDE_EASE.snap[1],
+        CLAUDE_EASE.snap[2],
+        CLAUDE_EASE.snap[3],
+      ),
+    }),
+    [reducedMotion],
+  );
   const isSheet = isMobile || !isWeb;
   // The sheet registers itself; the desktop dialog does not use it.
   useDismissibleOverlay(visible && !isSheet, onClose);
@@ -700,7 +725,7 @@ export function AdaptiveModalSheet({
         opacity: isWebClosing ? 0 : 1,
         transitionDuration: `${WEB_EXIT_DURATION_MS}ms`,
         transitionProperty: "opacity",
-        transitionTimingFunction: "ease",
+        transitionTimingFunction: WEB_OUT_EASING,
       },
     ],
     [isWebClosing, modalLayer],
@@ -750,7 +775,8 @@ export function AdaptiveModalSheet({
         enableDynamicSizing={false}
         onChange={handleSheetChange}
         onDismiss={handleDismiss}
-        backdropOpacity={0.45}
+        animationConfigs={sheetAnimationConfigs}
+        backdropOpacity={backdropOpacity}
         enablePanDownToClose
         backgroundComponent={SheetBackground}
         handleComponent={SheetHandle}
@@ -840,6 +866,7 @@ export function AdaptiveModalSheet({
       enableDynamicSizing={false}
       onChange={handleSheetChange}
       onDismiss={handleDismiss}
+      animationConfigs={sheetAnimationConfigs}
       handleComponent={null}
       backgroundStyle={styles.nativeDialogBackground}
       enablePanDownToClose={false}

@@ -8,12 +8,13 @@ export const settingsStyles = StyleSheet.create((theme) => ({
     alignItems: "center",
     flexDirection: "row",
     justifyContent: "space-between",
-    marginBottom: theme.spacing[3],
+    marginBottom: theme.spacing[2],
     marginLeft: theme.spacing[1],
   },
   sectionHeaderTitle: {
-    color: theme.colors.foregroundMuted,
+    color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     fontWeight: theme.fontWeight.normal,
   },
   sectionHeaderLink: {
@@ -23,7 +24,7 @@ export const settingsStyles = StyleSheet.create((theme) => ({
   },
   card: {
     backgroundColor: theme.colors.surface1,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.card,
     borderWidth: 1,
     borderColor: theme.colors.border,
     overflow: "hidden",
@@ -32,12 +33,13 @@ export const settingsStyles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
+    minHeight: 44,
     paddingVertical: theme.spacing[4],
-    paddingHorizontal: theme.spacing[4],
+    paddingHorizontal: 14,
   },
   rowBorder: {
     borderTopWidth: 1,
-    borderTopColor: theme.colors.border,
+    borderTopColor: theme.colors.divider,
   },
   rowContent: {
     flex: 1,
@@ -46,15 +48,18 @@ export const settingsStyles = StyleSheet.create((theme) => ({
   rowTitle: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+    lineHeight: 20,
   },
   rowHint: {
-    color: theme.colors.foregroundMuted,
+    color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     marginTop: theme.spacing[1],
   },
   rowError: {
     color: theme.colors.statusDanger,
     fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     marginTop: theme.spacing[1],
   },
 }));

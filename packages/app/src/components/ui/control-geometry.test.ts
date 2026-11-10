@@ -8,6 +8,7 @@ import {
   createControlGeometry,
   HEADER_CONTROL_HEIGHT,
   ICON_BUTTON_SIZES,
+  INPUT_HEIGHTS,
   iconSizeFor,
   resolveControlSizing,
   switchGeometryForLayout,
@@ -31,6 +32,7 @@ import type { Theme } from "@/styles/theme";
 
 const theme = {
   borderRadius: {
+    control: 8,
     md: 6,
     lg: 8,
     xl: 12,
@@ -187,12 +189,10 @@ describe("control geometry", () => {
     expect(geometry.controlHover).toEqual({
       borderColor: "#2F3534",
     });
-    expect(geometry.controlActive).toEqual({
-      borderColor: "#2F3534",
-      outlineColor: "#20744A",
-      outlineOffset: 1,
-      outlineStyle: "solid",
-      outlineWidth: 2,
+    expect(geometry.controlActive).toMatchObject({
+      borderColor: "#2a78d6",
+      borderWidth: 1,
+      boxShadow: "0 0 0 3px #cde2fb",
     });
   });
 
@@ -216,15 +216,15 @@ describe("control geometry", () => {
     expect(geometry.formTextInputMd.fontSize).toBe(14);
   });
 
-  it("derives field padding from content and border without changing the control height", () => {
+  it("derives field padding from content and border at the input height", () => {
     const geometry = createControlGeometry(theme);
     const borderWidth = theme.borderWidth[1];
 
     expect(geometry.fieldControlSm.minHeight).toEqual({ xs: 32, md: 28 });
-    // The default keeps a 44 touch target in the compact layout and is 32 from the md
+    // The default keeps a 44 touch target in the compact layout and is 36 from the md
     // breakpoint up.
-    expect(geometry.fieldControlMd.minHeight).toEqual({ xs: 44, md: 32 });
-    expect(geometry.fieldControlMd.paddingVertical).toEqual({ xs: 11, md: 5 });
+    expect(geometry.fieldControlMd.minHeight).toEqual({ xs: 44, md: 36 });
+    expect(geometry.fieldControlMd.paddingVertical).toEqual({ xs: 11, md: 7 });
     for (const layout of ["xs", "md"] as const) {
       expect(
         geometry.fieldTextSm.lineHeight +
@@ -242,10 +242,12 @@ describe("control geometry", () => {
   it("keeps segmented controls ghost with button-radius segments in a button-sized track", () => {
     const geometry = createControlGeometry(theme);
 
-    expect(geometry.segmentedContainerSm.padding).toBe(0);
-    expect(geometry.segmentedContainerMd.padding).toBe(0);
-    expect(geometry.segmentedSegmentSm.borderRadius).toBe(geometry.buttonSm.borderRadius);
-    expect(geometry.segmentedSegmentMd.borderRadius).toBe(geometry.buttonMd.borderRadius);
+    expect(geometry.segmentedContainerSm.padding).toBe(2);
+    expect(geometry.segmentedContainerMd.padding).toBe(2);
+    expect(geometry.segmentedSegmentSm.borderRadius).toBe(theme.borderRadius.md);
+    expect(geometry.segmentedSegmentMd.borderRadius).toBe(theme.borderRadius.md);
+    expect(geometry.buttonSm.borderRadius).toBe(theme.borderRadius.control);
+    expect(geometry.buttonMd.borderRadius).toBe(theme.borderRadius.control);
     expect(geometry.segmentedContainerSm.minHeight).toEqual(geometry.buttonSm.minHeight);
     expect(geometry.segmentedContainerMd.minHeight).toEqual(geometry.buttonMd.minHeight);
     expect(geometry.segmentedSegmentSm.minHeight).toEqual({ xs: 28, md: 24 });
@@ -260,17 +262,15 @@ describe("control geometry", () => {
     expect(geometry.buttonSm.minHeight).toEqual(CONTROL_HEIGHTS.sm);
     expect(geometry.buttonMd.minHeight).toEqual(CONTROL_HEIGHTS.md);
     expect(geometry.fieldControlSm.minHeight).toEqual(CONTROL_HEIGHTS.sm);
-    expect(geometry.fieldControlMd.minHeight).toEqual(CONTROL_HEIGHTS.md);
+    expect(geometry.fieldControlMd.minHeight).toEqual(INPUT_HEIGHTS.md);
     expect(controlHeightForLayout("md", true)).toBe(44);
     expect(controlHeightForLayout("md", false)).toBe(32);
     expect(controlHeightForLayout("sm", true)).toBe(32);
     expect(controlHeightForLayout("sm", false)).toBe(28);
 
     // Same size name means the same label size on every control kind.
-    expect(geometry.segmentedLabelSm.fontSize).toBe(12);
-    expect(geometry.segmentedLabelSm.fontSize).toBe(geometry.buttonTextSm.fontSize);
-    expect(geometry.segmentedLabelMd.fontSize).toBe(14);
-    expect(geometry.segmentedLabelMd.fontSize).toBe(geometry.buttonTextMd.fontSize);
+    expect(geometry.segmentedLabelSm.fontSize).toBe(11);
+    expect(geometry.segmentedLabelMd.fontSize).toBe(12);
 
     // Segments sit inside a track, so they run tighter than a standalone button of the same
     // size — the gap between segments reads as the padding.
@@ -286,10 +286,10 @@ describe("control geometry", () => {
 
   it("sizes switches with the same two control sizes", () => {
     expect(switchGeometryForLayout("md", false)).toEqual({
-      trackWidth: 34,
+      trackWidth: 36,
       trackHeight: 20,
       thumbSize: 16,
-      thumbTravel: 14,
+      thumbTravel: 16,
       reservedHeight: 32,
     });
     expect(switchGeometryForLayout("md", true)).toEqual({
@@ -301,11 +301,11 @@ describe("control geometry", () => {
     });
     // Tight chrome keeps the pointer-sized track on every layout and reserves its row's height.
     expect(switchGeometryForLayout("sm", true)).toMatchObject({
-      trackWidth: 34,
+      trackWidth: 36,
       reservedHeight: 32,
     });
     expect(switchGeometryForLayout("sm", false)).toMatchObject({
-      trackWidth: 34,
+      trackWidth: 36,
       reservedHeight: 28,
     });
   });

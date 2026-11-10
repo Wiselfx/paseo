@@ -535,7 +535,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1],
     ...toolbarContentSlot(),
-    borderRadius: theme.borderRadius.full,
+    borderRadius: theme.borderRadius.control,
     backgroundColor: "transparent",
   },
   triggerIconOnly: {
@@ -545,10 +545,10 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
   },
   triggerHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   triggerPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
   },
   triggerDisabled: {
     opacity: 0.5,
@@ -557,7 +557,8 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
     color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: theme.fontWeight.normal,
   },
   triggerLabels: {
@@ -592,7 +593,8 @@ const styles = StyleSheet.create((theme) => ({
   triggerThinking: {
     flexShrink: 0,
     color: theme.colors.foregroundExtraMuted,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     fontWeight: theme.fontWeight.normal,
   },
   providerIcon: {

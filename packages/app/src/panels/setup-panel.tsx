@@ -564,8 +564,9 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[3],
   },
   waitingText: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundExtraMuted,
   },
   emptyContainer: {
     flex: 1,
@@ -573,8 +574,10 @@ const styles = StyleSheet.create((theme) => ({
     justifyContent: "center",
   },
   emptyText: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundExtraMuted,
+    textAlign: "center",
   },
   commandList: {
     gap: theme.spacing[2],

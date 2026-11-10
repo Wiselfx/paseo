@@ -35,7 +35,7 @@ function FilesPanel() {
   if (!workspaceRoot) {
     return (
       <View style={styles.centerState}>
-        <Text>{t("panels.file.directoryMissing")}</Text>
+        <Text style={styles.emptyText}>{t("panels.file.directoryMissing")}</Text>
       </View>
     );
   }
@@ -62,5 +62,12 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     justifyContent: "center",
     padding: theme.spacing[4],
+    backgroundColor: theme.colors.surface0,
+  },
+  emptyText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundExtraMuted,
+    textAlign: "center",
   },
 }));

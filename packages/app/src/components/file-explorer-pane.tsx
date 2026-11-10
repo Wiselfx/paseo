@@ -31,10 +31,8 @@ import { ChevronDown, Eye, EyeOff, FilePlus, FolderPlus, RotateCw } from "lucide
 import { MaterialFileIcon } from "@/components/material-file-icon";
 import {
   TreeChevron,
-  treeRowPaddingLeft,
   workspaceTreeRowStyles,
   WORKSPACE_TREE_ICON_LABEL_GAP,
-  WORKSPACE_TREE_ICON_SIZE,
   WORKSPACE_TREE_LOADING_ICON_SIZE,
 } from "@/components/tree-primitives";
 import { LoadingSpinner } from "@/components/ui/loading-spinner";
@@ -90,6 +88,17 @@ const SORT_OPTIONS: { value: SortOption }[] = [
   { value: "modified" },
   { value: "size" },
 ];
+
+/** Tree row rhythm: Claude's quiet file list. Desktop 30 px, touch 36 px. */
+const EXPLORER_ROW_HEIGHT = 30;
+const EXPLORER_ROW_HEIGHT_COMPACT = 36;
+const EXPLORER_ROW_INSET = 8;
+const EXPLORER_INDENT_PER_LEVEL = 12;
+const EXPLORER_ICON_SIZE = 14;
+
+function explorerRowPaddingLeft(depth: number): number {
+  return EXPLORER_ROW_INSET + depth * EXPLORER_INDENT_PER_LEVEL;
+}
 
 const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -174,6 +183,7 @@ function EntryNameInputRow({
   onCancel,
 }: EntryNameInputRowProps) {
   const { t } = useTranslation();
+  const isCompact = useIsCompactFormFactor();
   const [name, setName] = useState(initialName);
   const settledRef = useRef(false);
 
@@ -201,13 +211,23 @@ function EntryNameInputRow({
   );
 
   return (
-    <View style={[workspaceTreeRowStyles.row, { paddingLeft: treeRowPaddingLeft(depth) }]}>
+    <View
+      style={[
+        workspaceTreeRowStyles.row,
+        styles.treeRow,
+        isCompact && styles.treeRowCompact,
+        {
+          paddingLeft: explorerRowPaddingLeft(depth),
+          paddingRight: EXPLORER_ROW_INSET,
+        },
+      ]}
+    >
       <View style={styles.entryInfo}>
         <View style={styles.entryIcon}>
           {kind === "directory" ? (
             <TreeChevron expanded={false} />
           ) : (
-            <MaterialFileIcon fileName={name || "untitled"} size={WORKSPACE_TREE_ICON_SIZE} />
+            <MaterialFileIcon fileName={name || "untitled"} size={EXPLORER_ICON_SIZE} />
           )}
         </View>
         <TextInput
@@ -263,6 +283,7 @@ function TreeRowItem({
   const [isHovered, setIsHovered] = useState(false);
   const showNameHover = useCallback(() => setIsHovered(true), []);
   const hideNameHover = useCallback(() => setIsHovered(false), []);
+  const isCompact = useIsCompactFormFactor();
   const isDirectory = entry.kind === "directory";
   const dragSourceRef = useWorkspaceFileDragSource({
     enabled: !isDirectory,
@@ -287,10 +308,17 @@ function TreeRowItem({
   const pressableStyle = useCallback(
     ({ hovered, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
       workspaceTreeRowStyles.row,
-      { paddingLeft: treeRowPaddingLeft(depth) },
-      (Boolean(hovered) || pressed || isSelected) && workspaceTreeRowStyles.active,
+      styles.treeRow,
+      isCompact && styles.treeRowCompact,
+      {
+        paddingLeft: explorerRowPaddingLeft(depth),
+        paddingRight: EXPLORER_ROW_INSET,
+      },
+      isSelected && styles.treeRowSelected,
+      Boolean(hovered) && !isSelected && styles.treeRowHovered,
+      pressed && styles.treeRowPressed,
     ],
-    [depth, isSelected],
+    [depth, isCompact, isSelected],
   );
 
   const handleCopy = useCallback(() => {
@@ -363,13 +391,14 @@ function TreeRowItem({
             {isDirectory ? (
               <DirectoryChevronIcon loading={loading} expanded={isExpanded} />
             ) : (
-              <MaterialFileIcon fileName={entry.name} size={WORKSPACE_TREE_ICON_SIZE} />
+              <MaterialFileIcon fileName={entry.name} size={EXPLORER_ICON_SIZE} />
             )}
           </View>
           <Text
             style={[
-              styles.entryName,
               workspaceTreeRowStyles.name,
+              styles.entryName,
+              isDirectory && styles.entryNameDirectory,
               isHovered && workspaceTreeRowStyles.nameHovered,
             ]}
             numberOfLines={1}
@@ -1237,6 +1266,7 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
       <PaneContentToolbar
         style={[
           styles.paneHeader,
+          isCompact && styles.paneHeaderCompact,
           { paddingRight: paneContentToolbarTrailingPadding(isCompact, "glyph") },
         ]}
         testID="files-pane-header"
@@ -1263,7 +1293,7 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
               >
                 <FilePlus
                   size={paneContentToolbarIconSize(isCompact)}
-                  color={theme.colors.foregroundExtraMuted}
+                  color={theme.colors.foregroundMuted}
                 />
               </ToolbarButton>
               <ToolbarButton
@@ -1275,7 +1305,7 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
               >
                 <FolderPlus
                   size={paneContentToolbarIconSize(isCompact)}
-                  color={theme.colors.foregroundExtraMuted}
+                  color={theme.colors.foregroundMuted}
                 />
               </ToolbarButton>
             </>
@@ -1291,12 +1321,12 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
             {showHiddenFiles ? (
               <Eye
                 size={paneContentToolbarIconSize(isCompact)}
-                color={theme.colors.foregroundExtraMuted}
+                color={theme.colors.foregroundMuted}
               />
             ) : (
               <EyeOff
                 size={paneContentToolbarIconSize(isCompact)}
-                color={theme.colors.foregroundExtraMuted}
+                color={theme.colors.foregroundMuted}
               />
             )}
           </ToolbarButton>
@@ -1316,12 +1346,12 @@ function FileExplorerPaneContent(props: FileExplorerPaneContentProps) {
               {isRefreshFetching ? (
                 <LoadingSpinner
                   size={paneContentToolbarIconSize(isCompact)}
-                  color={theme.colors.foregroundExtraMuted}
+                  color={theme.colors.foregroundMuted}
                 />
               ) : (
                 <RotateCw
                   size={paneContentToolbarIconSize(isCompact)}
-                  color={theme.colors.foregroundExtraMuted}
+                  color={theme.colors.foregroundMuted}
                 />
               )}
             </View>
@@ -1633,6 +1663,7 @@ function getErrorRecoveryPath(state: AgentFileExplorerState | undefined): string
 const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
+    backgroundColor: theme.colors.surface0,
   },
   desktopSplit: {
     flex: 1,
@@ -1669,7 +1700,13 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
-    backgroundColor: theme.colors.surfaceSidebar,
+    height: 40,
+    backgroundColor: theme.colors.surface0,
+    borderBottomWidth: theme.borderWidth[1],
+    borderBottomColor: theme.colors.divider,
+  },
+  paneHeaderCompact: {
+    height: 44,
   },
   sortTrigger: {
     flexDirection: "row",
@@ -1679,13 +1716,14 @@ const styles = StyleSheet.create((theme) => ({
     marginLeft: theme.spacing[3] - theme.spacing[1],
     paddingHorizontal: theme.spacing[1],
     height: 24,
-    borderRadius: theme.borderRadius.base,
+    borderRadius: theme.borderRadius.md,
   },
   sortTriggerHovered: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
+    backgroundColor: theme.colors.hover,
   },
   sortTriggerText: {
-    fontSize: theme.fontSize.sm,
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.foregroundMuted,
   },
   headerActions: {
@@ -1695,6 +1733,23 @@ const styles = StyleSheet.create((theme) => ({
   treeList: {
     flex: 1,
     minHeight: 0,
+  },
+  treeRow: {
+    height: EXPLORER_ROW_HEIGHT,
+    paddingVertical: 0,
+    borderRadius: theme.borderRadius.md,
+  },
+  treeRowCompact: {
+    height: EXPLORER_ROW_HEIGHT_COMPACT,
+  },
+  treeRowHovered: {
+    backgroundColor: theme.colors.hover,
+  },
+  treeRowSelected: {
+    backgroundColor: theme.colors.selected,
+  },
+  treeRowPressed: {
+    backgroundColor: theme.colors.pressed,
   },
   entriesContent: {
     flexGrow: 1,
@@ -1713,12 +1768,14 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.spacing[4],
   },
   loadingText: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: 13,
+    lineHeight: 18,
   },
   errorText: {
     color: theme.colors.destructive,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
   },
   retryButton: {
@@ -1739,8 +1796,9 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
   },
   emptyText: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
   },
   binaryMetaText: {
@@ -1755,8 +1813,8 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
   },
   entryIcon: {
-    width: WORKSPACE_TREE_ICON_SIZE,
-    height: WORKSPACE_TREE_ICON_SIZE,
+    width: EXPLORER_ICON_SIZE,
+    height: EXPLORER_ICON_SIZE,
     alignItems: "center",
     justifyContent: "center",
     flexShrink: 0,
@@ -1764,13 +1822,20 @@ const styles = StyleSheet.create((theme) => ({
   entryName: {
     flex: 1,
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
+    opacity: 1,
     userSelect: "none",
+  },
+  entryNameDirectory: {
+    color: theme.colors.foregroundMuted,
+    fontWeight: theme.fontWeight.medium,
   },
   draftInput: {
     flex: 1,
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     paddingVertical: 0,
     paddingHorizontal: 0,
   },

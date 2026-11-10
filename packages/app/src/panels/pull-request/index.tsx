@@ -70,13 +70,19 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     alignItems: "center",
     justifyContent: "center",
-    gap: 8,
-    padding: 24,
+    gap: theme.spacing[2],
+    padding: theme.spacing[6],
+    backgroundColor: theme.colors.surface0,
   },
   emptyTitle: {
-    color: theme.colors.foreground,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundMuted,
   },
   emptyDescription: {
-    color: theme.colors.foregroundMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundExtraMuted,
+    textAlign: "center",
   },
 }));

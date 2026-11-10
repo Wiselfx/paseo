@@ -271,11 +271,18 @@ export function TerminalPane({
   const isAppActivelyVisible = useAppActivelyVisible();
   const { theme } = useUnistyles();
   const { settings } = useAppSettings();
-  const xtermTheme = useMemo(() => toXtermTheme(theme.colors.terminal), [theme]);
+  const xtermTheme = useMemo(
+    () => ({
+      ...toXtermTheme(theme.colors.terminal),
+      background: theme.colors.codeBackground,
+      cursorAccent: theme.colors.codeBackground,
+    }),
+    [theme],
+  );
   const terminalFontFamily = useMemo(() => {
     const trimmed = settings.monoFontFamily.trim();
-    return trimmed.length > 0 ? trimmed : undefined;
-  }, [settings.monoFontFamily]);
+    return trimmed.length > 0 ? trimmed : theme.fontFamily.mono;
+  }, [settings.monoFontFamily, theme.fontFamily.mono]);
   const isMobile = useIsCompactFormFactor();
   const showVirtualKeyBar = shouldShowTerminalVirtualKeyBar({ isNative, isCompact: isMobile });
   const [keyBarWidth, setKeyBarWidth] = useState(0);
@@ -1273,7 +1280,7 @@ const styles = StyleSheet.create((theme) => ({
     flex: 1,
     minHeight: 0,
     position: "relative",
-    backgroundColor: theme.colors.background,
+    backgroundColor: theme.colors.codeBackground,
   },
   terminalGestureContainer: {
     flex: 1,

@@ -3,6 +3,7 @@ import { useQuery } from "@tanstack/react-query";
 import { useTranslation } from "react-i18next";
 import { Terminal } from "lucide-react-native";
 import { Text, View } from "react-native";
+import { StyleSheet } from "react-native-unistyles";
 import invariant from "tiny-invariant";
 import type { ListTerminalsResponse } from "@getpaseo/protocol/messages";
 import { deriveTerminalActivityStatusBucket } from "@getpaseo/protocol/terminal-activity";
@@ -18,13 +19,6 @@ import { useSessionStore } from "@/stores/session-store";
 import { useWorkspaceDirectory, useWorkspaceFields } from "@/stores/session-store-hooks";
 
 type ListTerminalsPayload = ListTerminalsResponse["payload"];
-
-const CENTERED_PADDED_STYLE = {
-  flex: 1,
-  alignItems: "center",
-  justifyContent: "center",
-  padding: 16,
-} as const;
 
 function trimNonEmpty(value: string | null | undefined): string | null {
   if (typeof value !== "string") {
@@ -98,8 +92,8 @@ function TerminalPanel() {
 
   if (!workspaceDirectory) {
     return (
-      <View style={CENTERED_PADDED_STYLE}>
-        <Text>Workspace directory not found.</Text>
+      <View style={styles.centerState}>
+        <Text style={styles.emptyText}>Workspace directory not found.</Text>
       </View>
     );
   }
@@ -121,3 +115,19 @@ export const terminalPanelRegistration = definePanel("terminal", {
   component: TerminalPanel,
   useDescriptor: useTerminalPanelDescriptor,
 });
+
+const styles = StyleSheet.create((theme) => ({
+  centerState: {
+    flex: 1,
+    alignItems: "center",
+    justifyContent: "center",
+    padding: theme.spacing[4],
+    backgroundColor: theme.colors.surface0,
+  },
+  emptyText: {
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundExtraMuted,
+    textAlign: "center",
+  },
+}));

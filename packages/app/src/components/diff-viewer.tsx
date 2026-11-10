@@ -222,11 +222,12 @@ const styles = StyleSheet.create((theme) => {
     line: {
       minWidth: "100%",
       paddingHorizontal: 0,
-      paddingVertical: theme.spacing[1],
+      paddingVertical: 0,
     },
     lineText: {
       fontFamily: theme.fontFamily.mono,
       fontSize: theme.fontSize.code,
+      lineHeight: 18,
       color: theme.colors.foreground,
       ...(isWeb
         ? {
@@ -236,28 +237,31 @@ const styles = StyleSheet.create((theme) => {
         : null),
     },
     headerLine: {
-      backgroundColor: theme.colors.surface1,
+      backgroundColor: theme.colors.surface2,
+      borderTopWidth: theme.borderWidth[1],
+      borderTopColor: theme.colors.divider,
     },
     headerText: {
       color: theme.colors.foregroundMuted,
+      lineHeight: 18,
     },
     addLine: {
-      backgroundColor: "rgba(46, 160, 67, 0.15)",
+      backgroundColor: `${theme.colors.diffAddition}26`,
     },
     addText: {
       color: theme.colors.foreground,
     },
     removeLine: {
-      backgroundColor: "rgba(248, 81, 73, 0.1)",
+      backgroundColor: `${theme.colors.diffDeletion}1a`,
     },
     removeText: {
       color: theme.colors.foreground,
     },
     addHighlight: {
-      backgroundColor: "rgba(46, 160, 67, 0.4)",
+      backgroundColor: `${theme.colors.diffAddition}66`,
     },
     removeHighlight: {
-      backgroundColor: "rgba(248, 81, 73, 0.35)",
+      backgroundColor: `${theme.colors.diffDeletion}59`,
     },
     contextLine: {
       backgroundColor: theme.colors.surface1,
@@ -271,8 +275,9 @@ const styles = StyleSheet.create((theme) => {
       justifyContent: "center" as const,
     },
     emptyText: {
-      fontSize: theme.fontSize.base,
-      color: theme.colors.foregroundMuted,
+      fontSize: 13,
+      lineHeight: 18,
+      color: theme.colors.foregroundExtraMuted,
     },
   };
 });

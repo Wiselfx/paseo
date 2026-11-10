@@ -256,13 +256,17 @@ const styles = StyleSheet.create((theme) => ({
   container: {
     flex: 1,
     minHeight: 0,
+    backgroundColor: theme.colors.surface0,
   },
   toolbar: {
     flexDirection: "row",
     alignItems: "center",
     justifyContent: "space-between",
     gap: theme.spacing[2],
+    height: 40,
     paddingRight: theme.spacing[2],
+    borderBottomWidth: theme.borderWidth[1],
+    borderBottomColor: theme.colors.divider,
   },
   toolbarActions: {
     flexDirection: "row",
@@ -282,12 +286,14 @@ const styles = StyleSheet.create((theme) => ({
     paddingTop: theme.spacing[16],
   },
   mutedText: {
-    fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    fontSize: 13,
+    lineHeight: 18,
+    color: theme.colors.foregroundExtraMuted,
     textAlign: "center",
   },
   errorText: {
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.destructive,
     textAlign: "center",
   },

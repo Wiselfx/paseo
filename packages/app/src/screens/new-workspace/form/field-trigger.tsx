@@ -1,11 +1,8 @@
 import { forwardRef, useCallback, type ReactElement, type ReactNode } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
-import { StyleSheet, withUnistyles } from "react-native-unistyles";
-import { ChevronDown } from "lucide-react-native";
+import { StyleSheet } from "react-native-unistyles";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
-import { CONTROL_HEIGHTS } from "@/components/ui/control-geometry";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
-import { ICON_SIZE, type Theme } from "@/styles/theme";
 
 /**
  * `badge` is the desktop meta row: a borderless pill that names its field in a tooltip.
@@ -13,20 +10,6 @@ import { ICON_SIZE, type Theme } from "@/styles/theme";
  * value, so the whole field is one tap target.
  */
 export type FieldTriggerVariant = "badge" | "field";
-
-const ThemedChevronDown = withUnistyles(ChevronDown);
-const extraMutedColor = (theme: Theme) => ({ color: theme.colors.foregroundExtraMuted });
-
-// Extra-muted: the chevron is an affordance, not information, and sits behind its label.
-function Chevron(): ReactElement {
-  return (
-    <View style={styles.chevron}>
-      <ThemedChevronDown size={ICON_SIZE.sm} uniProps={extraMutedColor} />
-    </View>
-  );
-}
-
-const chevron = <Chevron />;
 
 export interface FieldTriggerContentProps {
   variant: FieldTriggerVariant;
@@ -55,23 +38,15 @@ export function FieldTriggerContent({
     </>
   );
   if (variant === "badge") {
-    return (
-      <>
-        {valueLine}
-        {chevron}
-      </>
-    );
+    return valueLine;
   }
   return (
-    <>
-      <View style={styles.fieldBody}>
-        <Text style={styles.fieldLabel} numberOfLines={1}>
-          {label}
-        </Text>
-        <View style={styles.fieldValueLine}>{valueLine}</View>
-      </View>
-      {chevron}
-    </>
+    <View style={styles.fieldBody}>
+      <Text style={styles.fieldLabel} numberOfLines={1}>
+        {label}
+      </Text>
+      <View style={styles.fieldValueLine}>{valueLine}</View>
+    </View>
   );
 }
 
@@ -135,44 +110,40 @@ export const FieldTrigger = forwardRef<View, FieldTriggerProps>(function FieldTr
 });
 
 // Height of a badge. The desktop row sizes from it.
-export const FIELD_BADGE_HEIGHT = CONTROL_HEIGHTS.sm;
-// Height of a compact field: label line plus value line. The compact stack reserves rows from it.
-export const FIELD_HEIGHT = 56;
+export const FIELD_BADGE_HEIGHT = 36;
+// Height of a compact field: secondary line over value line. The compact stack reserves rows from it.
+export const FIELD_HEIGHT = 36;
 
 const styles = StyleSheet.create((theme) => ({
   badge: {
     flexDirection: "row",
     alignItems: "center",
-    height: FIELD_BADGE_HEIGHT,
+    minHeight: FIELD_BADGE_HEIGHT,
     maxWidth: 240,
     overflow: "hidden",
-    paddingHorizontal: theme.spacing[2],
-    borderRadius: theme.borderRadius["2xl"],
+    paddingHorizontal: 10,
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borderRadius.control,
     gap: theme.spacing[1],
   },
   field: {
     flexDirection: "row",
     alignItems: "center",
-    height: FIELD_HEIGHT,
-    paddingLeft: theme.spacing[3],
-    paddingRight: theme.spacing[3],
-    borderRadius: theme.borderRadius.xl,
+    minHeight: FIELD_HEIGHT,
+    paddingHorizontal: 10,
+    paddingVertical: theme.spacing[1],
+    borderRadius: theme.borderRadius.control,
     backgroundColor: theme.colors.surface1,
     gap: theme.spacing[2],
   },
   highlighted: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   badgePressed: {
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colors.pressed,
   },
   disabled: {
     opacity: 0.6,
-  },
-  // Optical: the chevron's ink sits high in its box.
-  chevron: {
-    flexShrink: 0,
-    transform: [{ translateY: 1 }],
   },
   iconBox: {
     width: theme.iconSize.md,
@@ -185,16 +156,17 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
     fontSize: theme.fontSize.base,
-    color: theme.colors.foregroundMuted,
+    lineHeight: 20,
+    color: theme.colors.foreground,
   },
   fieldBody: {
     flex: 1,
     minWidth: 0,
-    gap: theme.spacing[0.5],
   },
   fieldLabel: {
     fontSize: theme.fontSize.sm,
-    color: theme.colors.foregroundMuted,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
   },
   fieldValueLine: {
     flexDirection: "row",
@@ -205,10 +177,12 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
     fontSize: theme.fontSize.base,
+    lineHeight: 20,
     color: theme.colors.foreground,
   },
   detail: {
     color: theme.colors.foregroundExtraMuted,
+    lineHeight: 20,
   },
   tooltipText: {
     fontSize: theme.fontSize.base,

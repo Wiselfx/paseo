@@ -97,12 +97,12 @@ function TriggerIcon({
   profile: TerminalProfile | null;
 }): ReactElement {
   if (target.kind === "chat") {
-    return <ThemedMessageCircle size={ICON_SIZE.sm} uniProps={mutedColorMapping} />;
+    return <ThemedMessageCircle size={ICON_SIZE.md} uniProps={mutedColorMapping} />;
   }
   if (profile) {
     return <TerminalProfileIcon iconKey={getTerminalProfileIcon(profile)} />;
   }
-  return <ThemedSquareTerminal size={ICON_SIZE.sm} uniProps={mutedColorMapping} />;
+  return <ThemedSquareTerminal size={ICON_SIZE.md} uniProps={mutedColorMapping} />;
 }
 
 /**

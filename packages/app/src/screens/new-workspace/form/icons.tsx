@@ -11,10 +11,10 @@ const ThemedGitBranch = withUnistyles(GitBranch);
 const ThemedGitPullRequest = withUnistyles(GitPullRequest);
 const mutedColor = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
 
-export const folderIcon = <ThemedFolder size={ICON_SIZE.sm} uniProps={mutedColor} />;
-export const addProjectIcon = <ThemedFolderPlus size={ICON_SIZE.sm} uniProps={mutedColor} />;
-export const branchIcon = <ThemedGitBranch size={ICON_SIZE.sm} uniProps={mutedColor} />;
-export const pullRequestIcon = <ThemedGitPullRequest size={ICON_SIZE.sm} uniProps={mutedColor} />;
+export const folderIcon = <ThemedFolder size={ICON_SIZE.md} uniProps={mutedColor} />;
+export const addProjectIcon = <ThemedFolderPlus size={ICON_SIZE.md} uniProps={mutedColor} />;
+export const branchIcon = <ThemedGitBranch size={ICON_SIZE.md} uniProps={mutedColor} />;
+export const pullRequestIcon = <ThemedGitPullRequest size={ICON_SIZE.md} uniProps={mutedColor} />;
 
 // Single uppercase initial inside an iconSize.md (16px) square — below the smallest font-size
 // token, so it stays a literal sized to the box.

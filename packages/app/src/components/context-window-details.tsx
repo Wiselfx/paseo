@@ -62,21 +62,25 @@ export function ContextWindowDetails({
 
 const styles = StyleSheet.create((theme) => ({
   summary: {
-    gap: theme.spacing[1.5],
+    gap: 0,
     minWidth: 200,
   },
   title: {
     color: theme.colors.foreground,
     fontSize: theme.fontSize.base,
+    lineHeight: 20,
+    paddingBottom: theme.spacing[0.5],
   },
   text: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
-    lineHeight: theme.fontSize.base * 1.4,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 18,
+    paddingVertical: 5,
   },
   detail: {
-    color: theme.colors.foregroundMuted,
+    color: theme.colors.foregroundExtraMuted,
     fontSize: theme.fontSize.sm,
-    lineHeight: theme.fontSize.sm * 1.4,
+    lineHeight: 18,
+    paddingVertical: 5,
   },
 }));

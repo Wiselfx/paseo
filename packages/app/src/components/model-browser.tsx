@@ -562,8 +562,9 @@ function ModelBrowserRow({
       Boolean(hovered) &&
         (tone === "elevated" ? styles.browserRowHoveredElevated : styles.browserRowHovered),
       pressed && (tone === "default" ? styles.browserRowPressed : styles.browserRowPressedElevated),
+      selected && selectionIndicator && styles.browserRowSelected,
     ],
-    [spacing, tone],
+    [selected, selectionIndicator, spacing, tone],
   );
   const contentStyle = useMemo(
     () => [styles.browserRowText, description && styles.browserRowTextInline],
@@ -775,8 +776,9 @@ function ModelRow({
       styles.browserRow,
       Boolean(hovered) && styles.browserRowHovered,
       pressed && styles.browserRowPressed,
+      isSelected && styles.browserRowSelected,
     ],
-    [],
+    [isSelected],
   );
 
   return (
@@ -1579,14 +1581,18 @@ const styles = StyleSheet.create((theme) => ({
   },
   sectionHeadingText: {
     flex: 1,
-    fontSize: theme.fontSize.sm,
+    fontSize: 11,
+    lineHeight: 16,
     fontWeight: theme.fontWeight.normal,
-    color: theme.colors.foregroundMuted,
+    color: theme.colors.foregroundExtraMuted,
   },
   browserRow: {
     flexDirection: "row",
+    minHeight: 40,
     paddingVertical: theme.spacing[2],
-    minHeight: 36,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: 1,
+    borderColor: "transparent",
   },
   modelRowHoverBoundary: {
     position: "relative",
@@ -1600,16 +1606,20 @@ const styles = StyleSheet.create((theme) => ({
   },
   browserModelRow: isWeb ? {} : { marginBottom: theme.spacing[1] },
   browserRowHovered: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.hover,
   },
   browserRowHoveredElevated: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   browserRowPressed: {
-    backgroundColor: theme.colors.surface1,
+    backgroundColor: theme.colors.pressed,
   },
   browserRowPressedElevated: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
+  },
+  browserRowSelected: {
+    backgroundColor: theme.colors.selected,
+    borderColor: theme.colors.accentStroke,
   },
   browserRowContent: {
     flex: 1,
@@ -1633,18 +1643,21 @@ const styles = StyleSheet.create((theme) => ({
     gap: theme.spacing[2],
   },
   browserRowLabel: {
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.foreground,
     flexShrink: 0,
   },
   browserRowLabelMuted: {
-    fontSize: theme.fontSize.base,
+    fontSize: 13,
+    lineHeight: 18,
     color: theme.colors.foregroundMuted,
     flexShrink: 0,
   },
   browserRowDescription: {
-    fontSize: theme.fontSize.sm,
-    color: theme.colors.foregroundMuted,
+    fontSize: 11,
+    lineHeight: 16,
+    color: theme.colors.foregroundExtraMuted,
     flexShrink: 1,
   },
   browserRowTrailing: {

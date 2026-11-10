@@ -321,10 +321,10 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: "transparent",
     gap: theme.spacing[1],
     ...toolbarContentSlot(),
-    borderRadius: theme.borderRadius.full,
+    borderRadius: 7,
   },
   triggerHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   glyph: {
     width: ICON_SIZE.md,
@@ -337,7 +337,7 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 0,
   },
   triggerPressed: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.pressed,
   },
   triggerDisabled: {
     opacity: 0.5,
@@ -347,6 +347,7 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
     color: theme.colors.foregroundMuted,
     fontSize: theme.fontSize.base,
+    lineHeight: 18,
     fontWeight: theme.fontWeight.normal,
   },
   // A custom trigger, such as a form field, owns its own box: none of the toolbar slot applies.

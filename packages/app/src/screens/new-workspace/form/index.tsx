@@ -366,19 +366,19 @@ export function useNewWorkspaceForm(props: NewWorkspaceFormProps): ReactElement 
 
 const styles = StyleSheet.create((theme) => ({
   compactStack: {
-    marginBottom: theme.spacing[4],
+    marginBottom: theme.spacing[6],
     paddingHorizontal: theme.spacing[4],
     gap: theme.spacing[2],
   },
   reservedField: {
-    height: FIELD_HEIGHT,
+    minHeight: FIELD_HEIGHT,
   },
   desktopRow: {
     flexDirection: "row",
     alignItems: "center",
     minHeight: FIELD_BADGE_HEIGHT,
-    // Matches the gap between the composer and the Import session pill below it.
-    marginBottom: theme.spacing[4],
+    // The hero column and the composer are one stack: 24 above the dock.
+    marginBottom: theme.spacing[6],
     // The badge adds its own left padding; offset it so the project icon's left
     // edge lands exactly on the "New workspace" title's left edge. The trailing
     // inset mirrors it so the launch chip stops on the composer's inner content

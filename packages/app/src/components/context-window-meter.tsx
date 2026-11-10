@@ -31,7 +31,7 @@ interface ContextWindowMeterProps {
   toolbarRing?: ToolbarRing;
 }
 
-const SVG_SIZE = 14;
+const SVG_SIZE = 16;
 const USAGE_POPOVER_WIDTH = 300;
 const COMPACT_SVG_SIZE = 12;
 const COMPACT_RADIUS = 5;
@@ -68,13 +68,15 @@ function formatSessionCost(value: number): string | null {
 }
 
 function getProgressColor(percentage: number, theme: Theme): string {
+  // Ink until the window is nearly full, then the warning status ink; the 90 %
+  // destructive stop is Paseo's own and stays the top band.
   if (percentage > 90) {
     return theme.colors.destructive;
   }
   if (percentage >= 70) {
-    return theme.colors.palette.amber[500];
+    return theme.colors.statusAwaiting;
   }
-  return theme.colors.foregroundMuted;
+  return theme.colors.foreground;
 }
 
 function getMeterGeometry(showPercentage: boolean, ring?: ToolbarRing) {
@@ -183,7 +185,7 @@ export function ContextWindowMeter({
   const meterColors = useCallback(
     (theme: Theme) => ({
       progressColor: getProgressColor(percentage ?? 0, theme),
-      trackColor: theme.colors.surface3,
+      trackColor: theme.colors.border,
     }),
     [percentage],
   );
@@ -335,8 +337,9 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface2,
   },
   percentageLabel: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: 11,
+    lineHeight: 16,
     fontWeight: theme.fontWeight.normal,
   },
   // Plain details use a small inset; account usage cards have their own content density.

@@ -535,7 +535,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1],
     ...toolbarContentSlot(),
-    borderRadius: theme.borderRadius.control,
+    borderRadius: 7,
     backgroundColor: "transparent",
   },
   triggerIconOnly: {
@@ -557,7 +557,7 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
     color: theme.colors.foregroundMuted,
-    fontSize: 13,
+    fontSize: theme.fontSize.base,
     lineHeight: 18,
     fontWeight: theme.fontWeight.normal,
   },

@@ -1749,12 +1749,14 @@ const styles = StyleSheet.create((theme) => ({
   },
   composerTitleContainer: {
     marginBottom: theme.spacing[6],
-    paddingLeft: theme.spacing[6],
+    paddingLeft: theme.spacing[4],
     paddingRight: theme.spacing[4],
   },
   composerTitle: {
-    fontSize: theme.fontSize["2xl"],
-    fontWeight: theme.fontWeight.normal,
+    fontFamily: theme.fontFamily.prose,
+    fontSize: theme.fontSize["4xl"],
+    lineHeight: 32,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.foreground,
   },
   errorText: {

@@ -1,5 +1,13 @@
 import { Platform } from "react-native";
 import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
+import {
+  CLAUDE_DURATION,
+  CLAUDE_EASE,
+  CLAUDE_RADIUS,
+  claudeDarkCard,
+  claudeLightCard,
+  type ClaudeCard,
+} from "./claude-tokens";
 
 export const baseColors = {
   // Base colors
@@ -239,6 +247,8 @@ export interface LightThemeConfig {
   terminalBlack: string;
   terminalBrightBlack: string;
   ring: string;
+  /** The Claude card this theme is built from. Omit for a variant that keeps its own palette. */
+  claude?: ClaudeCard;
 }
 
 const lightTerminalAnsi = {
@@ -258,7 +268,69 @@ const lightTerminalAnsi = {
   brightWhite: "#fafafa",
 } as const;
 
+/**
+ * Resolves the Claude card into semantic values. A theme variant without a card
+ * keeps its own palette through the fallback; callers never branch per token.
+ */
+interface ClaudeLayer {
+  brand: string;
+  brandStrong: string;
+  accentInk: string;
+  accentStroke: string;
+  bubble: string;
+  bubbleFlat: string;
+  chip: string;
+  hover: string;
+  selected: string;
+  pressed: string;
+  divider: string;
+  codeBackground: string;
+  skeletonBase: string;
+  skeletonSheen: string;
+  scrim: string;
+}
+
+function resolveClaudeLayer(card: ClaudeCard | undefined, fallback: ClaudeLayer): ClaudeLayer {
+  if (!card) {
+    return fallback;
+  }
+  return {
+    brand: card.brand,
+    brandStrong: card.brandStrong,
+    accentInk: card.accentInk,
+    accentStroke: card.accentBorder,
+    bubble: card.bubble,
+    bubbleFlat: card.bubbleFlat,
+    chip: card.chip,
+    hover: card.hover,
+    selected: card.selected,
+    pressed: card.pressed,
+    divider: card.divider,
+    codeBackground: card.code,
+    skeletonBase: card.skeletonBase,
+    skeletonSheen: card.skeletonSheen,
+    scrim: card.scrim,
+  };
+}
+
 export function buildLightSemanticColors(tint: LightThemeConfig) {
+  const claude = resolveClaudeLayer(tint.claude, {
+    brand: tint.accent,
+    brandStrong: tint.accentBright,
+    accentInk: tint.accent,
+    accentStroke: tint.borderAccent,
+    bubble: tint.surface3,
+    bubbleFlat: tint.surface3,
+    chip: tint.surface2,
+    hover: "rgba(0, 0, 0, 0.04)",
+    selected: tint.surface3,
+    pressed: tint.surface4,
+    divider: tint.border,
+    codeBackground: tint.surface1,
+    skeletonBase: tint.surface2,
+    skeletonSheen: tint.surface3,
+    scrim: "rgba(0, 0, 0, 0.25)",
+  });
   return {
     surface0: tint.surface0,
     surface1: tint.surface1,
@@ -267,10 +339,10 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     surface4: tint.surface4,
     surfaceDiffEmpty: tint.surfaceDiffEmpty,
     surfaceSidebar: tint.surfaceSidebar,
-    surfaceSidebarHover: tint.surface3,
-    surfaceSidebarSelected: tint.surface4,
+    surfaceSidebarHover: claude.selected,
+    surfaceSidebarSelected: claude.pressed,
     surfaceWorkspace: tint.surface0,
-    interactionHighlight: "rgba(0, 0, 0, 0.06)",
+    interactionHighlight: claude.hover,
 
     foreground: tint.foreground,
     foregroundMuted: tint.foregroundMuted,
@@ -278,6 +350,23 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
 
     border: tint.border,
     borderAccent: tint.borderAccent,
+
+    // Claude layer. A variant without a card falls back to its own palette.
+    brand: claude.brand,
+    brandStrong: claude.brandStrong,
+    accentInk: claude.accentInk,
+    accentStroke: claude.accentStroke,
+    bubble: claude.bubble,
+    bubbleFlat: claude.bubbleFlat,
+    chip: claude.chip,
+    hover: claude.hover,
+    selected: claude.selected,
+    pressed: claude.pressed,
+    divider: claude.divider,
+    codeBackground: claude.codeBackground,
+    skeletonBase: claude.skeletonBase,
+    skeletonSheen: claude.skeletonSheen,
+    scrim: claude.scrim,
 
     accent: tint.accent,
     accentBright: tint.accentBright,
@@ -321,27 +410,28 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
 }
 
 const lightSemanticColors = buildLightSemanticColors({
-  surface0: "#ffffff",
-  surface1: "#fafafa",
-  surface2: "#f4f4f5",
-  surface3: "#e4e4e7",
-  surface4: "#d4d4d8",
-  surfaceDiffEmpty: "#f6f6f6",
-  surfaceSidebar: "#f4f4f5",
-  foreground: "#1a1a1e",
-  foregroundMuted: "#71717a",
-  foregroundExtraMuted: "#a1a1aa",
-  border: "#e4e4e7",
-  borderAccent: "#ececf1",
-  accent: "#20744A",
-  accentBright: "#239956",
+  surface0: claudeLightCard.canvas,
+  surface1: claudeLightCard.panel,
+  surface2: claudeLightCard.raised,
+  surface3: claudeLightCard.bubble,
+  surface4: "#e8e6e1",
+  surfaceDiffEmpty: "#f7f6f3",
+  surfaceSidebar: claudeLightCard.sidebar,
+  foreground: claudeLightCard.ink,
+  foregroundMuted: claudeLightCard.ink2,
+  foregroundExtraMuted: claudeLightCard.ink3,
+  border: claudeLightCard.border,
+  borderAccent: claudeLightCard.borderStrong,
+  accent: claudeLightCard.brandStrong,
+  accentBright: claudeLightCard.brand,
   accentForeground: "#ffffff",
-  primary: "#18181b",
-  primaryForeground: "#fafafa",
-  destructive: "#b04138",
+  primary: claudeLightCard.ink,
+  primaryForeground: claudeLightCard.canvas,
+  destructive: claudeLightCard.failureInkLight,
   terminalBlack: "#1a1a1e",
   terminalBrightBlack: "#3f3f46",
-  ring: "#18181b",
+  ring: claudeLightCard.accentInk,
+  claude: claudeLightCard,
 });
 
 // ---------------------------------------------------------------------------
@@ -368,6 +458,8 @@ export interface DarkThemeConfig {
   terminalBrightBlack: string;
   foreground?: string;
   ring?: string;
+  /** The Claude card this theme is built from. Omit for a variant that keeps its own palette. */
+  claude?: ClaudeCard;
 }
 
 const darkTerminalAnsi = {
@@ -390,6 +482,23 @@ const darkTerminalAnsi = {
 export function buildDarkSemanticColors(tint: DarkThemeConfig) {
   const foreground = tint.foreground ?? "#fafafa";
   const ring = tint.ring ?? "#d4d4d8";
+  const claude = resolveClaudeLayer(tint.claude, {
+    brand: tint.accent,
+    brandStrong: tint.accentBright,
+    accentInk: tint.accent,
+    accentStroke: tint.borderAccent,
+    bubble: tint.surface3,
+    bubbleFlat: tint.surface3,
+    chip: tint.surface2,
+    hover: "rgba(255, 255, 255, 0.08)",
+    selected: tint.surface1,
+    pressed: tint.surface2,
+    divider: tint.border,
+    codeBackground: tint.surface1,
+    skeletonBase: tint.surface1,
+    skeletonSheen: tint.surface2,
+    scrim: "rgba(0, 0, 0, 0.55)",
+  });
   return {
     surface0: tint.surface0,
     surface1: tint.surface1,
@@ -398,10 +507,10 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     surface4: tint.surface4,
     surfaceDiffEmpty: tint.surfaceDiffEmpty,
     surfaceSidebar: tint.surfaceSidebar,
-    surfaceSidebarHover: tint.surface1,
-    surfaceSidebarSelected: tint.surface2,
+    surfaceSidebarHover: claude.selected,
+    surfaceSidebarSelected: claude.pressed,
     surfaceWorkspace: tint.surface1,
-    interactionHighlight: "rgba(255, 255, 255, 0.08)",
+    interactionHighlight: claude.hover,
 
     foreground,
     foregroundMuted: tint.foregroundMuted,
@@ -409,6 +518,23 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
 
     border: tint.border,
     borderAccent: tint.borderAccent,
+
+    // Claude layer. A variant without a card falls back to its own palette.
+    brand: claude.brand,
+    brandStrong: claude.brandStrong,
+    accentInk: claude.accentInk,
+    accentStroke: claude.accentStroke,
+    bubble: claude.bubble,
+    bubbleFlat: claude.bubbleFlat,
+    chip: claude.chip,
+    hover: claude.hover,
+    selected: claude.selected,
+    pressed: claude.pressed,
+    divider: claude.divider,
+    codeBackground: claude.codeBackground,
+    skeletonBase: claude.skeletonBase,
+    skeletonSheen: claude.skeletonSheen,
+    scrim: claude.scrim,
 
     accent: tint.accent,
     accentBright: tint.accentBright,
@@ -456,24 +582,28 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
 // Dark tint definitions
 // ---------------------------------------------------------------------------
 
-// Paseo — subtle teal-green tint (default)
-const paseoDarkColors = buildDarkSemanticColors({
-  surface0: "#181B1A",
-  surface1: "#1E2120",
-  surface2: "#272A29",
-  surface3: "#434645",
-  surface4: "#595B5B",
-  surfaceDiffEmpty: "#252827",
-  surfaceSidebar: "#141716",
-  foregroundMuted: "#A1A5A4",
-  foregroundExtraMuted: "#717574",
-  border: "#252B2A",
-  borderAccent: "#2F3534",
-  accent: "#20744A",
-  accentBright: "#7ccba0",
-  destructive: "#c64f43", // warm red, hue ~7 — reads as red (not pink) against the green tint
-  terminalBlack: "#141716",
-  terminalBrightBlack: "#434645",
+// Claude — near-black canvas, darker sidebar, a 10% white highlight for edges.
+const claudeDarkColors = buildDarkSemanticColors({
+  surface0: claudeDarkCard.canvas,
+  surface1: claudeDarkCard.panel,
+  surface2: claudeDarkCard.raised,
+  surface3: claudeDarkCard.bubble,
+  surface4: claudeDarkCard.pressed,
+  surfaceDiffEmpty: "#191919",
+  surfaceSidebar: claudeDarkCard.sidebar,
+  foreground: claudeDarkCard.ink,
+  foregroundMuted: claudeDarkCard.ink2,
+  foregroundExtraMuted: claudeDarkCard.ink3,
+  border: claudeDarkCard.border,
+  borderAccent: claudeDarkCard.borderStrong,
+  accent: claudeDarkCard.brandStrong,
+  accentBright: claudeDarkCard.brand,
+  accentForeground: "#ffffff",
+  destructive: claudeDarkCard.failureInkDark,
+  terminalBlack: claudeDarkCard.sidebar,
+  terminalBrightBlack: "#4a4745",
+  ring: claudeDarkCard.accentInk,
+  claude: claudeDarkCard,
 });
 
 // Zinc — neutral gray, no tint
@@ -518,7 +648,7 @@ const midnightDarkColors = buildDarkSemanticColors({
 });
 
 // Claude — warm neutral with subtle orange undertone
-const claudeDarkColors = buildDarkSemanticColors({
+const claudeVariantDarkColors = buildDarkSemanticColors({
   surface0: "#1f1f1e",
   surface1: "#262523",
   surface2: "#2f2d2b",
@@ -617,6 +747,11 @@ export const BORDER_RADIUS = {
   xl: 12,
   "2xl": 16,
   full: 9999,
+  // Claude roles — see CLAUDE_RADIUS. Prefer these names over the numeric ladder.
+  control: CLAUDE_RADIUS.control,
+  card: CLAUDE_RADIUS.card,
+  composer: CLAUDE_RADIUS.composer,
+  bubble: CLAUDE_RADIUS.bubble,
 } as const;
 
 export const BORDER_WIDTH = {
@@ -644,6 +779,16 @@ export const DEFAULT_MONO_FONT_STACK: string = Platform.select({
   ios: "ui-monospace",
   default: "monospace",
   web: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+});
+
+/**
+ * Editorial face — the new-session greeting and other display headings. Claude
+ * sets these in a serif; the system serif keeps the app self-contained.
+ */
+export const DEFAULT_DISPLAY_FONT_STACK: string = Platform.select({
+  ios: "New York",
+  default: "serif",
+  web: "'New York', ui-serif, Georgia, 'Times New Roman', serif",
 });
 
 // Chat and markdown content column; the appearance updater patches the user's width in.
@@ -713,10 +858,10 @@ export function buildDarkTheme(semanticColors: ReturnType<typeof buildDarkSemant
   } as const;
 }
 
-export const darkTheme = buildDarkTheme(paseoDarkColors);
+export const darkTheme = buildDarkTheme(claudeDarkColors);
 export const darkZincTheme = buildDarkTheme(zincDarkColors);
 export const darkMidnightTheme = buildDarkTheme(midnightDarkColors);
-export const darkClaudeTheme = buildDarkTheme(claudeDarkColors);
+export const darkClaudeTheme = buildDarkTheme(claudeVariantDarkColors);
 export const darkGhosttyTheme = buildDarkTheme(ghosttyDarkColors);
 
 // Pure black — zero-luminance background with high-contrast surfaces.
@@ -793,7 +938,7 @@ export const THEME_OPTIONS = [
     group: "primary",
     unistylesName: "dark",
     theme: darkTheme,
-    swatch: "#2D8B62",
+    swatch: "#C6613F",
   },
   { name: "auto", group: "primary" },
   {
@@ -886,3 +1031,7 @@ export function getNextThemePreference(current: ThemePreference): ThemePreferenc
   const nextIndex = (currentIndex + 1) % THEME_OPTIONS.length;
   return THEME_OPTIONS[nextIndex]?.name ?? THEME_OPTIONS[0].name;
 }
+
+// Claude motion and shape tokens. Values live in ./claude-tokens.ts; re-exported
+// here so a component has one import for theme, shape and motion.
+export { CLAUDE_DISTANCE, CLAUDE_DURATION, CLAUDE_EASE, CLAUDE_RADIUS } from "./claude-tokens";

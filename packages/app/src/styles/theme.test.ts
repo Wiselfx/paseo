@@ -68,25 +68,22 @@ describe("Pure black theme", () => {
 });
 
 describe("Sidebar interaction surfaces", () => {
-  it("keeps Light hover and selection darker than the sidebar surface", () => {
-    expect(lightTheme.colors.surfaceSidebarHover).toBe(lightTheme.colors.surface3);
-    expect(lightTheme.colors.surfaceSidebarSelected).toBe(lightTheme.colors.surface4);
-    expect(lightTheme.colors.surfaceSidebarSelected).not.toBe(lightTheme.colors.surfaceSidebar);
-  });
-
-  it("derives Dark hover and selection from the first two raised surfaces", () => {
-    expect(darkTheme.colors.surfaceSidebarHover).toBe(darkTheme.colors.surface1);
-    expect(darkTheme.colors.surfaceSidebarSelected).toBe(darkTheme.colors.surface2);
+  it("distinguishes hover and selection from the resting sidebar surface", () => {
+    for (const theme of [lightTheme, darkTheme]) {
+      expect(theme.colors.surfaceSidebarHover).not.toBe(theme.colors.surfaceSidebar);
+      expect(theme.colors.surfaceSidebarSelected).not.toBe(theme.colors.surfaceSidebar);
+      expect(theme.colors.surfaceSidebarSelected).not.toBe(theme.colors.surfaceSidebarHover);
+    }
   });
 });
 
 describe("Built-in light theme", () => {
   it("preserves its authored aliases and terminal contrast through the semantic builder", () => {
     expect(lightTheme.colors).toMatchObject({
-      primary: "#18181b",
-      primaryForeground: "#fafafa",
-      destructiveForeground: "#ffffff",
-      successForeground: "#ffffff",
+      primary: "#0b0b0b",
+      primaryForeground: "#fcfcfb",
+      destructiveForeground: "#fcfcfb",
+      successForeground: "#fcfcfb",
       terminal: {
         black: "#1a1a1e",
         brightBlack: "#3f3f46",

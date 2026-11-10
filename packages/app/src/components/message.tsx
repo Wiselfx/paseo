@@ -305,6 +305,7 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     ...(isWeb ? { userSelect: "text" as const } : {}),
   },
   content: {
+    flex: 1,
     alignItems: "flex-end",
     maxWidth: "100%",
     cursor: "auto",

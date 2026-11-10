@@ -11,7 +11,7 @@ interface PointerPoint {
   y: number;
 }
 
-const INITIAL_ACTIVATION_DELAY_MS = 150;
+const INITIAL_ACTIVATION_DELAY_MS = 120;
 const HORIZONTAL_TRANSIT_DISTANCE_PX = 4;
 
 export function createChatOutlineHoverIntent(input: {

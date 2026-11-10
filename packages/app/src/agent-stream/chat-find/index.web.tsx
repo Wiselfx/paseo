@@ -130,12 +130,14 @@ export function ChatFind({
       : t("paneFind.noMatches");
   return (
     <div ref={root} tabIndex={-1} style={ROOT_STYLE}>
-      <style>{`::highlight(${highlightName}) { background-color: ${styles.highlight.backgroundColor}; color: ${styles.highlight.color}; }`}</style>
+      <style>{`::highlight(${highlightName}) { background-color: ${styles.highlight.backgroundColor}; }
+::highlight(${highlightName}-rest) { background-color: ${styles.highlightRest.backgroundColor}; }`}</style>
       <SelectedMessage.Provider value={state.selectedItemId}>{children}</SelectedMessage.Provider>
       {state.open && (
         <View style={styles.overlay} dataSet={WIDGET_DATASET}>
           <PaneFind
             ref={widget}
+            variant="chat"
             query={state.query}
             status={status}
             canNavigate={state.phase === "ready" && state.count > 0}
@@ -172,5 +174,8 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.surface1,
   },
   errorText: { color: theme.colors.foreground, fontSize: theme.fontSize.sm, flex: 1 },
-  highlight: { backgroundColor: theme.colors.statusWarning, color: theme.colors.surface0 },
+  // Amber marks the match being read and the rest of its message, without overriding the
+  // text colour: the tint has to read on both the light and the dark transcript.
+  highlight: { backgroundColor: `${theme.colors.statusAwaiting}40` },
+  highlightRest: { backgroundColor: `${theme.colors.statusAwaiting}1f` },
 }));

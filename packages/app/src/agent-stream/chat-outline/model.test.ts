@@ -1,10 +1,10 @@
 import { describe, expect, it } from "vitest";
 import {
   createActivePromptPublisher,
+  isOutlineNeighborhood,
   shouldAcceptPromptIndexEpoch,
-  promptTickMagnification,
   resolveActivePromptSeq,
-  OUTLINE_MAGNIFY_RADIUS,
+  OUTLINE_NEIGHBORHOOD_RADIUS,
   type ChatOutlinePrompt,
 } from "./model";
 
@@ -19,19 +19,19 @@ function prompt(seq: number): ChatOutlinePrompt {
   return { seq, timestamp: new Date(seq).toISOString(), preview: `prompt ${seq}` };
 }
 
-describe("promptTickMagnification", () => {
-  it("peaks under the pointer and decays to nothing at the radius", () => {
-    expect(promptTickMagnification(0)).toBe(1);
-    expect(promptTickMagnification(OUTLINE_MAGNIFY_RADIUS)).toBe(0);
-    expect(promptTickMagnification(OUTLINE_MAGNIFY_RADIUS + 10)).toBe(0);
+describe("isOutlineNeighborhood", () => {
+  it("covers the ticks beside the pointer and stops at the radius", () => {
+    expect(isOutlineNeighborhood(0)).toBe(true);
+    expect(isOutlineNeighborhood(OUTLINE_NEIGHBORHOOD_RADIUS - 1)).toBe(true);
+    expect(isOutlineNeighborhood(OUTLINE_NEIGHBORHOOD_RADIUS)).toBe(false);
+    expect(isOutlineNeighborhood(OUTLINE_NEIGHBORHOOD_RADIUS + 10)).toBe(false);
   });
 
-  it("falls off monotonically and symmetrically around the pointer", () => {
-    const above = [0, 1, 2, 3].map((distance) => promptTickMagnification(distance));
-    const below = [0, -1, -2, -3].map((distance) => promptTickMagnification(distance));
+  it("is symmetric around the pointer", () => {
+    const above = [0, 1, 2, 3].map((distance) => isOutlineNeighborhood(distance));
+    const below = [0, -1, -2, -3].map((distance) => isOutlineNeighborhood(distance));
 
     expect(above).toEqual(below);
-    expect(above).toEqual([...above].sort((left, right) => right - left));
   });
 });
 

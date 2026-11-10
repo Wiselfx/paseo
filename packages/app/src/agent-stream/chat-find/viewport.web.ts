@@ -17,9 +17,13 @@ export function createFindViewport({
   getRoot,
   highlightName,
 }: ViewportInput): Pick<ChatFindOperations, "reveal" | "clear"> {
+  // The match being read paints stronger than its neighbours; the registry is deleted whole,
+  // so the pair always leaves together.
+  const restHighlightName = `${highlightName}-rest`;
   return {
     clear() {
       CSS.highlights.delete(highlightName);
+      CSS.highlights.delete(restHighlightName);
     },
     // The source message owns navigation; the rendered occurrence owns its position.
     reveal(messageId, query, occurrence, signal) {
@@ -86,6 +90,7 @@ export function createFindViewport({
             targetTop() {
               const selected = row ? findRenderedMatches(row, query)[indexInRow] : undefined;
               if (!selected) return null;
+              CSS.highlights.delete(restHighlightName);
               CSS.highlights.set(highlightName, new Highlight(selected));
               const widget = getRoot()?.querySelector<HTMLElement>(
                 '[data-chat-find-widget="true"]',
@@ -95,6 +100,23 @@ export function createFindViewport({
             },
           });
           CSS.highlights.set(highlightName, new Highlight(range));
+          // Every other rendered occurrence, so the whole result set reads as one search.
+          const rest = Array.from(
+            getRoot()?.querySelectorAll<HTMLElement>("[data-message-id]") ?? [],
+          )
+            .flatMap((messageRow) => findRenderedMatches(messageRow, query))
+            .filter(
+              (candidate) =>
+                candidate.startContainer !== range.startContainer ||
+                candidate.startOffset !== range.startOffset ||
+                candidate.endContainer !== range.endContainer ||
+                candidate.endOffset !== range.endOffset,
+            );
+          if (rest.length) {
+            CSS.highlights.set(restHighlightName, new Highlight(...rest));
+          } else {
+            CSS.highlights.delete(restHighlightName);
+          }
           resolve({ occurrence: index, count: ranges.length });
         };
         signal.addEventListener("abort", cancelled, { once: true });

@@ -57,6 +57,11 @@ export interface PaneFindHandle {
 }
 
 export interface PaneFindProps {
+  /**
+   * Chrome preset. `pane` is the editor-pane widget every pane shares; `chat` is the
+   * conversation find card, which floats over the transcript.
+   */
+  variant?: "pane" | "chat";
   query: string;
   status: string;
   canNavigate: boolean;
@@ -83,6 +88,7 @@ const FindField = forwardRef<
     label: string;
     initialValue: string;
     height: number;
+    variant: "pane" | "chat";
     trailing?: ReactNode;
     onChangeText(value: string): void;
     onKeyPress(event: NativeSyntheticEvent<TextInputKeyPressEventData>): void;
@@ -90,7 +96,17 @@ const FindField = forwardRef<
     returnKeyType?: TextInputProps["returnKeyType"];
   }
 >(function FindField(
-  { label, initialValue, height, trailing, onChangeText, onKeyPress, autoFocus, returnKeyType },
+  {
+    label,
+    initialValue,
+    height,
+    variant,
+    trailing,
+    onChangeText,
+    onKeyPress,
+    autoFocus,
+    returnKeyType,
+  },
   ref,
 ) {
   const [focused, setFocused] = useState(false);
@@ -128,7 +144,7 @@ const FindField = forwardRef<
         autoCorrect={false}
         blurOnSubmit={false}
         returnKeyType={returnKeyType}
-        style={styles.input}
+        style={[styles.input, variant === "chat" && styles.inputChat]}
       />
       {trailing}
     </View>
@@ -137,11 +153,28 @@ const FindField = forwardRef<
 
 /** Pane-local chrome. The content owner supplies search state and commands. */
 export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneFind(
-  { query, status, canNavigate, onQueryChange, onNext, onPrevious, onClose, replace },
+  {
+    variant = "pane",
+    query,
+    status,
+    canNavigate,
+    onQueryChange,
+    onNext,
+    onPrevious,
+    onClose,
+    replace,
+  },
   ref,
 ) {
   const { t } = useTranslation();
   const isCompact = useIsCompactFormFactor();
+  const isChat = variant === "chat";
+  // The chat card runs its controls on a 28px square; a touch-sized card keeps the 44pt
+  // target and only takes the corner.
+  const chatButtonStyle = useMemo(
+    () => (isChat ? [styles.chatButton, !isCompact && styles.chatButtonSize] : undefined),
+    [isChat, isCompact],
+  );
   const controlSize = smallIconButtonChromeFrameSize(isCompact);
   const glyphSize = paneContentToolbarIconSize(isCompact);
   const rowHeight = Math.max(COLLAPSED_FIELD_HEIGHT, controlSize);
@@ -203,7 +236,7 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
   const matchCount = useMemo(
     () => (
       <Text
-        style={styles.status}
+        style={[styles.status, isChat && styles.statusChat]}
         role="status"
         accessibilityLabel={t("paneFind.matches")}
         accessibilityLiveRegion="polite"
@@ -211,12 +244,12 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
         {status}
       </Text>
     ),
-    [status, t],
+    [isChat, status, t],
   );
 
   return (
     <View
-      style={styles.widget}
+      style={[styles.widget, isChat && styles.widgetChat]}
       accessibilityLabel={t("paneFind.title")}
       {...(isWeb
         ? {
@@ -236,6 +269,7 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
             label={t("paneFind.toggleReplace")}
             aria-expanded={replaceExpanded}
             compact={isCompact}
+            style={chatButtonStyle}
             onPress={toggleReplace}
           >
             {replaceExpanded ? (
@@ -254,6 +288,7 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
             label={t("paneFind.placeholder")}
             initialValue={query}
             height={rowHeight}
+            variant={variant}
             returnKeyType="search"
             trailing={matchCount}
             onChangeText={onQueryChange}
@@ -263,6 +298,7 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
             label={t("paneFind.previous")}
             compact={isCompact}
             disabled={!canNavigate}
+            style={chatButtonStyle}
             onPress={onPrevious}
           >
             <ArrowUpIcon size={glyphSize} />
@@ -271,11 +307,17 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
             label={t("paneFind.next")}
             compact={isCompact}
             disabled={!canNavigate}
+            style={chatButtonStyle}
             onPress={onNext}
           >
             <ArrowDownIcon size={glyphSize} />
           </ToolbarButton>
-          <ToolbarButton label={t("paneFind.close")} compact={isCompact} onPress={onClose}>
+          <ToolbarButton
+            label={t("paneFind.close")}
+            compact={isCompact}
+            style={chatButtonStyle}
+            onPress={onClose}
+          >
             <CloseIcon size={glyphSize} />
           </ToolbarButton>
         </View>
@@ -286,6 +328,7 @@ export const PaneFind = forwardRef<PaneFindHandle, PaneFindProps>(function PaneF
               label={t("paneFind.replaceWith")}
               initialValue={replace.value}
               height={rowHeight}
+              variant={variant}
               onChangeText={replace.onChange}
               onKeyPress={onKeyPress}
             />
@@ -334,6 +377,12 @@ const styles = StyleSheet.create((theme) => {
       borderRadius: theme.borderRadius.lg,
       ...theme.shadow.md,
     },
+    // The conversation find card sits on the transcript rather than a pane header: a card
+    // radius and an 8px inset, with its field set a step tighter than pane chrome.
+    widgetChat: {
+      borderRadius: theme.borderRadius.card,
+      padding: theme.spacing[2],
+    },
     // The disclosure column spans both rows so the two fields share a leading rail.
     gutter: { alignItems: "center", justifyContent: "center", flexShrink: 0 },
     rows: { flex: 1, minWidth: 0, gap: theme.spacing[1] },
@@ -361,11 +410,17 @@ const styles = StyleSheet.create((theme) => {
       outlineColor: "transparent",
       ...geometry.fieldTextSm,
     },
+    // 13/18: the chat card is read against prose, not a toolbar.
+    inputChat: { fontSize: 13, lineHeight: 18 },
     status: {
       flexShrink: 0,
       color: theme.colors.foregroundMuted,
       fontSize: theme.fontSize.sm,
     },
+    statusChat: { color: theme.colors.foregroundExtraMuted },
+    // Chat icon controls answer on a 7px corner, and a pointer-sized card squares them to 28.
+    chatButton: { borderRadius: 7 },
+    chatButtonSize: { width: 28, height: 28 },
     // Ghost actions sit on the field's rail, so they carry the field's padding.
     replaceAction: { paddingHorizontal: theme.spacing[2] },
   };

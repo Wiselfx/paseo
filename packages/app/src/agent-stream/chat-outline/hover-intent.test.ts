@@ -55,7 +55,7 @@ describe("chat outline hover intent", () => {
     }).toEqual({
       activations: [3],
       scheduleCount: 1,
-      delays: [150],
+      delays: [120],
     });
   });
 

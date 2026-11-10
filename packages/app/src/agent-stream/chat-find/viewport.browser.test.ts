@@ -46,6 +46,7 @@ function viewport(root: HTMLElement, capture: Capture) {
 
 afterEach(() => {
   CSS.highlights.delete("paseo-chat-find-test");
+  CSS.highlights.delete("paseo-chat-find-test-rest");
   document.body.replaceChildren();
 });
 

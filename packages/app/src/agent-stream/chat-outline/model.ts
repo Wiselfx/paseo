@@ -7,22 +7,13 @@ export function shouldAcceptPromptIndexEpoch(timelineEpoch: string, indexEpoch: 
 }
 
 /**
- * Slots further than this from the pointer keep their resting size, so a long rail
- * magnifies a local band instead of swelling the whole column.
+ * Ticks within this many slots of the pointer form the hovered neighbourhood, so a
+ * sweep along the rail inks a local band instead of the whole column.
  */
-export const OUTLINE_MAGNIFY_RADIUS = 3;
+export const OUTLINE_NEIGHBORHOOD_RADIUS = 3;
 
-/**
- * Dock-style falloff: 1 under the pointer, easing to 0 at the radius. The raised cosine
- * has no corner at either end, so sweeping the rail reads as one bulge travelling with
- * the pointer rather than a band switching on and off.
- */
-export function promptTickMagnification(slotDistance: number): number {
-  const distance = Math.abs(slotDistance);
-  if (!Number.isFinite(distance) || distance >= OUTLINE_MAGNIFY_RADIUS) {
-    return 0;
-  }
-  return (1 + Math.cos((Math.PI * distance) / OUTLINE_MAGNIFY_RADIUS)) / 2;
+export function isOutlineNeighborhood(slotDistance: number): boolean {
+  return Number.isFinite(slotDistance) && Math.abs(slotDistance) < OUTLINE_NEIGHBORHOOD_RADIUS;
 }
 
 /**

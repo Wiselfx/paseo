@@ -18,6 +18,7 @@ import { BottomSheetModalProvider } from "@gorhom/bottom-sheet";
 import { PortalProvider } from "@gorhom/portal";
 import { LucideProvider } from "lucide-react-native";
 import * as Linking from "expo-linking";
+import { useFonts } from "expo-font";
 import { Stack, useNavigationContainerRef, usePathname, useRouter } from "expo-router";
 import {
   createContext,
@@ -127,6 +128,7 @@ import { getDaemonStartService } from "@/runtime/daemon-start-service";
 import { usePanelStore, type LeftSidebarPresentation } from "@/stores/panel-store";
 import { flushDraftPersistStorage } from "@/stores/draft-store";
 import { getNextThemePreference, ICON_STROKE_WIDTH } from "@/styles/theme";
+import { APP_FONTS } from "@/styles/fonts";
 import { useSessionStore } from "@/stores/session-store";
 import { WorkspaceLayoutModePublisher } from "@/workspace-tabs/layout-mode-publisher";
 import { installWebScrollbarStyles } from "@/styles/install-web-scrollbar-styles";
@@ -990,6 +992,7 @@ function RootAppTree() {
 }
 
 export default function RootLayout() {
+  const [fontsLoaded, fontError] = useFonts(APP_FONTS);
   useEffect(() => installWebScrollbarStyles(), []);
   useEffect(() => {
     const subscription = AppState.addEventListener("change", (nextState) => {
@@ -1000,6 +1003,9 @@ export default function RootLayout() {
     return () => subscription.remove();
   }, []);
 
+  // Paint only once the Claude faces are in place: a first frame in the system
+  // face would reflow every label when the swap landed.
+  if (!fontsLoaded && !fontError) return null;
   return <RootAppTree />;
 }
 

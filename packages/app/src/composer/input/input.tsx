@@ -2445,8 +2445,12 @@ const styles = StyleSheet.create((theme: Theme) => ({
   // soft ambient shadow. The accent is never a focus stroke on this surface, and neither
   // the border nor the halo takes part in layout, so nothing shifts.
   inputWrapperFocused: {
-    borderColor: COMPOSER_FOCUS_FACE[theme.colorScheme].borderColor,
-    ...(isWeb ? { boxShadow: COMPOSER_FOCUS_FACE[theme.colorScheme].boxShadow } : null),
+    borderColor: COMPOSER_FOCUS_FACE[theme.colorScheme === "dark" ? "dark" : "light"].borderColor,
+    ...(isWeb
+      ? {
+          boxShadow: COMPOSER_FOCUS_FACE[theme.colorScheme === "dark" ? "dark" : "light"].boxShadow,
+        }
+      : null),
   },
   // Lifts the composer off the chat it sits under on phones.
   inputWrapperCompact: {

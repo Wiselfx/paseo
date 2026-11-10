@@ -467,7 +467,7 @@ function ModelSheetTrigger({
         testID="combined-model-selector"
         chevron={null}
       >
-        {ModelIcon ? (
+        {ModelIcon && iconOnly ? (
           <ComposerToolbarGlyph role={glyphRole}>
             <ModelIcon
               size={glyph.size}

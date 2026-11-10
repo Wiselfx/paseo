@@ -2,7 +2,11 @@ import { forwardRef, useCallback, type ComponentProps } from "react";
 import { Text, View, type PressableStateCallbackType } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { ComboboxTrigger } from "@/components/ui/combobox-trigger";
-import { toolbarContentSlot, toolbarSlot } from "@/components/ui/control-geometry";
+import {
+  toolbarContentSlot,
+  toolbarSlot,
+  type ToolbarGlyph,
+} from "@/components/ui/control-geometry";
 import { useComposerControlLayout } from "@/composer/agent-controls/layout-context";
 import { ComposerToolbarGlyph } from "@/composer/agent-controls/glyph";
 import type { AgentControlIcon } from "@/agent-controls/icons";
@@ -22,6 +26,37 @@ type AgentControlTriggerProps = Omit<
   onPress: () => void;
   accessibilityLabel: string;
 };
+
+function AgentControlLeadingGlyph({
+  isSheet,
+  showToolbarLabel,
+  icon: Icon,
+  glyph,
+  role,
+  color,
+}: {
+  isSheet: boolean;
+  showToolbarLabel: boolean;
+  icon: AgentControlIcon;
+  glyph: ToolbarGlyph;
+  role: "label" | "icon";
+  color: string;
+}) {
+  if (isSheet) {
+    return (
+      <View style={styles.sheetGlyph}>
+        <Icon size={16} color={color} />
+      </View>
+    );
+  }
+  // The chip's words already name the control; DSH's toolbar is words only.
+  if (showToolbarLabel) return null;
+  return (
+    <ComposerToolbarGlyph role={role}>
+      <Icon size={glyph.size} strokeWidth={glyph.strokeWidth} color={color} />
+    </ComposerToolbarGlyph>
+  );
+}
 
 export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
   function AgentControlTrigger(
@@ -75,15 +110,14 @@ export const AgentControlTrigger = forwardRef<View, AgentControlTriggerProps>(
         chevron={showCaret ? undefined : null}
         block={isSheet}
       >
-        {isSheet ? (
-          <View style={styles.sheetGlyph}>
-            <Icon size={16} color={resolvedIconColor} />
-          </View>
-        ) : (
-          <ComposerToolbarGlyph role={glyphRole}>
-            <Icon size={glyph.size} strokeWidth={glyph.strokeWidth} color={resolvedIconColor} />
-          </ComposerToolbarGlyph>
-        )}
+        <AgentControlLeadingGlyph
+          isSheet={isSheet}
+          showToolbarLabel={showToolbarLabel}
+          icon={Icon}
+          glyph={glyph}
+          role={glyphRole}
+          color={resolvedIconColor}
+        />
         {isSheet ? (
           <Text style={styles.sheetLabel} numberOfLines={1}>
             {label}
@@ -107,7 +141,7 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     gap: theme.spacing[1],
     ...toolbarContentSlot(),
-    borderRadius: theme.borderRadius.control,
+    borderRadius: 7,
     backgroundColor: "transparent",
   },
   toolbarIconOnly: {
@@ -120,7 +154,7 @@ const styles = StyleSheet.create((theme) => ({
     minWidth: 0,
     flexShrink: 1,
     color: theme.colors.foregroundMuted,
-    fontSize: 13,
+    fontSize: 14,
     lineHeight: 18,
     fontWeight: theme.fontWeight.normal,
   },

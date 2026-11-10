@@ -67,7 +67,32 @@ interface CombinedModelSelectorProps {
   toolbar?: {
     glyph: ToolbarGlyph;
     showCaret: boolean;
+    /** The chip's label already names the model; a leading glyph only crowds it. */
+    showGlyph?: boolean;
   };
+}
+
+function ModelTriggerGlyph({
+  provider,
+  serverId,
+  toolbar,
+}: {
+  provider: string | null | undefined;
+  serverId: string | null | undefined;
+  toolbar: { glyph: ToolbarGlyph; showGlyph?: boolean } | undefined;
+}) {
+  if (!provider || provider.trim().length === 0 || toolbar?.showGlyph === false) return null;
+  return (
+    <View style={toolbar ? styles.toolbarGlyph : styles.glyph}>
+      <ModelProviderGlyph
+        provider={provider}
+        serverId={serverId ?? null}
+        size={toolbar?.glyph.size ?? ICON_SIZE.md}
+        strokeWidth={toolbar?.glyph.strokeWidth}
+        tone={toolbar?.glyph.tone}
+      />
+    </View>
+  );
 }
 
 export function CombinedModelSelector({
@@ -256,17 +281,7 @@ export function CombinedModelSelector({
           testID="combined-model-selector"
           chevron={toolbar?.showCaret === false ? null : undefined}
         >
-          {selectedProvider.trim().length > 0 ? (
-            <View style={toolbar ? styles.toolbarGlyph : styles.glyph}>
-              <ModelProviderGlyph
-                provider={selectedProvider}
-                serverId={serverId}
-                size={toolbar?.glyph.size ?? ICON_SIZE.md}
-                strokeWidth={toolbar?.glyph.strokeWidth}
-                tone={toolbar?.glyph.tone}
-              />
-            </View>
-          ) : null}
+          <ModelTriggerGlyph provider={selectedProvider} serverId={serverId} toolbar={toolbar} />
           <Text style={styles.triggerText} numberOfLines={1} ellipsizeMode="tail">
             {browser.triggerLabel}
           </Text>

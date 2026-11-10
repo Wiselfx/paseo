@@ -105,6 +105,22 @@ Status: `planned` → `built` → `reviewed` → `done`. Every in-scope row need
 | peakrate           | no            | DSH product surface                              | —                                                           | out      |
 | sodium             | no            | rendering engine, not a look                     | —                                                           | out      |
 
+## Type
+
+Claude's three interface faces ship in `packages/app/assets/fonts/anthropic` and are loaded
+once at the root (`src/styles/fonts.ts` via `expo-font`); `src/styles/theme.ts` names them in
+the three stacks:
+
+| role                         | face                     | stack                         |
+| ---------------------------- | ------------------------ | ----------------------------- |
+| interface                    | Anthropic Sans Web Text  | `AnthropicSans` + system sans |
+| conversation prose, headings | Anthropic Serif Web Text | `AnthropicSerif` + Georgia    |
+| code                         | Anthropic Mono Web       | `AnthropicMono` + system mono |
+
+Prose (`components/markdown/styles.ts`) reads `theme.fontFamily.prose`; the composer, sidebar,
+and controls keep `theme.fontFamily.ui`. These are Text Regular cuts, so the platform
+synthesizes weight. Provenance and licensing note: `packages/app/assets/fonts/anthropic/README.md`.
+
 ## Files changed
 
 Recorded per package at integration time.

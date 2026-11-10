@@ -31,6 +31,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useIsCompactFormFactor } from "@/constants/layout";
+import { COMPOSER_RAIL_DISC_SIZE } from "@/composer/input/toolbar-rails";
 import {
   controlSizingForLayout,
   TOOLBAR_CONTROL_GAP,
@@ -2743,8 +2744,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
     justifyContent: "center",
   },
   voiceModeDisc: {
-    width: TOOLBAR_DISC_SIZE,
-    height: TOOLBAR_DISC_SIZE,
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.surface3,
     alignItems: "center",

@@ -19,7 +19,7 @@ export function createMarkdownStyles(
   const block = { marginTop: 0, marginBottom: blockGap };
   const paragraph = {
     fontSize,
-    fontFamily: theme.fontFamily.ui,
+    fontFamily: theme.fontFamily.prose,
     lineHeight,
     color: muted ? theme.colors.foregroundMuted : theme.colors.foreground,
     ...block,
@@ -76,7 +76,7 @@ export function createMarkdownStyles(
         },
       },
       code: {
-        fontFamily: theme.fontFamily.mono === "ui-monospace" && !isWeb ? "" : theme.fontFamily.mono,
+        fontFamily: theme.fontFamily.mono,
         fontScale: 0.92,
         color: theme.colors.foreground,
         backgroundColor: theme.colors.bubble,
@@ -84,7 +84,7 @@ export function createMarkdownStyles(
       },
       codeBlock: {
         ...paragraph,
-        fontFamily: theme.fontFamily.mono === "ui-monospace" && !isWeb ? "" : theme.fontFamily.mono,
+        fontFamily: theme.fontFamily.mono,
         fontSize: 12.5,
         lineHeight: 19,
         backgroundColor: theme.colors.codeBackground,

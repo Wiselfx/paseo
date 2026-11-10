@@ -786,26 +786,33 @@ export const OPACITY = {
 // Platform default font stacks — copied verbatim from constants/theme.ts `Fonts`
 // (sans -> ui, mono -> mono). These seed the dynamic `fontFamily` theme token and
 // are the fallback an empty user-supplied family resolves to at apply time.
+// The three Anthropic faces (Text Regular cuts) ship with the app; see
+// `styles/fonts.ts`. Each stack names the face first and keeps the platform's
+// system faces behind it so a failed load degrades instead of reflowing.
 export const DEFAULT_UI_FONT_STACK: string = Platform.select({
-  ios: "system-ui",
-  default: "normal",
-  web: "system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
+  ios: "AnthropicSans",
+  android: "AnthropicSans",
+  default: "system-ui",
+  web: "'AnthropicSans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif",
 });
 
 export const DEFAULT_MONO_FONT_STACK: string = Platform.select({
-  ios: "ui-monospace",
+  ios: "AnthropicMono",
+  android: "AnthropicMono",
   default: "monospace",
-  web: "SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
+  web: "'AnthropicMono', ui-monospace, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace",
 });
 
 /**
- * Editorial face — the new-session greeting and other display headings. Claude
- * sets these in a serif; the system serif keeps the app self-contained.
+ * Claude's reading face. Conversation prose — body and headings — is set in the
+ * serif; the interface around it keeps the sans. Chinese has no glyphs in the
+ * serif cut, so the sans stack follows it.
  */
 export const DEFAULT_DISPLAY_FONT_STACK: string = Platform.select({
-  ios: "New York",
+  ios: "AnthropicSerif",
+  android: "AnthropicSerif",
   default: "serif",
-  web: "'New York', ui-serif, Georgia, 'Times New Roman', serif",
+  web: "'AnthropicSerif', Georgia, 'Times New Roman', 'Noto Sans SC', sans-serif",
 });
 
 // Chat and markdown content column; the appearance updater patches the user's width in.
@@ -818,7 +825,7 @@ export const DEFAULT_CONTENT_MAX_WIDTH = 820;
 interface CommonTheme {
   spacing: typeof SPACING;
   fontSize: Record<keyof typeof FONT_SIZE, number>;
-  fontFamily: { ui: string; mono: string };
+  fontFamily: { ui: string; mono: string; prose: string };
   lineHeight: Record<keyof typeof LINE_HEIGHT, number>;
   contentMaxWidth: number;
   iconSize: typeof ICON_SIZE;
@@ -831,7 +838,11 @@ interface CommonTheme {
 const commonTheme: CommonTheme = {
   spacing: SPACING,
   fontSize: FONT_SIZE,
-  fontFamily: { ui: DEFAULT_UI_FONT_STACK, mono: DEFAULT_MONO_FONT_STACK },
+  fontFamily: {
+    ui: DEFAULT_UI_FONT_STACK,
+    mono: DEFAULT_MONO_FONT_STACK,
+    prose: DEFAULT_DISPLAY_FONT_STACK,
+  },
   lineHeight: LINE_HEIGHT,
   contentMaxWidth: DEFAULT_CONTENT_MAX_WIDTH,
   iconSize: ICON_SIZE,

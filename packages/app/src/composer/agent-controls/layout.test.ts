@@ -12,7 +12,7 @@ const TOUCH = composerToolbarGeometry("touch");
 describe("composer control layout", () => {
   it("removes labels, then folds controls, then drops the model label as the toolbar narrows", () => {
     expect(resolveComposerControlPresentation("full")).toEqual({
-      showCarets: true,
+      showCarets: false,
       showThinkingLabel: true,
       showModeLabel: true,
       aggregateFeatures: false,

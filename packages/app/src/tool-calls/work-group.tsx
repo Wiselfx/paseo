@@ -1,4 +1,12 @@
-import { Children, isValidElement, useCallback, useEffect, useMemo, type ReactNode } from "react";
+import {
+  Children,
+  isValidElement,
+  useCallback,
+  useEffect,
+  useMemo,
+  useState,
+  type ReactNode,
+} from "react";
 import {
   ScrollView,
   StyleSheet as NativeStyleSheet,
@@ -18,8 +26,13 @@ import Animated, {
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
-import { Check, ChevronRight, CircleDot, FileSymlink, TriangleAlert } from "lucide-react-native";
+import { ChevronRight, CircleDot, FileSymlink, TriangleAlert } from "lucide-react-native";
 import { PressHighlight } from "@/components/ui/press-highlight";
+import {
+  ProcessCardScopeProvider,
+  useInsideProcessCard,
+  useInsideTurnBody,
+} from "@/agent-stream/process-card-scope";
 import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 import type { Theme } from "@/styles/theme";
 
@@ -28,7 +41,6 @@ const ROW_MIN_HEIGHT = 36;
 const DOT_SIZE = 4;
 const GLYPH_SIZE = 12;
 const ThemedChevronRight = withUnistyles(ChevronRight);
-const ThemedCheck = withUnistyles(Check);
 const ThemedCircleDot = withUnistyles(CircleDot);
 const ThemedFileSymlink = withUnistyles(FileSymlink);
 const ThemedTriangleAlert = withUnistyles(TriangleAlert);
@@ -178,35 +190,37 @@ export function WorkGroupCard({
       ]}
       testID={testID}
     >
-      <View style={styles.card}>
-        <PressHighlight
-          style={headerStyle}
-          onPress={onToggle}
-          disabled={!onToggle}
-          accessibilityRole={onToggle ? "button" : undefined}
-          accessibilityState={accessibilityState}
-        >
-          {isLoading ? <WorkGroupLoadingDots /> : null}
-          <Text style={styles.label} numberOfLines={1}>
-            {label}
-          </Text>
-          <WorkGroupChevron expanded={expanded} />
-        </PressHighlight>
-        {expanded && hasRows ? (
+      <PressHighlight
+        style={headerStyle}
+        onPress={onToggle}
+        disabled={!onToggle}
+        accessibilityRole={onToggle ? "button" : undefined}
+        accessibilityState={accessibilityState}
+      >
+        {isLoading ? <WorkGroupLoadingDots /> : null}
+        <Text style={styles.label} numberOfLines={1}>
+          {label}
+        </Text>
+        <WorkGroupChevron expanded={expanded} />
+      </PressHighlight>
+      {expanded && hasRows ? (
+        <View style={styles.card}>
           <ScrollView style={rowsStyle} nestedScrollEnabled showsVerticalScrollIndicator>
             <WorkGroupFold>
-              {rows.map((row, index) => (
-                <View
-                  key={isValidElement(row) ? String(row.key) : `row-${index}`}
-                  style={index > 0 ? styles.rowDivider : undefined}
-                >
-                  {row}
-                </View>
-              ))}
+              <ProcessCardScopeProvider value={true}>
+                {rows.map((row, index) => (
+                  <View
+                    key={isValidElement(row) ? String(row.key) : `row-${index}`}
+                    style={index > 0 ? styles.rowDivider : undefined}
+                  >
+                    {row}
+                  </View>
+                ))}
+              </ProcessCardScopeProvider>
             </WorkGroupFold>
           </ScrollView>
-        ) : null}
-      </View>
+        </View>
+      ) : null}
     </View>
   );
 }
@@ -227,6 +241,35 @@ interface WorkGroupRowProps {
   testID?: string;
 }
 
+/**
+ * DSH rows carry no success mark: the chevron or the details say the row is done, and
+ * a line of checks reads as a checklist rather than a transcript. Running and failed
+ * rows keep a glyph because only those states change what the row means.
+ */
+function RowStatusGlyph({ isLoading, isError }: { isLoading: boolean; isError: boolean }) {
+  if (isError) {
+    return <ThemedTriangleAlert size={GLYPH_SIZE} uniProps={dangerIconMapping} />;
+  }
+  if (isLoading) {
+    return <ThemedCircleDot size={GLYPH_SIZE} uniProps={mutedIconMapping} />;
+  }
+  return null;
+}
+
+function WorkGroupRowDetails({
+  insideTurnBody,
+  children,
+}: {
+  insideTurnBody: boolean;
+  children: ReactNode;
+}) {
+  return (
+    <View style={[styles.details, insideTurnBody ? styles.detailsInTurnBody : null]}>
+      {children}
+    </View>
+  );
+}
+
 /** One line of work inside a process card: what ran, its preview, and its status. */
 export function WorkGroupRow({
   label,
@@ -243,17 +286,14 @@ export function WorkGroupRow({
   disableOuterSpacing,
   testID,
 }: WorkGroupRowProps) {
-  const handleOpenFile = useCallback(
-    (event: { stopPropagation?: () => void }) => {
-      event.stopPropagation?.();
-      onOpenFile?.();
-    },
-    [onOpenFile],
-  );
+  const insideProcessCard = useInsideProcessCard();
+  const insideTurnBody = useInsideTurnBody();
+  const [hovered, setHovered] = useState(false);
+  const handleHoverIn = useCallback(() => setHovered(true), []);
+  const handleHoverOut = useCallback(() => setHovered(false), []);
   const rowStyle = useCallback(
-    ({ hovered, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
-      styles.row,
-      hovered ? styles.hover : null,
+    ({ pressed }: PressableStateCallbackType) => [
+      styles.rowToggle,
       pressed ? styles.pressed : null,
     ],
     [],
@@ -262,46 +302,50 @@ export function WorkGroupRow({
     () => (onToggle ? { expanded: isExpanded } : undefined),
     [isExpanded, onToggle],
   );
-  let statusGlyph = <ThemedCheck size={GLYPH_SIZE} uniProps={mutedIconMapping} />;
-  if (isLoading) {
-    statusGlyph = <ThemedCircleDot size={GLYPH_SIZE} uniProps={mutedIconMapping} />;
-  }
-  if (isError) {
-    statusGlyph = <ThemedTriangleAlert size={GLYPH_SIZE} uniProps={dangerIconMapping} />;
-  }
+  const rowSpacing = useMemo(() => {
+    if (insideProcessCard || insideTurnBody || isGroupRow || disableOuterSpacing) return null;
+    return isLastInSequence ? styles.containerLastInSequence : styles.containerSpacing;
+  }, [disableOuterSpacing, insideProcessCard, insideTurnBody, isGroupRow, isLastInSequence]);
+  const rowShellStyle = useMemo(
+    () => [styles.row, insideTurnBody ? styles.rowInTurnBody : null, hovered ? styles.hover : null],
+    [hovered, insideTurnBody],
+  );
+  const trailingNode =
+    isLoading || isError || !onToggle ? (
+      <RowStatusGlyph isLoading={isLoading} isError={isError} />
+    ) : (
+      <WorkGroupChevron expanded={isExpanded} />
+    );
 
   return (
-    <View
-      style={[
-        !isGroupRow &&
-          !disableOuterSpacing &&
-          (isLastInSequence ? styles.containerLastInSequence : styles.containerSpacing),
-      ]}
-      testID={testID}
-    >
-      <PressHighlight
-        style={rowStyle}
-        onPress={onToggle}
-        disabled={!onToggle}
-        accessibilityRole={onToggle ? "button" : undefined}
-        accessibilityState={accessibilityState}
-      >
-        <View style={styles.rowText}>
-          <Text
-            style={[styles.rowTitle, trailing === "chevron" ? styles.rowTitleMuted : null]}
-            numberOfLines={1}
-          >
-            {label}
-          </Text>
-          {subtitle ? (
-            <Text style={styles.rowSubtitle} numberOfLines={1} ellipsizeMode="tail">
-              {subtitle}
+    <View style={rowSpacing} testID={testID}>
+      <View style={rowShellStyle} onPointerEnter={handleHoverIn} onPointerLeave={handleHoverOut}>
+        <PressHighlight
+          style={insideTurnBody ? styles.rowToggleInTurnBody : rowStyle}
+          onPress={onToggle}
+          disabled={!onToggle}
+          accessibilityRole={onToggle ? "button" : undefined}
+          accessibilityState={accessibilityState}
+        >
+          <View style={styles.rowText}>
+            <Text
+              style={[styles.rowTitle, trailing === "chevron" ? styles.rowTitleMuted : null]}
+              numberOfLines={1}
+            >
+              {label}
             </Text>
-          ) : null}
-        </View>
+            {subtitle ? <View style={styles.rowDot} /> : null}
+            {subtitle ? (
+              <Text style={styles.rowSubtitle} numberOfLines={1} ellipsizeMode="tail">
+                {subtitle}
+              </Text>
+            ) : null}
+          </View>
+          {trailingNode}
+        </PressHighlight>
         {onOpenFile ? (
           <PressHighlight
-            onPress={handleOpenFile}
+            onPress={onOpenFile}
             accessibilityRole="button"
             testID="tool-call-open-file"
             style={styles.openFile}
@@ -310,9 +354,10 @@ export function WorkGroupRow({
             <ThemedFileSymlink size={GLYPH_SIZE} uniProps={mutedIconMapping} />
           </PressHighlight>
         ) : null}
-        {trailing === "chevron" ? <WorkGroupChevron expanded={isExpanded} /> : statusGlyph}
-      </PressHighlight>
-      {details ? <View style={styles.details}>{details}</View> : null}
+      </View>
+      {details ? (
+        <WorkGroupRowDetails insideTurnBody={insideTurnBody}>{details}</WorkGroupRowDetails>
+      ) : null}
     </View>
   );
 }
@@ -325,6 +370,7 @@ const styles = StyleSheet.create((theme) => ({
     marginBottom: theme.spacing[4],
   },
   card: {
+    marginTop: 8,
     borderWidth: theme.borderWidth[1],
     borderColor: theme.colors.border,
     borderRadius: theme.borderRadius.control,
@@ -335,10 +381,10 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[1],
-    paddingHorizontal: 12,
+    borderRadius: theme.borderRadius.md,
   },
   label: {
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
     color: theme.colors.foregroundMuted,
     fontFamily: theme.fontFamily.ui,
@@ -361,29 +407,52 @@ const styles = StyleSheet.create((theme) => ({
     borderRadius: DOT_SIZE / 2,
     backgroundColor: theme.colors.brand,
   },
-  rows: {
-    borderTopWidth: NativeStyleSheet.hairlineWidth,
-    borderTopColor: theme.colors.divider,
-  },
+  rows: {},
   rowDivider: {
     borderTopWidth: NativeStyleSheet.hairlineWidth,
     borderTopColor: theme.colors.divider,
   },
   row: {
-    minHeight: ROW_MIN_HEIGHT,
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    marginHorizontal: 0,
-    paddingHorizontal: 12,
+    paddingRight: 12,
+    borderRadius: theme.borderRadius.md,
+  },
+  rowToggle: {
+    minHeight: ROW_MIN_HEIGHT,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
+    paddingLeft: 12,
+    paddingVertical: theme.spacing[1.5],
+    borderRadius: theme.borderRadius.md,
+  },
+  // The turn body card already insets its rows; the row must not inset again.
+  rowInTurnBody: {
+    paddingRight: 0,
+  },
+  rowToggleInTurnBody: {
+    minHeight: ROW_MIN_HEIGHT,
+    flexShrink: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
     paddingVertical: theme.spacing[1.5],
     borderRadius: theme.borderRadius.md,
   },
   rowText: {
-    flex: 1,
+    flexShrink: 1,
     minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[1.5],
   },
   rowTitle: {
+    flexShrink: 1,
     color: theme.colors.foreground,
     fontFamily: theme.fontFamily.ui,
     fontSize: 13,
@@ -393,10 +462,17 @@ const styles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
   },
   rowSubtitle: {
+    flexShrink: 1,
     color: theme.colors.foregroundExtraMuted,
-    fontFamily: theme.fontFamily.mono,
-    fontSize: 12,
-    lineHeight: 16,
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 13,
+    lineHeight: 18,
+  },
+  rowDot: {
+    width: 2,
+    height: 2,
+    borderRadius: 1,
+    backgroundColor: theme.colors.foregroundExtraMuted,
   },
   hover: {
     backgroundColor: theme.colors.hover,
@@ -407,9 +483,14 @@ const styles = StyleSheet.create((theme) => ({
   openFile: {
     padding: theme.spacing[1],
     margin: -theme.spacing[1],
+    marginLeft: "auto",
     borderRadius: theme.borderRadius.md,
   },
   details: {
+    paddingHorizontal: 12,
     paddingBottom: 10,
+  },
+  detailsInTurnBody: {
+    paddingHorizontal: 0,
   },
 }));

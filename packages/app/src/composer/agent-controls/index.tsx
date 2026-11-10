@@ -786,8 +786,12 @@ function DesktopAgentControlsContent(props: DesktopAgentControlsContentProps) {
     modelSelectorServerId,
   } = props;
   const modelToolbar = useMemo(
-    () => ({ glyph: glyphs.label, showCaret: presentation.showCarets }),
-    [glyphs, presentation.showCarets],
+    () => ({
+      glyph: glyphs.label,
+      showCaret: presentation.showCarets,
+      showGlyph: !presentation.showModelLabel,
+    }),
+    [glyphs, presentation.showCarets, presentation.showModelLabel],
   );
   const featuresSheetHeader = useMemo<SheetHeader>(
     () => ({ title: t("agentControls.features.title") }),

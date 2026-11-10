@@ -219,7 +219,7 @@ export function resolveComposerControlDensity(input: {
 
 const PRESENTATIONS: Record<ComposerControlDensity, ComposerControlPresentation> = {
   full: {
-    showCarets: true,
+    showCarets: false,
     showThinkingLabel: true,
     showModeLabel: true,
     aggregateFeatures: false,

@@ -70,7 +70,7 @@ import {
 import { ToolCallSheetProvider } from "@/components/tool-call-sheet";
 import { createStreamPresentation } from "./presentation";
 import { OverviewToolCallGroupView } from "@/tool-calls/detail-level/overview/view";
-import { IndentRail } from "@/components/indent-rail";
+import { TurnBodyScopeProvider, useInsideProcessCard } from "@/agent-stream/process-card-scope";
 import { TurnSummaryLine } from "./turn-collapse/summary-line";
 import { type AgentStreamRenderModel, buildAgentStreamRenderModel } from "./model";
 import { resolveStreamRenderStrategy } from "./strategy-resolver";
@@ -163,7 +163,7 @@ function renderPendingPermissionsNode(input: {
  * Where a row sits in an opened turn: its summary line's row, a row inside the turn, or the
  * turn's last row. The rail runs through the gaps between them so the turn reads as one block.
  */
-type TurnIndent = "none" | "openedHost" | "nested" | "lastNested";
+type TurnIndent = "none" | "openedHost" | "firstNested" | "singleNested" | "nested" | "lastNested";
 
 function renderStreamItemWithTurnFooter(input: {
   content: ReactNode;
@@ -328,7 +328,7 @@ function ScrollToBottomButton({
           accessibilityLabel={t("agentStream.scrollToBottom")}
           testID="scroll-to-bottom-button"
         >
-          <ChevronDown size={24} color={stylesheet.scrollToBottomIcon.color} />
+          <ChevronDown size={16} color={stylesheet.scrollToBottomIcon.color} />
         </Pressable>
       </Animated.View>
     </View>
@@ -700,8 +700,13 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
       const { nestedItemIds } = presentation.turns;
       const { item } = layoutItem;
       if (nestedItemIds.has(item.id)) {
+        const above = layoutItem.aboveItem;
         const below = layoutItem.belowItem;
-        return below && nestedItemIds.has(below.id) ? "nested" : "lastNested";
+        const belowNested = below != null && nestedItemIds.has(below.id);
+        if (above == null || !nestedItemIds.has(above.id)) {
+          return belowNested ? "firstNested" : "singleNested";
+        }
+        return belowNested ? "nested" : "lastNested";
       }
       return item.kind === "turn_summary" && item.expanded ? "openedHost" : "none";
     });
@@ -1732,6 +1737,39 @@ const stylesheet = StyleSheet.create((theme) => ({
   list: {
     flex: 1,
   },
+  turnBodyFirst: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    borderWidth: theme.borderWidth[1],
+    borderBottomWidth: 0,
+    borderColor: theme.colors.border,
+    borderTopLeftRadius: theme.borderRadius.control,
+    borderTopRightRadius: theme.borderRadius.control,
+  },
+  turnBodyMiddle: {
+    paddingHorizontal: 12,
+    borderLeftWidth: theme.borderWidth[1],
+    borderRightWidth: theme.borderWidth[1],
+    borderTopWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+  },
+  turnBodyLast: {
+    paddingHorizontal: 12,
+    borderWidth: theme.borderWidth[1],
+    borderTopWidth: 0,
+    borderColor: theme.colors.border,
+    borderBottomLeftRadius: theme.borderRadius.control,
+    borderBottomRightRadius: theme.borderRadius.control,
+    overflow: "hidden",
+  },
+  turnBodySingle: {
+    marginTop: 8,
+    paddingHorizontal: 12,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    borderRadius: theme.borderRadius.control,
+    overflow: "hidden",
+  },
   streamItemWrapper: {
     width: "100%",
     maxWidth: theme.contentMaxWidth,
@@ -1773,10 +1811,12 @@ const stylesheet = StyleSheet.create((theme) => ({
     alignItems: "center",
   },
   scrollToBottomButton: {
-    width: 48,
-    height: 48,
-    borderRadius: 24,
-    backgroundColor: theme.colors.surface2,
+    width: 32,
+    height: 32,
+    borderRadius: 16,
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+    backgroundColor: theme.colors.surface1,
     alignItems: "center",
     justifyContent: "center",
     ...theme.shadow.sm,
@@ -1869,6 +1909,7 @@ interface StreamItemWrapperProps {
 }
 
 function StreamItemWrapper({ gapBelow, turnIndent, children }: StreamItemWrapperProps) {
+  const insideProcessCard = useInsideProcessCard();
   const wrapperStyle = useMemo(
     () => [
       stylesheet.streamItemWrapper,
@@ -1876,26 +1917,37 @@ function StreamItemWrapper({ gapBelow, turnIndent, children }: StreamItemWrapper
     ],
     [gapBelow, turnIndent],
   );
-  const gapStyle = useMemo(() => ({ paddingBottom: gapBelow }), [gapBelow]);
+  if (insideProcessCard) {
+    return <View style={stylesheet.streamItemWrapper}>{children}</View>;
+  }
   switch (turnIndent) {
     case "none":
     case "openedHost":
+      return <View style={wrapperStyle}>{children}</View>;
+    // An opened turn summary is the header; its folded rows form one card under it,
+    // drawn a segment at a time because the stream lays them out as siblings.
+    case "singleNested":
       return (
-        <View style={wrapperStyle}>
-          {children}
-          {turnIndent === "openedHost" ? <IndentRail style={gapStyle} /> : null}
+        <View style={[wrapperStyle, stylesheet.turnBodySingle, { marginBottom: gapBelow }]}>
+          <TurnBodyScopeProvider value={true}>{children}</TurnBodyScopeProvider>
+        </View>
+      );
+    case "firstNested":
+      return (
+        <View style={[wrapperStyle, stylesheet.turnBodyFirst]}>
+          <TurnBodyScopeProvider value={true}>{children}</TurnBodyScopeProvider>
         </View>
       );
     case "nested":
       return (
-        <View style={wrapperStyle}>
-          <IndentRail style={gapStyle}>{children}</IndentRail>
+        <View style={[wrapperStyle, stylesheet.turnBodyMiddle]}>
+          <TurnBodyScopeProvider value={true}>{children}</TurnBodyScopeProvider>
         </View>
       );
     case "lastNested":
       return (
-        <View style={wrapperStyle}>
-          <IndentRail>{children}</IndentRail>
+        <View style={[wrapperStyle, stylesheet.turnBodyLast, { marginBottom: gapBelow }]}>
+          <TurnBodyScopeProvider value={true}>{children}</TurnBodyScopeProvider>
         </View>
       );
   }

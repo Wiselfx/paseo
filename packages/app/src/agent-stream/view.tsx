@@ -1464,7 +1464,7 @@ function PermissionActionButton({
   onPress,
 }: PermissionActionButtonProps) {
   const handlePress = useCallback(() => onPress(action), [onPress, action]);
-  const isDanger = action.variant === "danger";
+  const isDanger = action.variant === "danger" || action.behavior === "deny";
   const optionTextStyle = isPrimary
     ? [permissionStyles.optionText, permissionStyles.optionTextPrimary]
     : [permissionStyles.optionText, isDanger ? permissionStyles.optionTextDanger : null];
@@ -1625,6 +1625,15 @@ function PermissionRequestCard({
     [handleResponse],
   );
 
+  // Providers send bare allow/deny actions; the first allow is the default, unless a
+  // provider marks one as primary itself.
+  const primaryActionId = useMemo(
+    () =>
+      resolvedActions.find((action) => action.variant === "primary")?.id ??
+      resolvedActions.find((action) => action.behavior === "allow")?.id,
+    [resolvedActions],
+  );
+
   const optionsContainerStyle = useMemo(
     () => [
       permissionStyles.optionsContainer,
@@ -1657,7 +1666,7 @@ function PermissionRequestCard({
 
       <View style={optionsContainerStyle}>
         {resolvedActions.map((action) => {
-          const isPrimary = action.variant === "primary";
+          const isPrimary = action.id === primaryActionId;
           const isRespondingAction = respondingActionId === action.id;
           const Icon = action.behavior === "allow" ? ThemedCheckIcon : ThemedXIcon;
           let testID: string;

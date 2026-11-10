@@ -3,7 +3,9 @@ import { darkHighlightColors, lightHighlightColors } from "@getpaseo/highlight";
 import {
   CLAUDE_DURATION,
   CLAUDE_EASE,
+  CLAUDE_FOCUS,
   CLAUDE_RADIUS,
+  CLAUDE_STATUS,
   claudeDarkCard,
   claudeLightCard,
   type ClaudeCard,
@@ -269,6 +271,17 @@ const lightTerminalAnsi = {
 } as const;
 
 /**
+ * Scheme-independent Claude tokens: the sidebar's status inks and the keyboard
+ * focus ring. Both schemes share them (DSH literals; OCU [R] for the ring).
+ */
+const claudeStatusTokens = {
+  statusUnread: CLAUDE_STATUS.unread,
+  statusAwaiting: CLAUDE_STATUS.awaiting,
+  focusRing: CLAUDE_FOCUS.ring,
+  focusRingGlow: CLAUDE_FOCUS.glow,
+} as const;
+
+/**
  * Resolves the Claude card into semantic values. A theme variant without a card
  * keeps its own palette through the fallback; callers never branch per token.
  */
@@ -367,6 +380,8 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     skeletonBase: claude.skeletonBase,
     skeletonSheen: claude.skeletonSheen,
     scrim: claude.scrim,
+
+    ...claudeStatusTokens,
 
     accent: tint.accent,
     accentBright: tint.accentBright,
@@ -535,6 +550,8 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     skeletonBase: claude.skeletonBase,
     skeletonSheen: claude.skeletonSheen,
     scrim: claude.scrim,
+
+    ...claudeStatusTokens,
 
     accent: tint.accent,
     accentBright: tint.accentBright,

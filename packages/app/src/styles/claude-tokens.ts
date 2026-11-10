@@ -165,3 +165,22 @@ export const CLAUDE_DISTANCE = {
   /** A line of the greeting rising. */
   rise: 12,
 } as const;
+
+/**
+ * Status inks. OCU specifies none; these are DSH's literals
+ * (`docs/STYLE.md`), identical in both schemes.
+ */
+export const CLAUDE_STATUS = {
+  /** An unread background completion. Not the brand accent. */
+  unread: "#2a78d6",
+  /** Waiting for the reader: approvals, plan reviews, questions. */
+  awaiting: "#fab219",
+  /** The sidebar's muted running dot; breathing carries the state. */
+  running: "#898781",
+} as const;
+
+/** OCU §1 [R]: the keyboard focus ring is blue with a glow, not the brand. */
+export const CLAUDE_FOCUS = {
+  ring: "#2a78d6",
+  glow: "#cde2fb",
+} as const;

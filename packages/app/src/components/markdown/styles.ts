@@ -1,5 +1,5 @@
 import type { MarkdownStyle } from "react-native-enriched-markdown";
-import type { Theme } from "@/styles/theme";
+import { DEFAULT_DISPLAY_FONT_STACK, type Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
 
 // iOS Safari needs the prefix to override the gesture host's selection suppression.
@@ -14,76 +14,82 @@ export function createMarkdownStyles(
   }: { compact?: boolean; muted?: boolean; blockGap: number },
 ): { markdownStyle: MarkdownStyle; selectionColor: string; containerStyle?: typeof WEB_CONTAINER } {
   const fontSize = compact ? theme.fontSize.base : theme.fontSize.content;
+  const lineHeight = compact ? 20 : 23;
   // Every block is followed by the same gap; the library drops it after the last block.
   const block = { marginTop: 0, marginBottom: blockGap };
   const paragraph = {
     fontSize,
     fontFamily: theme.fontFamily.ui,
-    lineHeight: Math.round(fontSize * 1.4),
+    lineHeight,
     color: muted ? theme.colors.foregroundMuted : theme.colors.foreground,
     ...block,
   };
-  const heading = (scale: number) => ({
+  const heading = (size: number, line: number) => ({
     ...paragraph,
-    fontSize: Math.round(fontSize * scale),
-    lineHeight: Math.round(fontSize * scale * 1.3),
-    fontWeight: "bold",
+    fontFamily: DEFAULT_DISPLAY_FONT_STACK,
+    fontSize: size,
+    lineHeight: line,
+    fontWeight: theme.fontWeight.semibold,
+    marginTop: 20,
+    marginBottom: 8,
   });
   return {
     containerStyle: isWeb ? WEB_CONTAINER : undefined,
     selectionColor: theme.colors.terminal.selectionBackground,
     markdownStyle: {
       paragraph,
-      h1: heading(1.6),
-      h2: heading(1.4),
-      h3: heading(1.2),
-      h4: heading(1.1),
-      h5: heading(1),
-      h6: { ...heading(1), color: theme.colors.foregroundMuted },
+      h1: heading(24, 32),
+      h2: heading(20, 28),
+      h3: heading(17, 24),
+      h4: heading(15, 23),
+      h5: heading(15, 23),
+      h6: { ...heading(15, 23), color: theme.colors.foregroundMuted },
       list: {
         ...paragraph,
-        bulletColor: theme.colors.foregroundMuted,
-        markerColor: theme.colors.foregroundMuted,
+        bulletColor: theme.colors.foregroundExtraMuted,
+        markerColor: theme.colors.foregroundExtraMuted,
         gapWidth: 7,
         itemSpacing: 4,
         marginLeft: 20,
       },
       blockquote: {
         ...paragraph,
-        color: `${theme.colors.foreground}cc`,
-        backgroundColor: theme.colors.surface1,
-        borderColor: theme.colors.surface2,
-        borderWidth: 3,
+        color: theme.colors.foregroundMuted,
+        backgroundColor: "transparent",
+        borderColor: theme.colors.border,
+        borderWidth: 2,
+        borderRadius: 0,
         padding: 12,
         gapWidth: 8,
         admonitions: {
-          note: { color: theme.colors.accentBright, backgroundColor: theme.colors.surface2 },
+          note: { color: theme.colors.accentInk, backgroundColor: theme.colors.surface2 },
           tip: { color: theme.colors.statusSuccess, backgroundColor: theme.colors.surface2 },
           important: { color: theme.colors.statusMerged, backgroundColor: theme.colors.surface2 },
           warning: { color: theme.colors.statusWarning, backgroundColor: theme.colors.surface2 },
           caution: { color: theme.colors.statusDanger, backgroundColor: theme.colors.surface2 },
         },
       },
-      link: { color: theme.colors.accentBright, underline: false },
+      link: { color: theme.colors.accentInk, underline: true },
       linkVariants: {
         "^(?!https?://).+": {
-          color: theme.colors.accentBright,
+          color: theme.colors.accentInk,
         },
       },
       code: {
         fontFamily: theme.fontFamily.mono === "ui-monospace" && !isWeb ? "" : theme.fontFamily.mono,
-        fontScale: theme.fontSize.code / fontSize,
+        fontScale: 0.92,
         color: theme.colors.foreground,
-        backgroundColor: theme.colors.surface2,
+        backgroundColor: theme.colors.bubble,
         borderColor: "transparent",
       },
       codeBlock: {
         ...paragraph,
         fontFamily: theme.fontFamily.mono === "ui-monospace" && !isWeb ? "" : theme.fontFamily.mono,
-        fontSize: theme.fontSize.code,
-        backgroundColor: theme.colors.surface2,
-        borderColor: theme.colors.border,
-        borderRadius: 8,
+        fontSize: 12.5,
+        lineHeight: 19,
+        backgroundColor: theme.colors.codeBackground,
+        borderColor: "transparent",
+        borderRadius: 12,
         padding: 12,
       },
       table: {

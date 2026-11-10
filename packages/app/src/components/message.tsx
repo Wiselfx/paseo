@@ -29,6 +29,7 @@ import { getDefaultMarkdownClipboardEnvironment } from "@/utils/rich-clipboard-d
 import { formatDuration, formatMessageTimestamp } from "@/utils/time";
 import { resolveToolCallIcon } from "@/utils/tool-call-icon";
 import { useToolCallExpanded } from "@/tool-calls/expansion-context";
+import { WorkGroupRow } from "@/tool-calls/work-group";
 import { useTargetAgentTitle } from "@/tool-calls/use-target-agent-title";
 import type { DaemonClient } from "@getpaseo/client/internal/daemon-client";
 import type { AgentMessage } from "@getpaseo/protocol/agent-message";
@@ -76,10 +77,12 @@ import Animated, {
   Easing,
   cancelAnimation,
   useAnimatedStyle,
+  useReducedMotion,
   useSharedValue,
   withRepeat,
   withTiming,
 } from "react-native-reanimated";
+import { CLAUDE_DISTANCE, CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 import Svg, { Defs, Rect, Stop, LinearGradient as SvgLinearGradient } from "react-native-svg";
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { capAssistantMessageForRender, getUtf8ByteLength } from "./assistant-message-render-limit";
@@ -138,6 +141,8 @@ const ThemedChevronRightIcon = withUnistyles(ChevronRight);
 const ThemedNotificationInfo = withUnistyles(Info);
 const ThemedNotificationWarning = withUnistyles(TriangleAlertIcon);
 const ThemedNotificationError = withUnistyles(XCircle);
+const ThemedCheckIcon = withUnistyles(Check);
+const ThemedCopyIcon = withUnistyles(Copy);
 
 const foregroundColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const foregroundMutedColorMapping = (theme: Theme) => ({
@@ -147,6 +152,7 @@ const mutedForegroundColorMapping = (theme: Theme) => ({
   color: theme.colors.mutedForeground,
 });
 const destructiveColorMapping = (theme: Theme) => ({ color: theme.colors.destructive });
+const extraMutedColorMapping = (theme: Theme) => ({ color: theme.colors.foregroundExtraMuted });
 const infoColorMapping = (theme: Theme) => ({ color: theme.colors.palette.blue[300] });
 const warningColorMapping = (theme: Theme) => ({ color: theme.colors.palette.amber[500] });
 const WEB_TOOLCALL_SHIMMER_KEYFRAME_CSS = `
@@ -313,20 +319,21 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     marginBottom: theme.spacing[4],
   },
   bubble: {
-    backgroundColor: theme.colors.surface3,
-    borderRadius: theme.borderRadius["2xl"],
-    borderTopRightRadius: theme.borderRadius.sm,
+    backgroundColor: theme.colors.bubble,
+    borderRadius: theme.borderRadius.bubble,
     paddingHorizontal: theme.spacing[4],
-    paddingVertical: theme.spacing[4],
+    paddingVertical: theme.spacing[3],
+    maxWidth: "85%",
     minWidth: 0,
     flexShrink: 1,
   },
   text: {
     color: theme.colors.foreground,
+    fontFamily: theme.fontFamily.ui,
     fontSize: theme.fontSize.content,
+    lineHeight: 22,
     ...(isWeb
       ? {
-          lineHeight: Math.round(theme.fontSize.content * 1.4),
           overflowWrap: "anywhere" as const,
         }
       : {}),
@@ -355,9 +362,9 @@ const userMessageStylesheet = StyleSheet.create((theme) => ({
     alignSelf: "flex-end",
     flexDirection: "row",
     alignItems: "center",
-    height: 24,
-    gap: theme.spacing[2],
-    marginTop: theme.spacing[2],
+    minHeight: 24,
+    gap: theme.spacing[3],
+    marginTop: theme.spacing[3],
   },
   trailingRowHidden: {
     opacity: 0,
@@ -389,6 +396,19 @@ function UserMessageImagePill({ image, onOpen, accessibilityLabel }: UserMessage
 }
 
 const MESSAGE_TEXT_DATASET = { messageText: "true" };
+const ENTERED_MESSAGE_LIMIT = 2000;
+const enteredMessageIds = new Set<string>();
+
+function claimMessageEntrance(messageId: string | undefined): boolean {
+  if (!messageId) return true;
+  if (enteredMessageIds.has(messageId)) return false;
+  enteredMessageIds.add(messageId);
+  if (enteredMessageIds.size > ENTERED_MESSAGE_LIMIT) {
+    const oldest = enteredMessageIds.values().next().value;
+    if (oldest !== undefined) enteredMessageIds.delete(oldest);
+  }
+  return true;
+}
 
 export const UserMessage = memo(function UserMessage({
   sender,
@@ -406,6 +426,10 @@ export const UserMessage = memo(function UserMessage({
   isPending = false,
   disableOuterSpacing,
 }: UserMessageProps) {
+  const reduceMotion = useReducedMotion();
+  const entrance = useSharedValue(1);
+  const pop = useSharedValue(1);
+  const enteredAsPending = useRef(isPending);
   const isCompact = useIsCompactFormFactor();
   const { t } = useTranslation();
   const [isHovered, setIsHovered] = useState(false);
@@ -471,10 +495,36 @@ export const UserMessage = memo(function UserMessage({
     [showTrailingRow],
   );
 
+  useEffect(() => {
+    if (!enteredAsPending.current || !claimMessageEntrance(messageId) || reduceMotion) {
+      entrance.value = 1;
+      pop.value = 1;
+      return;
+    }
+    entrance.value = 0;
+    entrance.value = withTiming(1, {
+      duration: CLAUDE_DURATION.move,
+      easing: Easing.bezier(...CLAUDE_EASE.out),
+    });
+    pop.value = 1.02;
+    pop.value = withTiming(1, {
+      duration: 220,
+      easing: Easing.bezier(...CLAUDE_EASE.overshoot),
+    });
+  }, [entrance, messageId, pop, reduceMotion]);
+
+  const entranceStyle = useAnimatedStyle(() => ({
+    opacity: entrance.value,
+    transform: [
+      { translateY: (1 - entrance.value) * CLAUDE_DISTANCE.travel },
+      { scale: pop.value },
+    ],
+  }));
+
   return (
     <View style={containerStyle} testID="user-message" aria-busy={isPending}>
-      <View
-        style={userMessageStylesheet.content}
+      <Animated.View
+        style={[userMessageStylesheet.content, entranceStyle]}
         onPointerEnter={handlePointerEnter}
         onPointerLeave={handlePointerLeave}
       >
@@ -539,10 +589,12 @@ export const UserMessage = memo(function UserMessage({
               getContent={getMessageContent}
               containerStyle={userMessageStylesheet.copyButton}
               accessibilityLabel={t("message.actions.copyMessage")}
+              iconSize={ICON_SIZE.xs}
+              iconTone="extraMuted"
             />
           </View>
         ) : null}
-      </View>
+      </Animated.View>
       <AttachmentLightbox source={lightboxSource} onClose={handleLightboxClose} />
     </View>
   );
@@ -782,6 +834,14 @@ export const assistantMessageStylesheet = StyleSheet.create((theme) => ({
     fontStyle: "italic",
     color: theme.colors.foregroundMuted,
   },
+  thinkingDetailText: {
+    color: theme.colors.foregroundMuted,
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 13,
+    lineHeight: 20,
+    paddingTop: theme.spacing[3],
+    overflowWrap: "anywhere",
+  },
   imageFrame: {
     width: "100%",
     minHeight: 160,
@@ -826,12 +886,6 @@ const turnCopyButtonStylesheet = StyleSheet.create((theme) => ({
     paddingTop: 0,
     marginTop: theme.spacing[2],
   },
-  iconColor: {
-    color: theme.colors.foregroundMuted,
-  },
-  iconHoveredColor: {
-    color: theme.colors.foreground,
-  },
 }));
 
 interface TurnCopyButtonProps {
@@ -839,6 +893,8 @@ interface TurnCopyButtonProps {
   containerStyle?: StyleProp<ViewStyle>;
   accessibilityLabel?: string;
   copiedAccessibilityLabel?: string;
+  iconSize?: number;
+  iconTone?: "default" | "extraMuted";
 }
 
 export const TurnCopyButton = memo(function TurnCopyButton({
@@ -846,6 +902,8 @@ export const TurnCopyButton = memo(function TurnCopyButton({
   containerStyle,
   accessibilityLabel,
   copiedAccessibilityLabel,
+  iconSize = ICON_SIZE.sm,
+  iconTone = "default",
 }: TurnCopyButtonProps) {
   const { t } = useTranslation();
   const [copied, setCopied] = useState(false);
@@ -895,13 +953,16 @@ export const TurnCopyButton = memo(function TurnCopyButton({
       }
     >
       {({ hovered }) => {
-        const iconColor = hovered
-          ? turnCopyButtonStylesheet.iconHoveredColor.color
-          : turnCopyButtonStylesheet.iconColor.color;
+        let mapping = mutedForegroundColorMapping;
+        if (iconTone === "extraMuted") {
+          mapping = extraMutedColorMapping;
+        } else if (hovered) {
+          mapping = foregroundColorMapping;
+        }
         return copied ? (
-          <Check size={ICON_SIZE.sm} color={iconColor} />
+          <ThemedCheckIcon size={iconSize} uniProps={mapping} />
         ) : (
-          <Copy size={ICON_SIZE.sm} color={iconColor} />
+          <ThemedCopyIcon size={iconSize} uniProps={mapping} />
         );
       }}
     </Pressable>
@@ -2411,6 +2472,17 @@ export const ToolCall = memo(function ToolCall({
   // Render inline details for desktop
   const renderDetails = useCallback(() => {
     if (!shouldRenderInline) return null;
+    if (
+      toolName === "thinking" &&
+      presentation.detail?.type === "unknown" &&
+      typeof presentation.detail.input === "string"
+    ) {
+      return (
+        <Text selectable style={assistantMessageStylesheet.thinkingDetailText}>
+          {presentation.detail.input}
+        </Text>
+      );
+    }
     return (
       <ToolCallDetailsContent
         toolName={toolName}
@@ -2441,20 +2513,20 @@ export const ToolCall = memo(function ToolCall({
   }
 
   return (
-    <ExpandableBadge
+    <WorkGroupRow
       testID="tool-call-badge"
       label={presentation.displayName}
-      secondaryLabel={presentation.summary}
-      icon={presentation.icon}
+      subtitle={presentation.summary}
       isExpanded={shouldRenderInline && isExpanded}
       onToggle={presentation.canOpenDetails ? handleToggle : undefined}
       onOpenFile={handleOpenFile}
-      renderDetails={presentation.canOpenDetails && shouldRenderInline ? renderDetails : undefined}
+      details={shouldRenderInline && isExpanded ? renderDetails() : undefined}
+      trailing={toolName === "thinking" ? "chevron" : "status"}
       isLoading={status === "running" || status === "executing"}
       isError={status === "failed"}
       isLastInSequence={isLastInSequence}
+      isGroupRow={standalone === false}
       disableOuterSpacing={disableOuterSpacing}
-      onDetailHoverChange={onInlineDetailsHoverChange}
     />
   );
 }, areToolCallPropsEqual);

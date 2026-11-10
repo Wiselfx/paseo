@@ -1,19 +1,20 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import {
   Pressable,
+  ScrollView,
+  StyleSheet as NativeStyleSheet,
   View,
   Text,
-  type StyleProp,
+  type PressableStateCallbackType,
   type TextStyle,
-  type ViewStyle,
 } from "react-native";
-import { StyleSheet } from "react-native-unistyles";
+import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import * as Clipboard from "expo-clipboard";
 import { Check, Copy } from "lucide-react-native";
 import { useTranslation } from "react-i18next";
 import type { HighlightToken } from "@getpaseo/highlight";
-import { isNative, isWeb } from "@/constants/platform";
-import { useIsCompactFormFactor } from "@/constants/layout";
+import { isWeb } from "@/constants/platform";
+import { ICON_SIZE, type Theme } from "@/styles/theme";
 import { syntaxTokenStyleFor } from "@/styles/syntax-token-styles";
 import { CODE_SURFACE_DATASET } from "@/styles/code-surface";
 import { highlightToKeyedLines, type KeyedLine } from "@/utils/highlight-cache";
@@ -57,6 +58,13 @@ function fenceLanguageToExtension(info: string | null | undefined): string | nul
   return LANGUAGE_ALIASES[normalized] ?? normalized;
 }
 
+function fenceLanguageLabel(info: string | null | undefined): string | null {
+  if (!info) return null;
+  const first = info.trim().split(/\s+/)[0];
+  if (!first) return null;
+  return first.replace(/^\./, "");
+}
+
 function stripTerminalFenceNewline(code: string): string {
   return code.endsWith("\n") ? code.slice(0, -1) : code;
 }
@@ -65,19 +73,16 @@ export const HighlightedCodeBlock = React.memo(function HighlightedCodeBlock({
   code,
   language,
   inheritedStyles,
-  textStyle,
 }: HighlightedCodeBlockProps) {
-  // Box styles (bg / padding / border / radius / margin) go on the wrapper View
-  // so the absolute copy button positions relative to the visible code area,
-  // not to a parent that includes the Text's own marginVertical.
-  const { containerStyle, innerTextStyle } = useMemo(
-    () => splitFenceStyle(inheritedStyles, textStyle),
-    [inheritedStyles, textStyle],
-  );
   const renderedCode = useMemo(() => stripTerminalFenceNewline(code), [code]);
   const copyDataSet = useMemo(
     () => ({ ...CODE_SURFACE_DATASET, ...markdownCopyCodeBlockDataSet(language) }),
     [language],
+  );
+  const languageLabel = useMemo(() => fenceLanguageLabel(language), [language]);
+  const codeTextStyle = useMemo(
+    () => [styles.codeText, inheritedStyles.color ? { color: inheritedStyles.color } : null],
+    [inheritedStyles.color],
   );
 
   const keyedLines = useMemo<KeyedLine[] | null>(
@@ -85,11 +90,10 @@ export const HighlightedCodeBlock = React.memo(function HighlightedCodeBlock({
     [renderedCode, language],
   );
 
-  const isCompact = useIsCompactFormFactor();
   const [isHovered, setIsHovered] = useState(false);
   const handlePointerEnter = useCallback(() => setIsHovered(true), []);
   const handlePointerLeave = useCallback(() => setIsHovered(false), []);
-  const controlsVisible = isHovered || isNative || isCompact;
+  const controlsVisible = isHovered || !isWeb;
   // Copy the code without its trailing blank lines. A fence body ends in a newline,
   // and ends in more than one when the author left a blank line before the closing
   // fence; pasting any of them into a terminal runs the last line.
@@ -97,21 +101,33 @@ export const HighlightedCodeBlock = React.memo(function HighlightedCodeBlock({
 
   return (
     <View
-      style={containerStyle}
+      style={styles.container}
       dataSet={copyDataSet}
       onPointerEnter={handlePointerEnter}
       onPointerLeave={handlePointerLeave}
     >
-      {keyedLines ? (
-        <Text style={innerTextStyle} dataSet={markdownCopyDataSet.code}>
-          {renderCodeSegments(keyedLines)}
+      <View style={styles.header}>
+        <Text style={styles.language} numberOfLines={1}>
+          {languageLabel}
         </Text>
-      ) : (
-        <Text style={innerTextStyle} dataSet={markdownCopyDataSet.code}>
-          {renderedCode}
-        </Text>
-      )}
-      <CopyButton getCode={getCode} visible={controlsVisible} />
+        <CopyButton getCode={getCode} visible={controlsVisible} />
+      </View>
+      <ScrollView
+        horizontal
+        style={styles.body}
+        contentContainerStyle={styles.bodyContent}
+        showsHorizontalScrollIndicator={controlsVisible}
+      >
+        {keyedLines ? (
+          <Text style={codeTextStyle} dataSet={markdownCopyDataSet.code}>
+            {renderCodeSegments(keyedLines)}
+          </Text>
+        ) : (
+          <Text style={codeTextStyle} dataSet={markdownCopyDataSet.code}>
+            {renderedCode}
+          </Text>
+        )}
+      </ScrollView>
     </View>
   );
 });
@@ -148,33 +164,15 @@ const CodeTextSpan = React.memo(function CodeTextSpan({ text }: CodeTextSpanProp
   return <Text>{text}</Text>;
 });
 
-interface SplitStyles {
-  containerStyle: StyleProp<ViewStyle>;
-  innerTextStyle: StyleProp<TextStyle>;
-}
-
-const CONTAINER_BASE: ViewStyle = { position: "relative" };
-const WEB_SELECTABLE: TextStyle = isWeb ? ({ userSelect: "text" } as TextStyle) : {};
-
-function splitFenceStyle(inheritedStyles: TextStyle, textStyle: TextStyle): SplitStyles {
-  const { fontFamily, fontSize, color, ...box } = textStyle;
-  const textOnly: TextStyle = { ...WEB_SELECTABLE };
-  if (fontFamily !== undefined) textOnly.fontFamily = fontFamily;
-  if (fontSize !== undefined) textOnly.fontSize = fontSize;
-  if (fontSize !== undefined) textOnly.lineHeight = Math.round(fontSize * 1.45);
-  if (color !== undefined) textOnly.color = color;
-  return {
-    containerStyle: [box as ViewStyle, CONTAINER_BASE],
-    innerTextStyle: [inheritedStyles, textOnly],
-  };
-}
-
 interface CopyButtonProps {
   getCode: () => string;
   visible: boolean;
 }
 
 const COPIED_RESET_MS = 1500;
+const ThemedCheck = withUnistyles(Check);
+const ThemedCopy = withUnistyles(Copy);
+const mutedIconMapping = (theme: Theme) => ({ color: theme.colors.foregroundExtraMuted });
 
 const CopyButton = React.memo(function CopyButton({ getCode, visible }: CopyButtonProps) {
   const { t } = useTranslation();
@@ -193,62 +191,96 @@ const CopyButton = React.memo(function CopyButton({ getCode, visible }: CopyButt
     if (!content) return;
     await Clipboard.setStringAsync(content);
     setCopied(true);
-    if (resetRef.current) clearTimeout(resetRef.current);
+    if (resetRef.current) {
+      clearTimeout(resetRef.current);
+      resetRef.current = null;
+    }
     resetRef.current = setTimeout(() => {
       setCopied(false);
       resetRef.current = null;
     }, COPIED_RESET_MS);
   }, [getCode]);
 
-  const visibilityStyle = visible
-    ? copyButtonStyles.containerVisible
-    : copyButtonStyles.containerHidden;
-  const wrapperStyle = useMemo(
-    () => [copyButtonStyles.container, visibilityStyle],
+  const visibilityStyle = visible ? styles.copyButtonVisible : styles.copyButtonHidden;
+  const pressableStyle = useCallback(
+    ({ hovered, pressed }: PressableStateCallbackType & { hovered?: boolean }) => [
+      styles.copyButton,
+      visibilityStyle,
+      hovered ? styles.copyButtonHovered : null,
+      pressed ? styles.copyButtonPressed : null,
+    ],
     [visibilityStyle],
   );
 
   return (
     <Pressable
       onPress={handlePress}
-      style={wrapperStyle}
+      style={pressableStyle}
       pointerEvents={visible ? "auto" : "none"}
       accessibilityRole="button"
       accessibilityLabel={copied ? t("message.actions.copied") : t("message.actions.copyCode")}
       hitSlop={8}
       dataSet={markdownCopyDataSet.ignore}
     >
-      {({ hovered }) => {
-        const iconColor = hovered
-          ? copyButtonStyles.iconHoveredColor.color
-          : copyButtonStyles.iconColor.color;
-        return copied ? (
-          <Check size={14} color={iconColor} />
-        ) : (
-          <Copy size={14} color={iconColor} />
-        );
-      }}
+      {copied ? (
+        <ThemedCheck size={ICON_SIZE.xs} uniProps={mutedIconMapping} />
+      ) : (
+        <ThemedCopy size={ICON_SIZE.xs} uniProps={mutedIconMapping} />
+      )}
     </Pressable>
   );
 });
 
-const copyButtonStyles = StyleSheet.create((theme) => ({
+const styles = StyleSheet.create((theme) => ({
   container: {
-    position: "absolute",
-    top: theme.spacing[2],
-    right: theme.spacing[2],
-    padding: theme.spacing[1],
+    backgroundColor: theme.colors.codeBackground,
+    borderWidth: 0,
+    borderRadius: theme.borderRadius.card,
+    overflow: "hidden",
   },
-  containerVisible: {
+  header: {
+    height: 36,
+    flexDirection: "row",
+    alignItems: "center",
+    justifyContent: "space-between",
+    paddingHorizontal: theme.spacing[3],
+    borderBottomWidth: NativeStyleSheet.hairlineWidth,
+    borderBottomColor: theme.colors.divider,
+  },
+  language: {
+    color: theme.colors.foregroundExtraMuted,
+    fontFamily: theme.fontFamily.ui,
+    fontSize: 12,
+    lineHeight: 16,
+  },
+  body: {
+    minWidth: 0,
+  },
+  bodyContent: {
+    padding: theme.spacing[3],
+  },
+  codeText: {
+    fontFamily:
+      theme.fontFamily.mono === "ui-monospace" && !isWeb ? undefined : theme.fontFamily.mono,
+    fontSize: 12.5,
+    lineHeight: 19,
+    color: theme.colors.foreground,
+    ...(isWeb ? { whiteSpace: "pre" as const } : null),
+  },
+  copyButton: {
+    padding: theme.spacing[1],
+    borderRadius: theme.borderRadius.md,
+  },
+  copyButtonVisible: {
     opacity: 1,
   },
-  containerHidden: {
+  copyButtonHidden: {
     opacity: 0,
   },
-  iconColor: {
-    color: theme.colors.foregroundMuted,
+  copyButtonHovered: {
+    backgroundColor: theme.colors.hover,
   },
-  iconHoveredColor: {
-    color: theme.colors.foreground,
+  copyButtonPressed: {
+    backgroundColor: theme.colors.pressed,
   },
 }));

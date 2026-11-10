@@ -99,12 +99,11 @@ function QuestionOptionRow({
   const pressableStyle = useCallback(
     ({ pressed, hovered }: PressableStateCallbackType & { hovered?: boolean }) => [
       styles.optionItem,
-      (Boolean(hovered) || isSelected) && {
-        backgroundColor: theme.colors.surface2,
-      },
+      hovered && !isSelected ? styles.optionItemHovered : null,
+      isSelected && styles.optionItemSelected,
       pressed && styles.optionItemPressed,
     ],
-    [isSelected, theme.colors.surface2],
+    [isSelected],
   );
 
   const accessibilityState = useMemo(() => ({ checked: isSelected }), [isSelected]);
@@ -661,8 +660,8 @@ export function QuestionFormCard({
 
 const styles = StyleSheet.create((theme) => ({
   container: {
-    padding: theme.spacing[3],
-    borderRadius: theme.spacing[2],
+    padding: theme.spacing[4],
+    borderRadius: theme.borderRadius.card,
     borderWidth: 1,
     gap: theme.spacing[3],
   },
@@ -673,7 +672,7 @@ const styles = StyleSheet.create((theme) => ({
     flexDirection: "row",
     alignItems: "center",
     gap: theme.spacing[2],
-    paddingHorizontal: theme.spacing[3],
+    paddingHorizontal: 0,
     paddingBottom: theme.spacing[1],
     flex: 1,
   },
@@ -688,7 +687,7 @@ const styles = StyleSheet.create((theme) => ({
     flexWrap: "wrap",
     alignItems: "center",
     gap: theme.spacing[1],
-    paddingHorizontal: theme.spacing[3],
+    paddingHorizontal: 0,
   },
   questionNavButton: {
     flexDirection: "row",
@@ -707,9 +706,19 @@ const styles = StyleSheet.create((theme) => ({
   optionItem: {
     flexDirection: "row",
     alignItems: "center",
+    minHeight: 44,
     paddingHorizontal: theme.spacing[3],
     paddingVertical: theme.spacing[2],
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
+    borderWidth: theme.borderWidth[1],
+    borderColor: "transparent",
+  },
+  optionItemHovered: {
+    backgroundColor: theme.colors.hover,
+  },
+  optionItemSelected: {
+    backgroundColor: theme.colors.selected,
+    borderColor: theme.colors.accentStroke,
   },
   optionItemPressed: {
     opacity: 0.9,
@@ -755,7 +764,7 @@ const styles = StyleSheet.create((theme) => ({
     fontSize: theme.fontSize.base,
   },
   actionsContainer: {
-    gap: theme.spacing[2],
+    gap: theme.spacing[3],
   },
   actionsContainerDesktop: {
     flexDirection: "row",

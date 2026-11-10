@@ -674,8 +674,8 @@ describe("shared Markdown theme colours", () => {
     });
     expect(style.list).toMatchObject({
       color: theme.colors.foreground,
-      bulletColor: theme.colors.foregroundMuted,
-      markerColor: theme.colors.foregroundMuted,
+      bulletColor: theme.colors.foregroundExtraMuted,
+      markerColor: theme.colors.foregroundExtraMuted,
     });
     expect(style.h6?.color).toBe(theme.colors.foregroundMuted);
     expect(style.taskList).toMatchObject({
@@ -695,11 +695,11 @@ it.each([
   (_name, theme) => {
     const { markdownStyle: style } = createMarkdownStyles(theme, { blockGap: 16 });
     expect(style.blockquote).toMatchObject({
-      color: `${theme.colors.foreground}cc`,
-      backgroundColor: theme.colors.surface1,
-      borderColor: theme.colors.surface2,
+      color: theme.colors.foregroundMuted,
+      backgroundColor: "transparent",
+      borderColor: theme.colors.border,
       admonitions: {
-        note: { color: theme.colors.accentBright, backgroundColor: theme.colors.surface2 },
+        note: { color: theme.colors.accentInk, backgroundColor: theme.colors.surface2 },
         tip: { color: theme.colors.statusSuccess, backgroundColor: theme.colors.surface2 },
         important: { color: theme.colors.statusMerged, backgroundColor: theme.colors.surface2 },
         warning: { color: theme.colors.statusWarning, backgroundColor: theme.colors.surface2 },
@@ -708,12 +708,12 @@ it.each([
     });
     expect(style.code).toMatchObject({
       color: theme.colors.foreground,
-      backgroundColor: theme.colors.surface2,
+      backgroundColor: theme.colors.bubble,
       borderColor: "transparent",
     });
-    expect(style.link?.color).toBe(theme.colors.accentBright);
+    expect(style.link?.color).toBe(theme.colors.accentInk);
     expect(style.linkVariants?.["^(?!https?://).+"]).toEqual({
-      color: theme.colors.accentBright,
+      color: theme.colors.accentInk,
     });
     expect(style.thematicBreak?.color).toBe(theme.colors.border);
   },
@@ -1083,16 +1083,15 @@ it("makes the web Markdown container selectable in Safari as well as unprefixed 
 });
 
 it.each([false, true])(
-  "scales inline code from theme tokens with its surrounding block (compact: %s)",
+  "uses the fixed inline code scale and code block size (compact: %s)",
   (compact) => {
     const theme = {
       ...darkTheme,
       fontSize: { ...darkTheme.fontSize, code: 13, content: 17, base: 16 },
     };
     const { markdownStyle } = createMarkdownStyles(theme, { compact, blockGap: 16 });
-    const bodySize = compact ? theme.fontSize.base : theme.fontSize.content;
     expect(markdownStyle.code).not.toHaveProperty("fontSize");
-    expect(markdownStyle.code).toHaveProperty("fontScale", theme.fontSize.code / bodySize);
-    expect(markdownStyle.codeBlock?.fontSize).toBe(theme.fontSize.code);
+    expect(markdownStyle.code).toHaveProperty("fontScale", 0.92);
+    expect(markdownStyle.codeBlock?.fontSize).toBe(12.5);
   },
 );

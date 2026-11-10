@@ -12,7 +12,6 @@ import { openExternalUrl } from "@/utils/open-external-url";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
 import { isWeb } from "@/constants/platform";
-import { density, resolveDensity } from "@/styles/density";
 import { MarkdownBlockStack } from "./block-stack";
 import { WEB_RENDERERS } from "./renderers";
 import { createMarkdownStyles } from "./styles";
@@ -25,15 +24,11 @@ import { MermaidFence, MermaidStreamingContext, splitMermaidFences } from "./fen
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
 
-// Reading the breakpoint here makes Unistyles restyle the text when the layout crosses it.
+// One prose rhythm across widths: 12px between blocks, matching Claude's column.
 const markdownStyle =
   (compact: boolean, muted = false) =>
-  (theme: Theme, rt: { breakpoint?: string }) =>
-    createMarkdownStyles(theme, {
-      compact,
-      muted,
-      blockGap: resolveDensity(rt, density.blockGap),
-    });
+  (theme: Theme) =>
+    createMarkdownStyles(theme, { compact, muted, blockGap: 12 });
 const regularStyle = markdownStyle(false);
 const compactStyle = markdownStyle(true);
 const compactMutedStyle = markdownStyle(true, true);

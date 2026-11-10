@@ -1,13 +1,12 @@
 import { memo, useCallback } from "react";
 import { useTranslation } from "react-i18next";
-import { Summary } from "lucide-react-native";
 import { useDisclosureHold } from "@/agent-stream/disclosure";
-import { ExpandableBadge } from "@/components/message";
 import { useOverviewSummaryLabel } from "@/tool-calls/detail-level/overview/label";
+import { WorkGroupCard } from "@/tool-calls/work-group";
 import type { TurnSummaryItem } from "@/types/stream";
 
 /**
- * The row a collapsed turn leaves under its user message, styled like a tool-call group.
+ * The row a collapsed turn leaves under its user message, styled like a process card.
  * Pressing it opens the turn's rows beneath it.
  */
 export const TurnSummaryLine = memo(function TurnSummaryLine({
@@ -26,13 +25,6 @@ export const TurnSummaryLine = memo(function TurnSummaryLine({
   );
 
   return (
-    <ExpandableBadge
-      testID="turn-summary"
-      label={label}
-      icon={Summary}
-      isExpanded={item.expanded}
-      onToggle={toggle}
-      borderlessWhenExpanded
-    />
+    <WorkGroupCard testID="turn-summary" label={label} expanded={item.expanded} onToggle={toggle} />
   );
 });

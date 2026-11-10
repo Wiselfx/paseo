@@ -816,11 +816,7 @@ function TabChip({
   // The active chip is a card; a hovered chip takes the rail's hover tint. The icon's knockout
   // names the opaque surface behind it (the card, or the rail under the tint), never the tint.
   const chipFill = resolveChipFillStyle({ rail, isActive, isHovered });
-  const chipBackdrop: SurfaceBackdrop = resolveWorkspaceTabChipSurface({
-    rail,
-    isActive,
-    isHovered,
-  });
+  const chipBackdrop: SurfaceBackdrop = resolveWorkspaceTabChipSurface({ rail, isActive });
   const showCloseControl = showCloseButton && (isHovered || isNative || isCompact || isClosingTab);
   const closeButtonDragBlockers = isWeb
     ? ({
@@ -1744,14 +1740,14 @@ const styles = StyleSheet.create((theme) => ({
     borderColor: theme.colors.border,
   },
   tabActiveSidebar: {
-    backgroundColor: theme.colors.surfaceSidebarSelected,
+    backgroundColor: theme.colors.surface1,
     borderColor: theme.colors.border,
   },
   tabHover: {
     backgroundColor: theme.colors.hover,
   },
   tabHoverSidebar: {
-    backgroundColor: theme.colors.surfaceSidebarHover,
+    backgroundColor: theme.colors.hover,
   },
   tabHoverFrame: {
     position: "relative",

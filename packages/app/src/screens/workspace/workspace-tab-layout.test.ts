@@ -233,29 +233,17 @@ describe("resolveWorkspaceTabChipSurface", () => {
       for (const [rail, resting] of Object.entries(rails) as Array<
         [keyof typeof rails, (typeof rails)[keyof typeof rails]]
       >) {
-        const active = resolveWorkspaceTabChipSurface({
-          rail,
-          isActive: true,
-          isHovered: false,
-        });
+        const active = resolveWorkspaceTabChipSurface({ rail, isActive: true });
         expect(theme.colors[active]).not.toBe(theme.colors[resting]);
       }
     }
   });
 
   it("knocks a resting chip out of the rail it sits on", () => {
-    expect(
-      resolveWorkspaceTabChipSurface({ rail: "sidebar", isActive: false, isHovered: false }),
-    ).toBe("surfaceSidebar");
-    expect(
-      resolveWorkspaceTabChipSurface({ rail: "surface", isActive: false, isHovered: false }),
-    ).toBe("surface0");
-  });
-
-  it("matches the sidebar's own hover plate so the knockout shows no halo", () => {
-    expect(
-      resolveWorkspaceTabChipSurface({ rail: "sidebar", isActive: false, isHovered: true }),
-    ).toBe("surfaceSidebarHover");
+    expect(resolveWorkspaceTabChipSurface({ rail: "sidebar", isActive: false })).toBe(
+      "surfaceSidebar",
+    );
+    expect(resolveWorkspaceTabChipSurface({ rail: "surface", isActive: false })).toBe("surface0");
   });
 });
 

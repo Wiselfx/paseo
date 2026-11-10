@@ -9,21 +9,18 @@ export type WorkspaceTabRailSurface = "surface" | "sidebar";
  * A knockout has to fill itself with the colour behind it, so this names the chip's own opaque
  * fill: the card of an active chip, the sidebar's hover plate, or the rail at rest. The pane
  * rail's hover state is the translucent `hover` tint laid over the rail, which no surface token
- * can name, so it rests on the rail itself. The sidebar rail climbs its own ladder because light
- * themes paint `surfaceSidebar` with `surface2`, so a `surface1` chip would vanish on it.
+ * can name, so it rests on the rail itself. Both rails use the same card for the active chip, so
+ * the sidebar's active tab reads like the pane deck's instead of climbing a darker ladder.
  */
 export function resolveWorkspaceTabChipSurface({
   rail,
   isActive,
-  isHovered,
 }: {
   rail: WorkspaceTabRailSurface;
   isActive: boolean;
-  isHovered: boolean;
 }): SurfaceBackdrop {
   if (rail === "sidebar") {
-    if (isActive) return "surfaceSidebarSelected";
-    return isHovered ? "surfaceSidebarHover" : "surfaceSidebar";
+    return isActive ? "surface1" : "surfaceSidebar";
   }
   return isActive ? "surface1" : "surface0";
 }

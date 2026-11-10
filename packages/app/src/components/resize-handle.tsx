@@ -9,6 +9,10 @@ import {
   SIDEBAR_RESIZE_FAIL_OFFSET,
 } from "@/components/sidebar-resize-handle-layout";
 
+/** The line is 1px at rest; this is the invisible box a pointer can grab. */
+const HIT_AREA_WIDTH = 12;
+const HIT_AREA_OFFSET = HIT_AREA_WIDTH / 2;
+
 export interface ResizeHandleProps {
   testID?: string;
   direction: "horizontal" | "vertical";
@@ -205,17 +209,17 @@ export function ResizeHandle({
     () => [
       styles.handle,
       direction === "horizontal" ? styles.handleHorizontal : styles.handleVertical,
-      { backgroundColor: theme.colors.border },
+      { backgroundColor: theme.colors.divider },
     ],
-    [direction, theme.colors.border],
+    [direction, theme.colors.divider],
   );
   const highlightStyle = useMemo(
     () => [
       styles.highlight,
       direction === "horizontal" ? styles.highlightHorizontal : styles.highlightVertical,
-      { backgroundColor: theme.colors.accent },
+      { backgroundColor: dragging ? theme.colors.pressed : theme.colors.border },
     ],
-    [direction, theme.colors.accent],
+    [direction, dragging, theme.colors.border, theme.colors.pressed],
   );
   const hitAreaStyle = useMemo(
     () => [
@@ -223,8 +227,8 @@ export function ResizeHandle({
       direction === "horizontal" ? styles.hitAreaHorizontal : styles.hitAreaVertical,
       {
         ...(direction === "horizontal"
-          ? { left: hitAreaAlignment === "end" ? 0 : -5 }
-          : { top: hitAreaAlignment === "end" ? 0 : -5 }),
+          ? { left: hitAreaAlignment === "end" ? 0 : -HIT_AREA_OFFSET }
+          : { top: hitAreaAlignment === "end" ? 0 : -HIT_AREA_OFFSET }),
         cursor: direction === "horizontal" ? "col-resize" : "row-resize",
         touchAction: "none",
       } as object,
@@ -305,6 +309,7 @@ const styles = StyleSheet.create((_theme) => ({
   highlight: {
     position: "absolute",
     zIndex: 5,
+    borderRadius: 2,
   },
   highlightHorizontal: {
     top: 0,
@@ -325,12 +330,12 @@ const styles = StyleSheet.create((_theme) => ({
   hitAreaHorizontal: {
     top: 0,
     bottom: 0,
-    width: 10,
+    width: HIT_AREA_WIDTH,
   },
   hitAreaVertical: {
     left: 0,
     right: 0,
-    height: 10,
+    height: HIT_AREA_WIDTH,
   },
   touchHitArea: {
     position: "absolute",

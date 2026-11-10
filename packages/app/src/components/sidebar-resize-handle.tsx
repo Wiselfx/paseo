@@ -3,6 +3,7 @@ import { Pressable, View } from "react-native";
 import { GestureDetector, type GestureType } from "react-native-gesture-handler";
 import { StyleSheet } from "react-native-unistyles";
 import {
+  POINTER_HANDLE_WIDTH,
   resolveSidebarResizeHandleGeometry,
   type SidebarResizeEdge,
 } from "@/components/sidebar-resize-handle-layout";
@@ -37,7 +38,7 @@ export function SidebarResizeHandle({ edge, gesture, pressed, testID }: SidebarR
   return <TouchResizeHandle edge={edge} gesture={gesture} pressed={pressed} testID={testID} />;
 }
 
-function PointerResizeHandle({ edge, gesture, testID }: SidebarResizeHandleProps) {
+function PointerResizeHandle({ edge, gesture, pressed, testID }: SidebarResizeHandleProps) {
   const [highlighted, setHighlighted] = useState(false);
   const highlightTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const geometry = resolveSidebarResizeHandleGeometry(true);
@@ -77,8 +78,12 @@ function PointerResizeHandle({ edge, gesture, testID }: SidebarResizeHandleProps
         onHoverIn={handleHoverIn}
         onHoverOut={handleHoverOut}
       >
-        {highlighted ? (
-          <View pointerEvents="none" testID={`${testID}-highlight`} style={styles.highlight} />
+        {highlighted || pressed ? (
+          <View
+            pointerEvents="none"
+            testID={`${testID}-highlight`}
+            style={[styles.highlight, pressed ? styles.highlightPressed : styles.highlightHover]}
+          />
         ) : null}
       </Pressable>
     </GestureDetector>
@@ -132,10 +137,15 @@ const styles = StyleSheet.create((theme) => ({
     position: "absolute",
     top: 0,
     bottom: 0,
-    left: 5,
-    width: 1,
-    backgroundColor: theme.colors.foreground,
-    opacity: 0.25,
+    left: POINTER_HANDLE_WIDTH / 2 - 1.5,
+    width: 3,
+    borderRadius: 2,
+  },
+  highlightHover: {
+    backgroundColor: theme.colors.border,
+  },
+  highlightPressed: {
+    backgroundColor: theme.colors.pressed,
   },
   touchLayer: {
     position: "absolute",

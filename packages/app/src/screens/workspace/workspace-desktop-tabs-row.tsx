@@ -48,8 +48,7 @@ import {
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 import { useShortcutKeys } from "@/hooks/use-shortcut-keys";
-import { WORKSPACE_SECONDARY_HEADER_HEIGHT, useIsCompactFormFactor } from "@/constants/layout";
-import { CONTROL_HEIGHTS } from "@/components/ui/control-geometry";
+import { useIsCompactFormFactor } from "@/constants/layout";
 import type { ShortcutKey } from "@/utils/format-shortcut";
 import { Shortcut } from "@/components/ui/shortcut";
 import { useWorkspaceTabLayout } from "@/screens/workspace/use-workspace-tab-layout";
@@ -71,12 +70,11 @@ import type { PaneHost } from "@/panels/panel-manifest";
 import type { WorkspaceTabLaunchPurpose } from "@/workspace-tabs/launcher";
 import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 import {
-  resolveWorkspaceTabChipBackdrop,
+  resolveWorkspaceTabChipSurface,
   type WorkspaceTabRailSurface,
 } from "@/screens/workspace/workspace-tab-chip-backdrop";
 import type { Theme } from "@/styles/theme";
 import { RenderProfile } from "@/utils/render-profiler";
-import { TrailingActionScrim } from "@/components/ui/trailing-action-scrim";
 import { useKeyboardActionHandler } from "@/hooks/use-keyboard-action-handler";
 import { useCompactTimeAgo } from "@/hooks/use-time-ago";
 import { formatCompactTimeAgoAsProse } from "@/utils/time";
@@ -111,18 +109,31 @@ const PANE_MAXIMIZE_ACTION_RESERVED_WIDTH = smallIconButtonChromeFrameSize(false
 // the wrong width. Keep them together.
 // Tabs and the adjacent New Tab trigger are one control family. Keep their outer box and corner
 // token identical; only their horizontal sizing differs (content-width chip versus square icon).
-const TAB_CHIP_HORIZONTAL_PADDING = 8;
+// The chip's own labels no longer reach under its close control: that slot is reserved, so the
+// trailing overlay needs no scrim and the chip's hover tint stays one clean fill.
+const TAB_CHIP_HORIZONTAL_PADDING = 10;
 const TAB_CHIP_GAP = 4;
 const TAB_ROW_PADDING_HORIZONTAL = 4;
 const TAB_ICON_WIDTH = 14;
 const TAB_CONTENT_GAP = 4;
 const TAB_DROP_INDICATOR_WIDTH = 4;
 const TAB_MODIFIED_DOT_SIZE = 8;
+/** The strip's own height; chips sit 22 tall inside it, like the conversation's view tabs. */
+const TAB_STRIP_HEIGHT = 40;
+const TAB_CHIP_HEIGHT = 22;
+const TAB_CHIP_RADIUS = 7;
+const TAB_CHIP_BORDER_WIDTH = 1;
+const TAB_CLOSE_SLOT_WIDTH = 22;
+const TAB_CLOSE_GLYPH_SIZE = 14;
+const TAB_LABEL_FONT_SIZE = 13;
+const TAB_LABEL_LINE_HEIGHT = 18;
 // The tab rail only renders in the wide layout, so the device alone picks its glyph size.
 const TAB_RAIL_GLYPH_SIZE = paneContentToolbarIconSize(false);
 const TAB_MIN_WIDTH = 64;
 const TAB_MAX_WIDTH = 160;
-const TAB_CLOSE_BUTTON_RESERVED_WIDTH = 0;
+// A chip reserves the close control's slot in its own width, so a hovered chip never reflows the
+// label to make room. The measurement adds the same slot to every chip.
+const TAB_CLOSE_BUTTON_RESERVED_WIDTH = TAB_CLOSE_SLOT_WIDTH;
 const TAB_LABEL_LAYOUT_ALLOWANCE = 4;
 const AGENT_TOOLTIP_TITLE_MAX_LENGTH = 80;
 
@@ -252,7 +263,7 @@ function WorkspaceNewTabButton({
         label={tooltipText}
         shortcut={shortcutKeys}
         testID="workspace-new-tab-button"
-        style={placement === "inline" ? styles.inlineNewTabButton : undefined}
+        style={styles.newTabButton}
       >
         <ThemedPlus size={TAB_RAIL_GLYPH_SIZE} uniProps={extraMutedColorMapping} />
       </ToolbarButton>
@@ -724,6 +735,24 @@ function TabHandleContent({
   );
 }
 
+function resolveChipFillStyle({
+  rail,
+  isActive,
+  isHovered,
+}: {
+  rail: WorkspaceTabRailSurface;
+  isActive: boolean;
+  isHovered: boolean;
+}) {
+  if (isActive) {
+    return rail === "sidebar" ? styles.tabActiveSidebar : styles.tabActive;
+  }
+  if (isHovered) {
+    return rail === "sidebar" ? styles.tabHoverSidebar : styles.tabHover;
+  }
+  return null;
+}
+
 function TabChip({
   serverId,
   workspaceId,
@@ -779,16 +808,18 @@ function TabChip({
   );
   const isCompact = useIsCompactFormFactor();
   const [hovered, setHovered] = useState(false);
-  // An active tab in a pane that does not have focus stays legible but quiet: it keeps the fill of
-  // a hovered chip and the muted label, so only one chip in the window reads as the live one.
+  // An active tab in a pane that does not have focus stays legible but quiet: it keeps the raised
+  // plate of the active chip and the muted label, so only one chip in the window reads as live.
   const isActiveFocused = isActive && isFocused;
   const isHovered = hovered || isCloseHovered;
   const isHighlighted = isActiveFocused || isHovered;
-  const isFilled = isActive || isHovered;
-  const chipBackdrop: SurfaceBackdrop = resolveWorkspaceTabChipBackdrop({
+  // The active chip is a card; a hovered chip takes the rail's hover tint. The icon's knockout
+  // names the opaque surface behind it (the card, or the rail under the tint), never the tint.
+  const chipFill = resolveChipFillStyle({ rail, isActive, isHovered });
+  const chipBackdrop: SurfaceBackdrop = resolveWorkspaceTabChipSurface({
     rail,
-    isActiveFocused,
-    isFilled,
+    isActive,
+    isHovered,
   });
   const showCloseControl = showCloseButton && (isHovered || isNative || isCompact || isClosingTab);
   const closeButtonDragBlockers = isWeb
@@ -805,7 +836,8 @@ function TabChip({
   const tabChipStyle = useCallback(
     () => [
       styles.tab,
-      isFilled && styles.tabFill(chipBackdrop),
+      chipFill,
+      !isCompact && styles.tabWithClose,
       isWeb && isDragging && ({ cursor: "grabbing" } as object),
       {
         minWidth: resolvedTabWidth,
@@ -813,7 +845,7 @@ function TabChip({
         maxWidth: resolvedTabWidth,
       },
     ],
-    [chipBackdrop, isDragging, isFilled, resolvedTabWidth],
+    [chipFill, isCompact, isDragging, resolvedTabWidth],
   );
 
   const handleTabPointerEnter = useCallback(() => {
@@ -917,7 +949,6 @@ function TabChip({
               showCloseControl ? styles.tabTrailingOverlayShown : styles.tabTrailingOverlayHidden,
             ]}
           >
-            <TrailingActionScrim backdrop={chipBackdrop} />
             <Pressable
               {...(closeButtonDragBlockers as object | undefined)}
               testID={closeButtonTestId}
@@ -935,15 +966,15 @@ function TabChip({
                 if (isClosingTab) {
                   return (
                     <ThemedLoadingSpinner
-                      size={12}
-                      uniProps={highlighted ? foregroundColorMapping : mutedColorMapping}
+                      size={TAB_CLOSE_GLYPH_SIZE}
+                      uniProps={highlighted ? foregroundColorMapping : extraMutedColorMapping}
                     />
                   );
                 }
                 return (
                   <ThemedX
-                    size={12}
-                    uniProps={highlighted ? foregroundColorMapping : mutedColorMapping}
+                    size={TAB_CLOSE_GLYPH_SIZE}
+                    uniProps={highlighted ? foregroundColorMapping : extraMutedColorMapping}
                   />
                 );
               }}
@@ -1145,10 +1176,12 @@ function ResolvedWorkspaceDesktopTabsRow({
       maxTabWidth: TAB_MAX_WIDTH,
       tabIconWidth: TAB_ICON_WIDTH,
       tabContentGap: TAB_CONTENT_GAP,
-      tabHorizontalPadding: TAB_CHIP_HORIZONTAL_PADDING,
-      closeButtonWidth: TAB_CLOSE_BUTTON_RESERVED_WIDTH,
+      // The chip's content sits inside its border as well as its padding.
+      tabHorizontalPadding: TAB_CHIP_HORIZONTAL_PADDING + TAB_CHIP_BORDER_WIDTH,
+      // A compact rail shows no close control, so it needs no slot for one.
+      closeButtonWidth: isCompact ? 0 : TAB_CLOSE_BUTTON_RESERVED_WIDTH,
     }),
-    [exitFocusModeWidth, focusModeEnabled, showPaneMaximizeAction, showPaneSplitActions],
+    [exitFocusModeWidth, focusModeEnabled, isCompact, showPaneMaximizeAction, showPaneSplitActions],
   );
 
   const panePanelKinds = useMemo(() => tabs.map(({ tab }) => tab.kind), [tabs]);
@@ -1635,9 +1668,9 @@ function ResolvedDesktopTabChip({
 const styles = StyleSheet.create((theme) => ({
   tabsContainer: {
     minWidth: 0,
-    height: WORKSPACE_SECONDARY_HEADER_HEIGHT,
+    height: TAB_STRIP_HEIGHT,
     borderBottomWidth: 1,
-    borderBottomColor: theme.colors.border,
+    borderBottomColor: theme.colors.divider,
     backgroundColor: theme.colors.surface0,
     flexDirection: "row",
     alignItems: "center",
@@ -1645,6 +1678,8 @@ const styles = StyleSheet.create((theme) => ({
   },
   tabsContainerSidebar: {
     backgroundColor: theme.colors.surfaceSidebar,
+    // The Explorer's rail draws the hairline under the whole row, actions included.
+    borderBottomWidth: 0,
   },
   tabsScroll: {
     minWidth: 0,
@@ -1678,26 +1713,46 @@ const styles = StyleSheet.create((theme) => ({
     alignItems: "center",
     paddingHorizontal: theme.spacing[1],
   },
-  inlineNewTabButton: {
-    width: CONTROL_HEIGHTS.sm,
-    height: CONTROL_HEIGHTS.sm,
+  newTabButton: {
+    width: TAB_CHIP_HEIGHT,
+    height: TAB_CHIP_HEIGHT,
+    borderRadius: TAB_CHIP_RADIUS,
   },
   paneSplitActions: {
     paddingHorizontal: PANE_SPLIT_ACTIONS_HORIZONTAL_PADDING,
     marginRight: PANE_SPLIT_ACTIONS_OUTER_MARGIN,
   },
   tab: {
-    height: CONTROL_HEIGHTS.sm,
+    height: TAB_CHIP_HEIGHT,
     paddingHorizontal: TAB_CHIP_HORIZONTAL_PADDING,
-    borderRadius: theme.borderRadius.md,
+    borderRadius: TAB_CHIP_RADIUS,
+    // Resting chips draw no edge; the active chip turns this hairline on, so its plate reads as
+    // a card on the strip without the box shifting by a pixel.
+    borderWidth: TAB_CHIP_BORDER_WIDTH,
+    borderColor: "transparent",
     flexDirection: "row",
     alignItems: "center",
-    gap: theme.spacing[1],
+    gap: TAB_CONTENT_GAP,
     userSelect: "none",
   },
-  tabFill: (backdrop: SurfaceBackdrop) => ({
-    backgroundColor: theme.colors[backdrop],
-  }),
+  // The close slot is reserved on every chip that owns one, so hovering never reflows the label.
+  tabWithClose: {
+    paddingRight: TAB_CHIP_HORIZONTAL_PADDING + TAB_CLOSE_SLOT_WIDTH,
+  },
+  tabActive: {
+    backgroundColor: theme.colors.surface1,
+    borderColor: theme.colors.border,
+  },
+  tabActiveSidebar: {
+    backgroundColor: theme.colors.surfaceSidebarSelected,
+    borderColor: theme.colors.border,
+  },
+  tabHover: {
+    backgroundColor: theme.colors.hover,
+  },
+  tabHoverSidebar: {
+    backgroundColor: theme.colors.surfaceSidebarHover,
+  },
   tabHoverFrame: {
     position: "relative",
   },
@@ -1742,9 +1797,10 @@ const styles = StyleSheet.create((theme) => ({
   tabLabel: {
     flexShrink: 1,
     minWidth: 0,
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
-    fontWeight: theme.fontWeight.normal,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: TAB_LABEL_FONT_SIZE,
+    lineHeight: TAB_LABEL_LINE_HEIGHT,
+    fontWeight: theme.fontWeight.medium,
     userSelect: "none",
   },
   tabLabelMeasurements: {
@@ -1776,13 +1832,10 @@ const styles = StyleSheet.create((theme) => ({
     top: 0,
     right: 0,
     bottom: 0,
-    width: 48,
-    borderTopRightRadius: theme.borderRadius.md,
-    borderBottomRightRadius: theme.borderRadius.md,
+    width: TAB_CLOSE_SLOT_WIDTH,
     alignItems: "center",
     justifyContent: "center",
     zIndex: 2,
-    overflow: "hidden",
   },
   tabTrailingOverlayShown: {
     opacity: 1,

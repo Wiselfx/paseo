@@ -52,11 +52,9 @@ const styles = StyleSheet.create((theme) => ({
     flexShrink: 1,
   },
   project: {
-    color: theme.colors.foregroundMuted,
-    fontSize: {
-      xs: theme.fontSize.sm,
-      md: theme.fontSize.base,
-    },
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: theme.fontSize.sm,
+    lineHeight: 16,
     flexShrink: 1,
     minWidth: 0,
   },

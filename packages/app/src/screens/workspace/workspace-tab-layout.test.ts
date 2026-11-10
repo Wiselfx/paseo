@@ -5,7 +5,7 @@ import {
 } from "./workspace-explorer-toggle";
 import { describe, expect, it } from "vitest";
 import { SidebarCloseButton } from "@/components/headers/sidebar-close-button";
-import { resolveWorkspaceTabChipBackdrop } from "@/screens/workspace/workspace-tab-chip-backdrop";
+import { resolveWorkspaceTabChipSurface } from "@/screens/workspace/workspace-tab-chip-backdrop";
 import { darkPureBlackTheme, darkTheme, lightTheme } from "@/styles/theme";
 import {
   workspaceTabSwitcherPopoverLayout,
@@ -221,42 +221,41 @@ describe("Explorer toggle ownership", () => {
   });
 });
 
-describe("resolveWorkspaceTabChipBackdrop", () => {
+describe("resolveWorkspaceTabChipSurface", () => {
   const themes = { light: lightTheme, dark: darkTheme, pureBlack: darkPureBlackTheme };
   const rails = {
     sidebar: "surfaceSidebar",
     surface: "surface0",
   } as const;
 
-  it("paints the active chip in a colour the rail does not already use, in every theme", () => {
+  it("lifts the active chip off the rail in every theme", () => {
     for (const [, theme] of Object.entries(themes)) {
       for (const [rail, resting] of Object.entries(rails) as Array<
         [keyof typeof rails, (typeof rails)[keyof typeof rails]]
       >) {
-        const active = resolveWorkspaceTabChipBackdrop({
+        const active = resolveWorkspaceTabChipSurface({
           rail,
-          isActiveFocused: true,
-          isFilled: true,
-        });
-        const filled = resolveWorkspaceTabChipBackdrop({
-          rail,
-          isActiveFocused: false,
-          isFilled: true,
+          isActive: true,
+          isHovered: false,
         });
         expect(theme.colors[active]).not.toBe(theme.colors[resting]);
-        expect(theme.colors[filled]).not.toBe(theme.colors[resting]);
-        expect(theme.colors[active]).not.toBe(theme.colors[filled]);
       }
     }
   });
 
-  it("rests on the rail surface when the chip is neither active nor hovered", () => {
+  it("knocks a resting chip out of the rail it sits on", () => {
     expect(
-      resolveWorkspaceTabChipBackdrop({ rail: "sidebar", isActiveFocused: false, isFilled: false }),
+      resolveWorkspaceTabChipSurface({ rail: "sidebar", isActive: false, isHovered: false }),
     ).toBe("surfaceSidebar");
     expect(
-      resolveWorkspaceTabChipBackdrop({ rail: "surface", isActiveFocused: false, isFilled: false }),
+      resolveWorkspaceTabChipSurface({ rail: "surface", isActive: false, isHovered: false }),
     ).toBe("surface0");
+  });
+
+  it("matches the sidebar's own hover plate so the knockout shows no halo", () => {
+    expect(
+      resolveWorkspaceTabChipSurface({ rail: "sidebar", isActive: false, isHovered: true }),
+    ).toBe("surfaceSidebarHover");
   });
 });
 

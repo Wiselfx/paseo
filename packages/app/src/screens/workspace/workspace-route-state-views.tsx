@@ -299,13 +299,15 @@ const styles = StyleSheet.create((theme) => ({
   },
   title: {
     color: theme.colors.foreground,
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.content,
+    lineHeight: 20,
     fontWeight: theme.fontWeight.normal,
     textAlign: "center",
   },
   description: {
-    color: theme.colors.foregroundMuted,
-    fontSize: theme.fontSize.base,
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: 13,
+    lineHeight: 18,
     textAlign: "center",
   },
   error: {

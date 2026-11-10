@@ -4,27 +4,26 @@ import type { SurfaceBackdrop } from "@/styles/surface-backdrop";
 export type WorkspaceTabRailSurface = "surface" | "sidebar";
 
 /**
- * The fill of a tab chip, named as the surface token it paints so the chip style and everything
- * knocking out of it (the running-status ring, the trailing-action scrim) agree.
+ * The surface behind a tab chip, named as the token a knockout matches.
  *
- * Each rail climbs its own ladder: resting, filled (hovered, or active in an unfocused pane),
- * selected. The sidebar rail uses the sidebar hover/selected tokens rather than the plain surface
- * steps because light themes paint `surfaceSidebar` with `surface2`, so a `surface2` chip vanishes
- * on it.
+ * A knockout has to fill itself with the colour behind it, so this names the chip's own opaque
+ * fill: the card of an active chip, the sidebar's hover plate, or the rail at rest. The pane
+ * rail's hover state is the translucent `hover` tint laid over the rail, which no surface token
+ * can name, so it rests on the rail itself. The sidebar rail climbs its own ladder because light
+ * themes paint `surfaceSidebar` with `surface2`, so a `surface1` chip would vanish on it.
  */
-export function resolveWorkspaceTabChipBackdrop({
+export function resolveWorkspaceTabChipSurface({
   rail,
-  isActiveFocused,
-  isFilled,
+  isActive,
+  isHovered,
 }: {
   rail: WorkspaceTabRailSurface;
-  isActiveFocused: boolean;
-  isFilled: boolean;
+  isActive: boolean;
+  isHovered: boolean;
 }): SurfaceBackdrop {
   if (rail === "sidebar") {
-    if (isActiveFocused) return "surfaceSidebarSelected";
-    return isFilled ? "surfaceSidebarHover" : "surfaceSidebar";
+    if (isActive) return "surfaceSidebarSelected";
+    return isHovered ? "surfaceSidebarHover" : "surfaceSidebar";
   }
-  if (isActiveFocused) return "surface2";
-  return isFilled ? "surface1" : "surface0";
+  return isActive ? "surface1" : "surface0";
 }

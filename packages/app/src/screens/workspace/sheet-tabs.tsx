@@ -1,5 +1,7 @@
 import { useIsFocused } from "expo-router/react-navigation";
-import { useCallback, useEffect, useRef } from "react";
+import { useCallback, useEffect, useMemo, useRef } from "react";
+import { Easing, useReducedMotion } from "react-native-reanimated";
+import { CLAUDE_DURATION, CLAUDE_EASE } from "@/styles/claude-tokens";
 import {
   FULL_SHEET_SNAP_POINTS,
   SheetBackground,
@@ -80,6 +82,19 @@ function SheetTabSheet({ sheet, isTop, onClose }: SheetTabSheetProps) {
   const { tab } = sheet;
   const sheetRef = useRef<IsolatedBottomSheetModalRef>(null);
   const isScreenFocused = useIsFocused();
+  const reducedMotion = useReducedMotion();
+  const animationConfigs = useMemo(
+    () => ({
+      duration: reducedMotion ? 0 : CLAUDE_DURATION.sheet,
+      easing: Easing.bezier(
+        CLAUDE_EASE.snap[0],
+        CLAUDE_EASE.snap[1],
+        CLAUDE_EASE.snap[2],
+        CLAUDE_EASE.snap[3],
+      ),
+    }),
+    [reducedMotion],
+  );
   const { isWorkspaceFocused } = useSheetPaneHost();
   const contextBridge = useSheetPaneBridge();
 
@@ -124,6 +139,7 @@ function SheetTabSheet({ sheet, isTop, onClose }: SheetTabSheetProps) {
       ref={sheetRef}
       contextBridge={contextBridge}
       snapPoints={FULL_SHEET_SNAP_POINTS}
+      animationConfigs={animationConfigs}
       enableDynamicSizing={false}
       enablePanDownToClose
       // The pane scrolls on its own; the sheet drags from its handle and header.

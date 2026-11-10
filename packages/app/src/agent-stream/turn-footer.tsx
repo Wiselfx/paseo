@@ -21,12 +21,11 @@ import { SyncedLoader } from "@/components/synced-loader";
 import { useRetainedPanelActive } from "@/components/retained-panel";
 
 const ThemedSyncedLoader = withUnistyles(SyncedLoader);
-const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.foreground });
+const workingIndicatorColorMapping = (theme: Theme) => ({ color: theme.colors.brand });
+// The space under the last row of a turn, before the next prompt or the composer.
 export const TURN_FOOTER_BOTTOM_SPACING = SPACING[8];
-// Every footer variant (running, completed with Copy, completed with only its duration) gets
-// this content height, so a turn ending swaps the footer's controls without moving the rows
-// above it.
-const TURN_FOOTER_CONTENT_HEIGHT = 24;
+/** Footer rows are actions only: 32 sits the controls on a raised surface's rail. */
+const TURN_FOOTER_CONTENT_HEIGHT = 32;
 
 export type TurnContentStrategy = StreamStrategy;
 export type AssistantTurnForkHandler = (input: {
@@ -126,19 +125,19 @@ const WorkingIndicator = memo(function WorkingIndicator({
   const active = useRetainedPanelActive();
   return (
     <View style={stylesheet.turnFooterContent}>
-      <View style={stylesheet.workingLoader}>
-        <ThemedSyncedLoader size={14} uniProps={workingIndicatorColorMapping} />
+      {/* The line reads as one status: dots, then how long the turn has run. */}
+      <View style={stylesheet.workingStatus}>
+        <ThemedSyncedLoader variant="waiting" size={14} uniProps={workingIndicatorColorMapping} />
+        {inFlightTurnStartedAt ? (
+          <LiveElapsed
+            startedAt={inFlightTurnStartedAt}
+            active={active}
+            style={stylesheet.workingElapsed}
+            testID="turn-working-elapsed"
+          />
+        ) : null}
       </View>
-      {/* Match the completed-turn footer: actions precede timing metadata. */}
       {onForkInFlightTurn ? <AssistantForkMenu onFork={onForkInFlightTurn} /> : null}
-      {inFlightTurnStartedAt ? (
-        <LiveElapsed
-          startedAt={inFlightTurnStartedAt}
-          active={active}
-          style={stylesheet.workingElapsed}
-          testID="turn-working-elapsed"
-        />
-      ) : null}
     </View>
   );
 });
@@ -200,12 +199,14 @@ function CompletedTurnFooter({
   );
   return (
     <View style={stylesheet.turnFooterSlot}>
-      <AssistantTurnFooter
-        getContent={items[startIndex]?.kind === "assistant_message" ? getContent : undefined}
-        completedAt={timing?.completedAt}
-        durationMs={timing?.durationMs}
-        onFork={boundary && onForkAssistantTurn ? handleFork : undefined}
-      />
+      <View style={stylesheet.completedFooterBody}>
+        <AssistantTurnFooter
+          getContent={items[startIndex]?.kind === "assistant_message" ? getContent : undefined}
+          completedAt={timing?.completedAt}
+          durationMs={timing?.durationMs}
+          onFork={boundary && onForkAssistantTurn ? handleFork : undefined}
+        />
+      </View>
     </View>
   );
 }
@@ -227,11 +228,9 @@ const stylesheet = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
   },
   // The message above drops its bottom padding for the footer (compactBottom), so this margin
-  // alone sets the gap. 20 puts the footer as far below the text as the text sits below a
-  // tool row: 12 message padding + 4 stream gap + 5 badge padding/border, less the footer's
-  // 1px taller row.
+  // alone sets the gap between prose and the footer row.
   turnFooterRow: {
-    marginTop: theme.spacing[4] + theme.spacing[1],
+    marginTop: theme.spacing[3],
   },
   turnFooterSlot: {
     flexDirection: "row",
@@ -247,12 +246,24 @@ const stylesheet = StyleSheet.create((theme) => ({
     justifyContent: "flex-start",
     gap: theme.spacing[3],
   },
-  workingElapsed: {
-    color: theme.colors.foregroundMuted,
-    fontSize: STREAM_METADATA_FONT_SIZE,
-    fontVariant: ["tabular-nums"],
+  workingStatus: {
+    flexDirection: "row",
+    alignItems: "center",
+    gap: theme.spacing[2],
   },
-  workingLoader: {
-    marginLeft: -2,
+  // The completed row's content is authored a little shorter than the row it sits in; the
+  // wrapper gives both footer variants the same 32pt band.
+  completedFooterBody: {
+    height: TURN_FOOTER_CONTENT_HEIGHT,
+    flex: 1,
+    minWidth: 0,
+    flexDirection: "row",
+    alignItems: "center",
+  },
+  workingElapsed: {
+    color: theme.colors.foregroundExtraMuted,
+    fontSize: STREAM_METADATA_FONT_SIZE,
+    lineHeight: 18,
+    fontVariant: ["tabular-nums"],
   },
 }));

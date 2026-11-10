@@ -1,14 +1,20 @@
 import { useLayoutEffect, useMemo, useState } from "react";
 import { View } from "react-native";
 import Animated, {
+  Easing,
   makeMutable,
   type SharedValue,
   useAnimatedStyle,
   useReducedMotion,
   useSharedValue,
+  withDelay,
+  withRepeat,
+  withSequence,
+  withTiming,
 } from "react-native-reanimated";
 import { scheduleOnUI } from "react-native-worklets";
 import { useRetainedPanelActive } from "@/components/retained-panel";
+import { CLAUDE_EASE } from "@/styles/claude-tokens";
 import {
   SYNCED_LOADER_DOT_COUNT,
   getSyncedLoaderDotOpacity,
@@ -17,6 +23,18 @@ import {
 
 const GRID_COLUMNS = 2;
 const DOT_KEYS = Array.from({ length: SYNCED_LOADER_DOT_COUNT }, (_, i) => `dot-${i}`);
+
+/** The live waiting line: three clay dots bouncing in place, one after another. */
+const WAITING_DOT_COUNT = 3;
+const WAITING_DOT_SIZE = 4;
+const WAITING_DOT_GAP = 3.5;
+const WAITING_CYCLE_MS = 1900;
+const WAITING_BOUNCE_MS = 500;
+const WAITING_STAGGER_MS = 160;
+const WAITING_LIFT = 3;
+const WAITING_REST_OPACITY = 0.55;
+const WAITING_REDUCED_OPACITY = 0.75;
+const WAITING_DOT_KEYS = Array.from({ length: WAITING_DOT_COUNT }, (_, i) => `waiting-${i}`);
 const sharedStep = makeMutable(0);
 const activeLoaderCount = makeMutable(0);
 const clockRunning = makeMutable(false);
@@ -92,7 +110,122 @@ function useSyncedLoaderStep(active: boolean, reduceMotion: boolean): SharedValu
   return step;
 }
 
-export function SyncedLoader({ size = 10, color }: { size?: number; color: string }) {
+export function SyncedLoader({
+  size = 10,
+  color,
+  variant = "grid",
+}: {
+  size?: number;
+  color: string;
+  /**
+   * `grid` is the app-wide six-dot sync mark. `waiting` is the conversation's live line:
+   * three clay dots bouncing in sequence while a turn runs.
+   */
+  variant?: "grid" | "waiting";
+}) {
+  if (variant === "waiting") {
+    return <WaitingDots color={color} />;
+  }
+  return <GridLoader size={size} color={color} />;
+}
+
+function WaitingDots({ color }: { color: string }) {
+  const active = useRetainedPanelActive();
+  const reduceMotion = useReducedMotion();
+
+  const containerStyle = useMemo(
+    () => ({
+      flexDirection: "row" as const,
+      alignItems: "flex-end" as const,
+      gap: WAITING_DOT_GAP,
+      height: WAITING_DOT_SIZE,
+    }),
+    [],
+  );
+
+  return (
+    <View style={containerStyle}>
+      {WAITING_DOT_KEYS.map((key, index) => (
+        <WaitingDot
+          key={key}
+          index={index}
+          color={color}
+          animate={active && !reduceMotion}
+          reduceMotion={reduceMotion}
+        />
+      ))}
+    </View>
+  );
+}
+
+function WaitingDot({
+  index,
+  color,
+  animate,
+  reduceMotion,
+}: {
+  index: number;
+  color: string;
+  animate: boolean;
+  reduceMotion: boolean;
+}) {
+  const progress = useSharedValue(0);
+
+  useLayoutEffect(() => {
+    if (!animate) {
+      progress.value = 0;
+      return;
+    }
+    progress.value = withDelay(
+      index * WAITING_STAGGER_MS,
+      withRepeat(
+        withSequence(
+          withTiming(1, {
+            duration: WAITING_BOUNCE_MS / 2,
+            easing: Easing.bezier(...CLAUDE_EASE.out),
+          }),
+          withTiming(0, {
+            duration: WAITING_BOUNCE_MS / 2,
+            easing: Easing.bezier(...CLAUDE_EASE.out),
+          }),
+          // Hold the dot still for the rest of the cycle, so the bounce reads as a
+          // beat instead of a loop.
+          withTiming(0, { duration: WAITING_CYCLE_MS - WAITING_BOUNCE_MS }),
+        ),
+        -1,
+        false,
+      ),
+    );
+  }, [animate, index, progress]);
+
+  const animatedStyle = useAnimatedStyle(() => {
+    if (reduceMotion || !animate) {
+      return { opacity: WAITING_REDUCED_OPACITY, transform: [{ translateY: 0 }] };
+    }
+    const lift = progress.value;
+    return {
+      opacity: WAITING_REST_OPACITY + (1 - WAITING_REST_OPACITY) * lift,
+      transform: [{ translateY: -WAITING_LIFT * lift }],
+    };
+  });
+
+  const dotStyle = useMemo(
+    () => [
+      animatedStyle,
+      {
+        width: WAITING_DOT_SIZE,
+        height: WAITING_DOT_SIZE,
+        borderRadius: WAITING_DOT_SIZE / 2,
+        backgroundColor: color,
+      },
+    ],
+    [animatedStyle, color],
+  );
+
+  return <Animated.View style={dotStyle} />;
+}
+
+function GridLoader({ size, color }: { size: number; color: string }) {
   const active = useRetainedPanelActive();
   const reduceMotion = useReducedMotion();
   const step = useSyncedLoaderStep(active, reduceMotion);

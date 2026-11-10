@@ -1,6 +1,5 @@
 import {
   TOOLBAR_CONTROL_SIZES,
-  TOOLBAR_DISC_SIZES,
   TOOLBAR_LABEL_PADDING,
   toolbarGlyphsFor,
   type ControlSizing,
@@ -14,47 +13,49 @@ export type ComposerToolbarEdge = "attach" | "label" | "disc" | "none";
  * The composer's padding. Its sides are the rails: the text column and the toolbar's outer
  * controls both start there.
  */
-const COMPOSER_PADDING = {
-  touch: { top: 12, horizontal: 16, bottom: 4 },
-  pointer: { top: 16, horizontal: 16, bottom: 12 },
-} as const;
+const COMPOSER_PADDING = { top: 9, horizontal: 14, bottom: 2 } as const;
 
-export const COMPOSER_PADDING_TOP = bySizing({
-  touch: COMPOSER_PADDING.touch.top,
-  pointer: COMPOSER_PADDING.pointer.top,
-});
-export const COMPOSER_PADDING_HORIZONTAL = bySizing({
-  touch: COMPOSER_PADDING.touch.horizontal,
-  pointer: COMPOSER_PADDING.pointer.horizontal,
-});
-export const COMPOSER_PADDING_BOTTOM = bySizing({
-  touch: COMPOSER_PADDING.touch.bottom,
-  pointer: COMPOSER_PADDING.pointer.bottom,
-});
+export const COMPOSER_PADDING_TOP = COMPOSER_PADDING.top;
+export const COMPOSER_PADDING_HORIZONTAL = COMPOSER_PADDING.horizontal;
+export const COMPOSER_PADDING_BOTTOM = COMPOSER_PADDING.bottom;
+
+/**
+ * The plate a composer rail control paints. The row keeps its full touch height so the
+ * composer still reads as a surface you can hit, but the ink is one small disc on both
+ * sizings; the disc, not the row, is what the trailing corner is built around.
+ */
+export const COMPOSER_RAIL_DISC_SIZE = 28;
+
+/** A pointer-sized send disc is a rounded square, not a circle; a compact one is a circle. */
+export const COMPOSER_RAIL_RADIUS = COMPOSER_RAIL_DISC_SIZE / 4;
 
 /** The plus glyph's ink: 14 of Lucide's 24 units, plus its stroke. */
-function attachGlyphInkWidth(): number {
-  const glyph = toolbarGlyphsFor("touch").icon;
+function attachGlyphInkWidth(sizing: ControlSizing): number {
+  const glyph = toolbarGlyphsFor(sizing).icon;
   return (14 * glyph.size) / 24 + glyph.strokeWidth;
 }
 
-/** Pointer-sized the row hangs a flat 6px into the padding, which puts each 16pt glyph box on the rail. */
-const POINTER_OVERHANG = 6;
+/**
+ * The disc's distance from the composer's bottom edge: the rail's bottom padding plus the
+ * slack left in a row taller than the disc.
+ */
+function discEdgeInset(sizing: ControlSizing): number {
+  return COMPOSER_PADDING.bottom + (TOOLBAR_CONTROL_SIZES[sizing] - COMPOSER_RAIL_DISC_SIZE) / 2;
+}
 
-/** How far a touch-sized disc sits from the composer's bottom edge, centred in the toolbar row. */
-const DISC_EDGE_INSET =
-  COMPOSER_PADDING.touch.bottom + (TOOLBAR_CONTROL_SIZES.touch - TOOLBAR_DISC_SIZES.touch) / 2;
+/** A pointer-sized row is exactly the disc, so its controls hang by the half-glyph slack. */
+const POINTER_OVERHANG = (COMPOSER_RAIL_DISC_SIZE - toolbarGlyphsFor("pointer").icon.size) / 2;
 
 /**
  * A trailing disc nests into the composer's corner: it reaches past the rail until it sits as far
  * from the right edge as from the bottom edge.
  */
-const DISC_CORNER_NEST = COMPOSER_PADDING.touch.horizontal - DISC_EDGE_INSET;
+const TOUCH_DISC_NEST = COMPOSER_PADDING.horizontal - discEdgeInset("touch");
 
 /** Touch-sized the composer's corner is concentric with the disc nested in it. */
 export const COMPOSER_CORNER_RADIUS = bySizing({
-  touch: TOOLBAR_DISC_SIZES.touch / 2 + DISC_EDGE_INSET,
-  pointer: 16,
+  touch: COMPOSER_RAIL_DISC_SIZE / 2 + discEdgeInset("touch"),
+  pointer: COMPOSER_RAIL_DISC_SIZE / 2 + discEdgeInset("pointer"),
 });
 
 /**
@@ -62,9 +63,9 @@ export const COMPOSER_CORNER_RADIUS = bySizing({
  * the rail. The trailing disc paints its whole highlight, so it nests into the corner instead.
  */
 const TOUCH_OVERHANGS: Record<ComposerToolbarEdge, number> = {
-  attach: (TOOLBAR_DISC_SIZES.touch - attachGlyphInkWidth()) / 2,
+  attach: (COMPOSER_RAIL_DISC_SIZE - attachGlyphInkWidth("touch")) / 2,
   label: TOOLBAR_LABEL_PADDING,
-  disc: DISC_CORNER_NEST,
+  disc: TOUCH_DISC_NEST,
   none: 0,
 };
 

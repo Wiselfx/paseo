@@ -3,12 +3,13 @@ import { composerToolbarOverhang, resolveComposerLeadingEdge } from "./toolbar-r
 
 describe("composer toolbar rails", () => {
   it("hangs each end highlight far enough to put its ink on the text rail and nests a trailing disc into the corner", () => {
-    // The 36pt highlight around the plus's ink (14/24 of a 20pt glyph, plus its 1.5 stroke).
-    expect(composerToolbarOverhang("attach", "touch")).toBeCloseTo((36 - (14 * 20) / 24 - 1.5) / 2);
+    // The 28pt plate around the plus's ink (14/24 of a 20pt glyph, plus its 1.5 stroke).
+    expect(composerToolbarOverhang("attach", "touch")).toBeCloseTo((28 - (14 * 20) / 24 - 1.5) / 2);
     expect(composerToolbarOverhang("label", "touch")).toBe(8);
     expect(composerToolbarOverhang("none", "touch")).toBe(0);
-    // A 36pt disc centred in the 44pt row sits 8 from the bottom edge, so it sits 8 from the side.
-    expect(composerToolbarOverhang("disc", "touch")).toBe(8);
+    // The 28pt disc centred in the 44pt row sits 10 from the bottom edge, so it sits 10 from the
+    // side: 14 of padding less the 4 it reaches past the rail.
+    expect(composerToolbarOverhang("disc", "touch")).toBe(4);
   });
 
   it("keeps the pointer row's flat overhang", () => {

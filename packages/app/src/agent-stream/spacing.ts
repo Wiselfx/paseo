@@ -29,17 +29,23 @@ export function getGapBetweenStreamItems(
   if (isUserMessageItem(item) && isUserMessageItem(belowItem)) {
     return SPACING[1];
   }
+  // A prompt stands 20 above whatever answers it: one step more than the prose-to-work gap.
   if (isUserMessageItem(item)) {
-    return SPACING[4];
+    return SPACING[4] + SPACING[1];
   }
   if (isWorkItem(item) && isWorkItem(belowItem)) {
     return 0;
   }
+  // A work card and the prose it feeds are one block, so they sit closer than two turns.
   if (item.kind === "assistant_message" && isWorkItem(belowItem)) {
-    return SPACING[1];
+    return SPACING[4];
   }
   if (isWorkItem(item) && belowItem.kind === "assistant_message") {
-    return SPACING[1];
+    return SPACING[4];
+  }
+  // The end of an answer and the next prompt are a turn boundary.
+  if (item.kind === "assistant_message" && isUserMessageItem(belowItem)) {
+    return SPACING[8];
   }
   return SPACING[4];
 }

@@ -38,6 +38,7 @@ import {
   TodoListCard,
   CompactionMarker,
   MessageOuterSpacingProvider,
+  STREAM_METADATA_FONT_SIZE,
   type InlinePathTarget,
 } from "@/components/message";
 import { PlanCard } from "@/components/plan-card";
@@ -1453,11 +1454,18 @@ function PermissionActionButton({
     ? [permissionStyles.optionText, permissionStyles.optionTextPrimary]
     : permissionStyles.optionText;
   const colorMapping = isPrimary ? primaryColorMapping : mutedColorMapping;
+  const optionStyle = useCallback(
+    (state: PressableStateCallbackType & { hovered?: boolean }) => [
+      pressableStyle(state),
+      isRespondingAction ? permissionStyles.optionButtonSelected : null,
+    ],
+    [isRespondingAction],
+  );
   return (
     <Pressable
       accessibilityRole="button"
       testID={testID}
-      style={pressableStyle}
+      style={optionStyle}
       onPress={handlePress}
       disabled={isResponding}
     >
@@ -1708,16 +1716,18 @@ const stylesheet = StyleSheet.create((theme) => ({
     paddingHorizontal: theme.spacing[2],
   },
   listContentContainer: {
-    paddingVertical: 0,
+    paddingVertical: theme.spacing[3],
     flexGrow: 1,
+    // Rows carry their own 8pt rail, so the scroll container adds only the rest of the
+    // conversation's 16 (phone) / 24 (desktop) gutter.
     paddingHorizontal: {
-      xs: theme.spacing[3],
+      xs: theme.spacing[2],
       md: theme.spacing[4],
     },
   },
   forwardListContentContainer: {
-    paddingTop: theme.spacing[4],
-    paddingBottom: theme.spacing[4],
+    paddingTop: theme.spacing[3],
+    paddingBottom: theme.spacing[3],
   },
   list: {
     flex: 1,
@@ -1779,21 +1789,21 @@ const stylesheet = StyleSheet.create((theme) => ({
 const permissionStyles = StyleSheet.create((theme) => ({
   container: {
     marginVertical: theme.spacing[3],
-    padding: theme.spacing[3],
-    borderRadius: theme.spacing[2],
-    borderWidth: 1,
-    gap: theme.spacing[2],
+    padding: theme.spacing[4],
+    borderRadius: theme.borderRadius.card,
+    borderWidth: theme.borderWidth[1],
+    gap: theme.spacing[3],
     backgroundColor: theme.colors.surface1,
     borderColor: theme.colors.border,
   },
   title: {
     fontSize: theme.fontSize.base,
-    lineHeight: 22,
+    lineHeight: 20,
     color: theme.colors.foreground,
   },
   description: {
-    fontSize: theme.fontSize.base,
-    lineHeight: 20,
+    fontSize: STREAM_METADATA_FONT_SIZE,
+    lineHeight: 18,
     color: theme.colors.foregroundMuted,
   },
   section: {
@@ -1804,9 +1814,8 @@ const permissionStyles = StyleSheet.create((theme) => ({
   },
   question: {
     fontSize: theme.fontSize.base,
-    marginTop: theme.spacing[1],
-    marginBottom: theme.spacing[1],
-    color: theme.colors.foregroundMuted,
+    lineHeight: 20,
+    color: theme.colors.foreground,
   },
   optionsContainer: {
     gap: theme.spacing[2],
@@ -1819,19 +1828,23 @@ const permissionStyles = StyleSheet.create((theme) => ({
     width: "100%",
   },
   optionButton: {
-    paddingVertical: theme.spacing[2],
+    minHeight: 44,
     paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borderRadius.md,
+    borderRadius: theme.borderRadius.lg,
     alignItems: "center",
+    justifyContent: "center",
     borderWidth: theme.borderWidth[1],
-    backgroundColor: theme.colors.surface1,
-    borderColor: theme.colors.borderAccent,
+    borderColor: "transparent",
   },
   optionButtonHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   optionButtonPressed: {
     opacity: 0.9,
+  },
+  optionButtonSelected: {
+    backgroundColor: theme.colors.selected,
+    borderColor: theme.colors.accentStroke,
   },
   optionContent: {
     flexDirection: "row",
@@ -1840,6 +1853,7 @@ const permissionStyles = StyleSheet.create((theme) => ({
   },
   optionText: {
     fontSize: theme.fontSize.base,
+    lineHeight: 20,
     fontWeight: theme.fontWeight.normal,
     color: theme.colors.foregroundMuted,
   },

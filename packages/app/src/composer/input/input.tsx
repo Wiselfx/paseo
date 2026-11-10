@@ -29,16 +29,15 @@ import {
 import { StyleSheet, withUnistyles } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
 import type { Theme } from "@/styles/theme";
+import { CLAUDE_DURATION } from "@/styles/claude-tokens";
 import {
   controlSizingForLayout,
   TOOLBAR_CONTROL_GAP,
   TOOLBAR_CONTROL_HEIGHT,
   TOOLBAR_DISC_GLYPH_SIZES,
-  TOOLBAR_DISC_SIZE,
   toolbarGlyphsFor,
   toolbarGlyphTone,
   type ToolbarGlyph,
-  toolbarSlot,
 } from "@/components/ui/control-geometry";
 import { bySizing } from "@/components/ui/control-sizing";
 import {
@@ -46,6 +45,8 @@ import {
   COMPOSER_PADDING_HORIZONTAL,
   COMPOSER_CORNER_RADIUS,
   COMPOSER_PADDING_TOP,
+  COMPOSER_RAIL_DISC_SIZE,
+  COMPOSER_RAIL_RADIUS,
   composerToolbarOverhang,
   resolveComposerLeadingEdge,
 } from "@/composer/input/toolbar-rails";
@@ -97,7 +98,8 @@ import {
 } from "@/components/ui/text-input";
 
 const ComposerTextInput = withUnistyles(EditingTextInput, (theme) => ({
-  placeholderTextColor: theme.colors.surface4,
+  placeholderTextColor: theme.colors.foregroundExtraMuted,
+  selectionColor: theme.colors.brand,
 }));
 import {
   resolveSendTooltipLabel,
@@ -239,11 +241,30 @@ export interface MessageInputRef {
   getNativeElement?: () => HTMLElement | null;
 }
 
-const MIN_INPUT_HEIGHT_MOBILE = 30;
-const MIN_INPUT_HEIGHT_DESKTOP = 46;
+const MIN_INPUT_HEIGHT = 36;
 const DEFAULT_MAX_INPUT_HEIGHT = 160;
 const MAX_INPUT_VIEWPORT_RATIO = 0.5;
-const MIN_INPUT_HEIGHT = isWeb ? MIN_INPUT_HEIGHT_DESKTOP : MIN_INPUT_HEIGHT_MOBILE;
+/** Pairs with the 15pt body so one line of draft sits on 22 and each new line adds the same. */
+const COMPOSER_TEXT_LINE_HEIGHT = 22;
+/** A 28pt disc keeps a 44pt touch target by growing the hit area, not the ink. */
+const RAIL_HIT_SLOP = { hitSlop: 8 } as const;
+/**
+ * DSH's composer focus face (`card.css:99-110`): the surface's own hairline deepens and a
+ * 1px halo plus a soft ambient shadow arrive with it. The accent is never a focus stroke on
+ * the composer, and the plugin's neutral values have no theme token of their own.
+ */
+const COMPOSER_FOCUS_FACE = {
+  light: {
+    borderColor: "rgba(20, 20, 19, 0.18)",
+    boxShadow:
+      "0 0 0 1px rgba(20, 20, 19, 0.065), 0 6px 18px rgba(20, 20, 19, 0.03), 0 2px 6px rgba(20, 20, 19, 0.015)",
+  },
+  dark: {
+    borderColor: "rgba(250, 249, 245, 0.22)",
+    boxShadow:
+      "0 0 0 1px rgba(250, 249, 245, 0.09), 0 6px 24px rgba(0, 0, 0, 0.22), 0 2px 8px rgba(0, 0, 0, 0.11)",
+  },
+} as const;
 type WebTextInputKeyPressEvent = NativeSyntheticEvent<
   TextInputKeyPressEventData & {
     metaKey?: boolean;
@@ -343,6 +364,7 @@ function AttachmentDropdown({
             accessibilityRole="button"
             testID="message-input-attach-button"
             style={attachButtonStyle}
+            {...RAIL_HIT_SLOP}
           >
             {renderAttachButtonIcon}
           </DropdownMenuTrigger>
@@ -385,7 +407,7 @@ function VoiceButtonIcon({
       </View>
     );
   }
-  const colorMapping = glyphColorMapping(glyph, hovered);
+  const colorMapping = hovered ? iconForegroundMapping : iconForegroundExtraMutedMapping;
   const Icon = isMutedRealtime ? ThemedMicOff : ThemedMic;
   return <Icon size={glyph.size} strokeWidth={glyph.strokeWidth} uniProps={colorMapping} />;
 }
@@ -427,33 +449,36 @@ function SendButtonContent({
   submitIcon,
   submitLabel,
   glyph,
+  filled,
 }: {
   isSubmitLoading: boolean;
   submitIcon: "arrow" | "return";
   submitLabel: string | undefined;
   glyph: ToolbarGlyph;
+  filled: boolean;
 }) {
+  const glyphMapping = filled ? iconAccentForegroundMapping : iconForegroundExtraMutedMapping;
   if (isSubmitLoading) {
-    return <ThemedLoadingSpinner size="small" uniProps={iconAccentForegroundMapping} />;
+    return <ThemedLoadingSpinner size="small" uniProps={glyphMapping} />;
   }
   if (submitLabel) {
-    return <Text style={styles.sendButtonLabel}>{submitLabel}</Text>;
+    return (
+      <Text style={[styles.sendButtonLabel, !filled && styles.sendButtonLabelMuted]}>
+        {submitLabel}
+      </Text>
+    );
   }
   if (submitIcon === "return") {
     return (
       <ThemedCornerDownLeft
         size={glyph.size}
         strokeWidth={glyph.strokeWidth}
-        uniProps={iconAccentForegroundMapping}
+        uniProps={glyphMapping}
       />
     );
   }
   return (
-    <ThemedArrowUp
-      size={glyph.size}
-      strokeWidth={glyph.strokeWidth}
-      uniProps={iconAccentForegroundMapping}
-    />
+    <ThemedArrowUp size={glyph.size} strokeWidth={glyph.strokeWidth} uniProps={glyphMapping} />
   );
 }
 
@@ -827,6 +852,7 @@ function VoiceButtonTooltip({
         accessibilityRole="button"
         accessibilityLabel={voiceButtonAccessibilityLabel}
         style={voiceButtonStyle}
+        {...RAIL_HIT_SLOP}
       >
         {renderVoiceButtonIcon}
       </TooltipTrigger>
@@ -844,6 +870,7 @@ function SendButtonTooltip({
   onDefaultSendAction,
   onLongPressSend,
   isSendButtonDisabled,
+  isSendButtonFilled,
   submitAccessibilityLabel,
   submitAccessibilityHint,
   sendButtonCombinedStyle,
@@ -861,6 +888,7 @@ function SendButtonTooltip({
   onDefaultSendAction: () => void;
   onLongPressSend: () => void;
   isSendButtonDisabled: boolean;
+  isSendButtonFilled: boolean;
   submitAccessibilityLabel: string;
   submitAccessibilityHint: string | undefined;
   sendButtonCombinedStyle: React.ComponentProps<typeof TooltipTrigger>["style"];
@@ -884,15 +912,25 @@ function SendButtonTooltip({
         accessibilityRole="button"
         testID={submitButtonTestID}
         style={sendButtonCombinedStyle}
+        {...RAIL_HIT_SLOP}
       >
-        <View style={submitLabel ? styles.sendButtonDiscLabeled : styles.sendButtonDisc}>
-          <SendButtonContent
-            isSubmitLoading={isSubmitLoading}
-            submitIcon={submitIcon}
-            submitLabel={submitLabel}
-            glyph={glyph}
-          />
-        </View>
+        {({ pressed }: { pressed: boolean }) => (
+          <View
+            style={[
+              submitLabel ? styles.sendButtonDiscLabeled : styles.sendButtonDisc,
+              isSendButtonFilled ? styles.sendButtonDiscFilled : styles.sendButtonDiscEmpty,
+            ]}
+          >
+            {pressed ? <View style={styles.sendButtonPressed} /> : null}
+            <SendButtonContent
+              isSubmitLoading={isSubmitLoading}
+              submitIcon={submitIcon}
+              submitLabel={submitLabel}
+              glyph={glyph}
+              filled={isSendButtonFilled}
+            />
+          </View>
+        )}
       </TooltipTrigger>
       <TooltipContent side="top" align="center" offset={8}>
         <SendTooltipBody label={sendTooltipLabel} sendKeys={sendKeys} />
@@ -1891,12 +1929,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       ],
     );
 
+    const hasSendableContent = hasSendableComposerContent({
+      hasText: hasLiveText,
+      attachments,
+      hasExternalContent,
+    });
     const primaryActionKind = resolvePrimaryActionKind({
-      hasSendableContent: hasSendableComposerContent({
-        hasText: hasLiveText,
-        attachments,
-        hasExternalContent,
-      }),
+      hasSendableContent,
       allowEmptySubmit,
       isAgentRunning,
       isSubmitLoading,
@@ -2009,10 +2048,18 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         styles.inputWrapper,
         Platform.OS !== "ios" && isCompact && !isFullscreen && styles.inputWrapperCompact,
         readOnly && styles.inputWrapperReadOnly,
+        isInputFocused && styles.inputWrapperFocused,
         inputWrapperStyle,
         { opacity: surfacePresentation.input.opacity },
       ],
-      [inputWrapperStyle, isCompact, isFullscreen, readOnly, surfacePresentation.input.opacity],
+      [
+        inputWrapperStyle,
+        isCompact,
+        isFullscreen,
+        isInputFocused,
+        readOnly,
+        surfacePresentation.input.opacity,
+      ],
     );
     // `withUnistyles` maps this component's `style` into a `.hash > *` child
     // rule, which ties on specificity with react-native-web's own
@@ -2047,13 +2094,13 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
       hasExternalContent,
       allowEmpty: allowEmptySubmit,
     });
-    const sendButtonCombinedStyle = useCallback(
-      ({ pressed }: { pressed?: boolean }) => [
+    const sendButtonCombinedStyle = useMemo(
+      () => [
         styles.sendButton,
-        Boolean(pressed) && styles.discPressed,
-        isPresentedSendDisabled && styles.buttonDisabled,
+        // The empty ghost is already the resting look; only a real, disabled send dims.
+        isPresentedSendDisabled && hasSendableContent && styles.buttonDisabled,
       ],
-      [isPresentedSendDisabled],
+      [hasSendableContent, isPresentedSendDisabled],
     );
     const overlayContainerStyle = useMemo(
       () => [styles.overlayContainer, { opacity: surfacePresentation.overlay.opacity }],
@@ -2096,6 +2143,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
           onDefaultSendAction={handleDefaultSendAction}
           onLongPressSend={handleLongPressSend}
           isSendButtonDisabled={isPresentedSendDisabled}
+          isSendButtonFilled={hasSendableContent}
           submitAccessibilityLabel={submitAccessibilityLabel}
           submitAccessibilityHint={submitAccessibilityHint}
           sendButtonCombinedStyle={sendButtonCombinedStyle}
@@ -2117,6 +2165,7 @@ export const MessageInput = forwardRef<MessageInputRef, MessageInputProps>(
         handleDefaultSendAction,
         handleLongPressSend,
         isPresentedSendDisabled,
+        hasSendableContent,
         submitAccessibilityLabel,
         submitAccessibilityHint,
         sendButtonCombinedStyle,
@@ -2376,21 +2425,28 @@ const styles = StyleSheet.create((theme: Theme) => ({
     ...(Platform.OS === "ios" ? { overflow: "hidden" as const } : {}),
     flexShrink: 1,
     flexDirection: "column",
-    gap: theme.spacing[3],
+    gap: theme.spacing[2],
     backgroundColor: theme.colors.surface1,
     borderWidth: theme.borderWidth[1],
-    borderColor: theme.colors.borderAccent,
+    borderColor: theme.colors.border,
     borderRadius: COMPOSER_CORNER_RADIUS,
     paddingTop: COMPOSER_PADDING_TOP,
     paddingBottom: COMPOSER_PADDING_BOTTOM,
     paddingHorizontal: COMPOSER_PADDING_HORIZONTAL,
     ...(isWeb
       ? {
-          transitionProperty: "border-color",
-          transitionDuration: "200ms",
+          transitionProperty: "border-color, box-shadow",
+          transitionDuration: `${CLAUDE_DURATION.feedback}ms`,
           transitionTimingFunction: "ease-in-out",
         }
       : {}),
+  },
+  // DSH's focus face: the composer deepens its own hairline and gains a 1px halo plus a
+  // soft ambient shadow. The accent is never a focus stroke on this surface, and neither
+  // the border nor the halo takes part in layout, so nothing shifts.
+  inputWrapperFocused: {
+    borderColor: COMPOSER_FOCUS_FACE[theme.colorScheme].borderColor,
+    ...(isWeb ? { boxShadow: COMPOSER_FOCUS_FACE[theme.colorScheme].boxShadow } : null),
   },
   // Lifts the composer off the chat it sits under on phones.
   inputWrapperCompact: {
@@ -2443,7 +2499,8 @@ const styles = StyleSheet.create((theme: Theme) => ({
     // line box is the same for every line. Web keeps the CSS value.
     ...(isWeb
       ? ({
-          lineHeight: theme.fontSize.content * 1.4,
+          lineHeight: COMPOSER_TEXT_LINE_HEIGHT,
+          caretColor: theme.colors.brand,
           outlineStyle: "none",
           outlineWidth: 0,
           outlineColor: "transparent",
@@ -2487,62 +2544,84 @@ const styles = StyleSheet.create((theme: Theme) => ({
   // Touch-sized the plus is all thin arms, so beside the picker's glyph the same gap reads wider.
   // Its highlight can overlap the picker's: only one control is ever pressed.
   attachButton: {
-    ...toolbarSlot(),
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     marginRight: bySizing({ touch: -2, pointer: 0 }),
     borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
   },
   attachButtonAnchor: {
-    width: TOOLBAR_DISC_SIZE,
-    height: TOOLBAR_DISC_SIZE,
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     alignItems: "center",
     justifyContent: "center",
   },
   voiceButton: {
-    ...toolbarSlot(),
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     borderRadius: theme.borderRadius.full,
     alignItems: "center",
     justifyContent: "center",
   },
   voiceButtonRecordingDisc: {
-    width: TOOLBAR_DISC_SIZE,
-    height: TOOLBAR_DISC_SIZE,
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     borderRadius: theme.borderRadius.full,
     backgroundColor: theme.colors.destructive,
     alignItems: "center",
     justifyContent: "center",
   },
   sendButton: {
-    minWidth: TOOLBAR_DISC_SIZE,
-    height: TOOLBAR_DISC_SIZE,
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     alignItems: "center",
     justifyContent: "center",
   },
+  // The disc is the composer's corner: a circle nested compact, a rounded square on a pointer.
   sendButtonDisc: {
-    width: TOOLBAR_DISC_SIZE,
-    height: TOOLBAR_DISC_SIZE,
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.accent,
+    width: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
+    borderRadius: bySizing({ touch: theme.borderRadius.full, pointer: COMPOSER_RAIL_RADIUS }),
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
+  },
+  sendButtonDiscFilled: {
+    backgroundColor: theme.colors.brand,
+  },
+  // An empty draft keeps the disc in place as a ghost, so the rail never reflows as you type.
+  sendButtonDiscEmpty: {
+    borderWidth: theme.borderWidth[1],
+    borderColor: theme.colors.border,
+  },
+  sendButtonPressed: {
+    position: "absolute",
+    top: 0,
+    right: 0,
+    bottom: 0,
+    left: 0,
+    backgroundColor: theme.colors.pressed,
   },
   sendButtonDiscLabeled: {
-    minWidth: TOOLBAR_DISC_SIZE,
-    height: TOOLBAR_DISC_SIZE,
+    minWidth: COMPOSER_RAIL_DISC_SIZE,
+    height: COMPOSER_RAIL_DISC_SIZE,
     paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borderRadius.full,
-    backgroundColor: theme.colors.accent,
+    borderRadius: bySizing({ touch: theme.borderRadius.full, pointer: COMPOSER_RAIL_RADIUS }),
     alignItems: "center",
     justifyContent: "center",
+    overflow: "hidden",
   },
   sendButtonLabel: {
     fontSize: theme.fontSize.base,
     fontWeight: theme.fontWeight.medium,
     color: theme.colors.accentForeground,
   },
+  sendButtonLabelMuted: {
+    color: theme.colors.foregroundExtraMuted,
+  },
   iconButtonHovered: {
-    backgroundColor: theme.colors.surface2,
+    backgroundColor: theme.colors.hover,
   },
   discPressed: {
     opacity: 0.7,
@@ -2582,4 +2661,7 @@ const ThemedLoadingSpinner = withUnistyles(LoadingSpinner);
 
 const iconForegroundMapping = (theme: Theme) => ({ color: theme.colors.foreground });
 const iconForegroundMutedMapping = (theme: Theme) => ({ color: theme.colors.foregroundMuted });
+const iconForegroundExtraMutedMapping = (theme: Theme) => ({
+  color: theme.colors.foregroundExtraMuted,
+});
 const iconAccentForegroundMapping = (theme: Theme) => ({ color: theme.colors.accentForeground });

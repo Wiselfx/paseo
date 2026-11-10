@@ -1420,11 +1420,20 @@ const ThemedCheckIcon = withUnistyles(Check);
 const ThemedXIcon = withUnistyles(X);
 
 const primaryColorMapping = (theme: Theme) => ({
-  color: theme.colors.foreground,
+  color: theme.colors.accentForeground,
 });
 const mutedColorMapping = (theme: Theme) => ({
   color: theme.colors.foregroundMuted,
 });
+const destructiveColorMapping = (theme: Theme) => ({
+  color: theme.colors.destructive,
+});
+
+function permissionColorMapping(isPrimary: boolean, isDanger: boolean) {
+  if (isPrimary) return primaryColorMapping;
+  if (isDanger) return destructiveColorMapping;
+  return mutedColorMapping;
+}
 
 const pressableStyle = ({
   pressed,
@@ -1455,16 +1464,18 @@ function PermissionActionButton({
   onPress,
 }: PermissionActionButtonProps) {
   const handlePress = useCallback(() => onPress(action), [onPress, action]);
+  const isDanger = action.variant === "danger";
   const optionTextStyle = isPrimary
     ? [permissionStyles.optionText, permissionStyles.optionTextPrimary]
-    : permissionStyles.optionText;
-  const colorMapping = isPrimary ? primaryColorMapping : mutedColorMapping;
+    : [permissionStyles.optionText, isDanger ? permissionStyles.optionTextDanger : null];
+  const colorMapping = permissionColorMapping(isPrimary, isDanger);
   const optionStyle = useCallback(
     (state: PressableStateCallbackType & { hovered?: boolean }) => [
       pressableStyle(state),
+      isPrimary ? permissionStyles.optionButtonPrimary : null,
       isRespondingAction ? permissionStyles.optionButtonSelected : null,
     ],
-    [isRespondingAction],
+    [isPrimary, isRespondingAction],
   );
   return (
     <Pressable
@@ -1473,6 +1484,7 @@ function PermissionActionButton({
       style={optionStyle}
       onPress={handlePress}
       disabled={isResponding}
+      hitSlop={4}
     >
       {isRespondingAction ? (
         <ThemedLoadingSpinner size="small" uniProps={colorMapping} />
@@ -1829,16 +1841,18 @@ const stylesheet = StyleSheet.create((theme) => ({
 const permissionStyles = StyleSheet.create((theme) => ({
   container: {
     marginVertical: theme.spacing[3],
-    padding: theme.spacing[4],
+    padding: theme.spacing[3],
     borderRadius: theme.borderRadius.card,
     borderWidth: theme.borderWidth[1],
     gap: theme.spacing[3],
     backgroundColor: theme.colors.surface1,
-    borderColor: theme.colors.border,
+    borderColor: theme.colors.brandStroke,
+    ...(isWeb ? { boxShadow: `0 0 0 3px ${theme.colors.brandGlow}` } : null),
   },
   title: {
     fontSize: theme.fontSize.base,
     lineHeight: 20,
+    fontWeight: theme.fontWeight.semibold,
     color: theme.colors.foreground,
   },
   description: {
@@ -1868,13 +1882,17 @@ const permissionStyles = StyleSheet.create((theme) => ({
     width: "100%",
   },
   optionButton: {
-    minHeight: 44,
+    minHeight: 36,
     paddingHorizontal: theme.spacing[3],
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius.control,
     alignItems: "center",
     justifyContent: "center",
     borderWidth: theme.borderWidth[1],
     borderColor: "transparent",
+  },
+  optionButtonPrimary: {
+    backgroundColor: theme.colors.brand,
+    borderColor: theme.colors.brand,
   },
   optionButtonHovered: {
     backgroundColor: theme.colors.hover,
@@ -1898,7 +1916,11 @@ const permissionStyles = StyleSheet.create((theme) => ({
     color: theme.colors.foregroundMuted,
   },
   optionTextPrimary: {
-    color: theme.colors.foreground,
+    color: theme.colors.accentForeground,
+    fontWeight: theme.fontWeight.medium,
+  },
+  optionTextDanger: {
+    color: theme.colors.destructive,
   },
 }));
 

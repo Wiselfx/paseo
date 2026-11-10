@@ -67,6 +67,12 @@ export const claudeLightCard = {
  * warmer top step for the composer. Borders are a 10% white highlight, not a
  * colour.
  */
+/** Pending approval card: clay at half strength, with a soft clay halo. OCU §8. */
+export const CLAUDE_PERMISSION = {
+  stroke: "rgba(217, 119, 87, 0.50)",
+  glow: "rgba(217, 119, 87, 0.12)",
+} as const;
+
 export const claudeDarkCard = {
   ...claudeCommon,
   canvas: "#151515",

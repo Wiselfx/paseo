@@ -4,6 +4,7 @@ import {
   CLAUDE_DURATION,
   CLAUDE_EASE,
   CLAUDE_FOCUS,
+  CLAUDE_PERMISSION,
   CLAUDE_RADIUS,
   CLAUDE_STATUS,
   claudeDarkCard,
@@ -288,6 +289,8 @@ const claudeStatusTokens = {
 interface ClaudeLayer {
   brand: string;
   brandStrong: string;
+  brandStroke: string;
+  brandGlow: string;
   accentInk: string;
   accentStroke: string;
   bubble: string;
@@ -310,6 +313,8 @@ function resolveClaudeLayer(card: ClaudeCard | undefined, fallback: ClaudeLayer)
   return {
     brand: card.brand,
     brandStrong: card.brandStrong,
+    brandStroke: CLAUDE_PERMISSION.stroke,
+    brandGlow: CLAUDE_PERMISSION.glow,
     accentInk: card.accentInk,
     accentStroke: card.accentBorder,
     bubble: card.bubble,
@@ -330,6 +335,8 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
   const claude = resolveClaudeLayer(tint.claude, {
     brand: tint.accent,
     brandStrong: tint.accentBright,
+    brandStroke: CLAUDE_PERMISSION.stroke,
+    brandGlow: CLAUDE_PERMISSION.glow,
     accentInk: tint.accent,
     accentStroke: tint.borderAccent,
     bubble: tint.surface3,
@@ -367,6 +374,8 @@ export function buildLightSemanticColors(tint: LightThemeConfig) {
     // Claude layer. A variant without a card falls back to its own palette.
     brand: claude.brand,
     brandStrong: claude.brandStrong,
+    brandStroke: claude.brandStroke,
+    brandGlow: claude.brandGlow,
     accentInk: claude.accentInk,
     accentStroke: claude.accentStroke,
     bubble: claude.bubble,
@@ -500,6 +509,8 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
   const claude = resolveClaudeLayer(tint.claude, {
     brand: tint.accent,
     brandStrong: tint.accentBright,
+    brandStroke: CLAUDE_PERMISSION.stroke,
+    brandGlow: CLAUDE_PERMISSION.glow,
     accentInk: tint.accent,
     accentStroke: tint.borderAccent,
     bubble: tint.surface3,
@@ -537,6 +548,8 @@ export function buildDarkSemanticColors(tint: DarkThemeConfig) {
     // Claude layer. A variant without a card falls back to its own palette.
     brand: claude.brand,
     brandStrong: claude.brandStrong,
+    brandStroke: claude.brandStroke,
+    brandGlow: claude.brandGlow,
     accentInk: claude.accentInk,
     accentStroke: claude.accentStroke,
     bubble: claude.bubble,

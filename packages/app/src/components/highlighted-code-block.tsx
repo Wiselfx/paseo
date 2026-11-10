@@ -260,8 +260,7 @@ const styles = StyleSheet.create((theme) => ({
     padding: theme.spacing[3],
   },
   codeText: {
-    fontFamily:
-      theme.fontFamily.mono === "ui-monospace" && !isWeb ? undefined : theme.fontFamily.mono,
+    fontFamily: theme.fontFamily.mono,
     fontSize: 12.5,
     lineHeight: 19,
     color: theme.colors.foreground,

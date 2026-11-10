@@ -142,3 +142,7 @@ Before/after numbers, measured with upstream's tooling, recorded here.
   upstream's; the fold structure and motion are implemented, the wording is not replaced.
 - **Live status words.** DSH's waiting line names the state ("Reading file.ts"). That needs
   strings Paseo does not have, so the loader and elapsed time stay.
+- **Expanded body scroll cap.** DSH caps a process body at `min(400px, 50vh)`. Paseo's stream
+  lays every folded row out as a sibling of the transcript, so the body card is drawn in
+  segments and cannot own one ScrollView; the overview group card still caps its own inner
+  scroll. The body grows with its rows until folded.

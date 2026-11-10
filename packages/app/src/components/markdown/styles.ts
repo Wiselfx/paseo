@@ -29,9 +29,9 @@ export function createMarkdownStyles(
     fontFamily: DEFAULT_DISPLAY_FONT_STACK,
     fontSize: size,
     lineHeight: line,
-    fontWeight: theme.fontWeight.semibold,
-    marginTop: 20,
-    marginBottom: 8,
+    fontWeight: theme.fontWeight.bold,
+    marginTop: 24,
+    marginBottom: 12,
   });
   return {
     containerStyle: isWeb ? WEB_CONTAINER : undefined,
@@ -39,11 +39,16 @@ export function createMarkdownStyles(
     markdownStyle: {
       paragraph,
       h1: heading(24, 32),
-      h2: heading(20, 28),
-      h3: heading(17, 24),
-      h4: heading(15, 23),
-      h5: heading(15, 23),
-      h6: { ...heading(15, 23), color: theme.colors.foregroundMuted },
+      h2: heading(18, 26),
+      h3: heading(16, 24),
+      h4: { ...heading(15, 23), marginTop: 16, marginBottom: 8 },
+      h5: { ...heading(15, 23), marginTop: 16, marginBottom: 8 },
+      h6: {
+        ...heading(15, 23),
+        marginTop: 16,
+        marginBottom: 8,
+        color: theme.colors.foregroundMuted,
+      },
       list: {
         ...paragraph,
         bulletColor: theme.colors.foregroundExtraMuted,

@@ -1026,15 +1026,15 @@ const styles = StyleSheet.create((theme) => ({
   },
   backdrop: { ...StyleSheet.absoluteFill, backgroundColor: "rgba(0, 0, 0, 0.5)" },
   panel: {
-    width: 640,
+    width: 760,
     height: 560,
     maxWidth: "92%",
     maxHeight: "80%",
     borderWidth: 1,
     borderColor: theme.colors.border,
-    borderRadius: theme.borderRadius.lg,
+    borderRadius: theme.borderRadius["2xl"],
     overflow: "hidden",
-    backgroundColor: theme.colors.surface0,
+    backgroundColor: theme.colors.surface1,
     ...theme.shadow.lg,
   },
   header: {
@@ -1050,7 +1050,8 @@ const styles = StyleSheet.create((theme) => ({
     borderBottomColor: theme.colors.border,
   },
   input: {
-    fontSize: theme.fontSize.base,
+    fontSize: theme.fontSize.lg,
+    lineHeight: 24,
     paddingVertical: theme.spacing[1],
     color: theme.colors.foreground,
     outlineWidth: 0,
@@ -1093,7 +1094,7 @@ const styles = StyleSheet.create((theme) => ({
     backgroundColor: theme.colors.border,
   },
   row: { paddingHorizontal: theme.spacing[4], justifyContent: "center" },
-  activeRow: { backgroundColor: theme.colors.surface1 },
+  activeRow: { backgroundColor: theme.colors.surface2 },
   rowContent: {
     flexDirection: "row",
     alignItems: "center",

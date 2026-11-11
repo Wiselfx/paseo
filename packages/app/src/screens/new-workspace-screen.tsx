@@ -1710,7 +1710,9 @@ function NewWorkspaceLayout({
   ) : (
     <>
       <View style={styles.composerTitleContainer} pointerEvents="none">
-        <Text style={styles.composerTitle}>{title}</Text>
+        <Text style={styles.composerTitle} dataSet={DISPLAY_FONT_DATA_SET}>
+          {title}
+        </Text>
       </View>
       {formStack}
     </>
@@ -1733,6 +1735,8 @@ function NewWorkspaceLayout({
     </>
   );
 }
+
+const DISPLAY_FONT_DATA_SET = { pdisplay: "true" } as const;
 
 const styles = StyleSheet.create((theme) => ({
   container: {

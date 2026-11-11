@@ -7,9 +7,10 @@
 // beats both RN-web's base font and Unistyles' generated classes (0,1,0) — no reliance
 // on stylesheet order. Code/diff/terminal surfaces carry `data-pmono` (and have their
 // subtree excluded via `:not([data-pmono] *)`) so they keep their monospace font.
+// The display face (`data-pdisplay`) opts out too: a serif title is not interface text.
 const STYLE_ID = "paseo-ui-font";
 const RULE =
-  ":is(#root, #overlay-root) *:not([data-pmono]):not([data-pmono] *){font-family:var(--paseo-ui-font);}";
+  ":is(#root, #overlay-root) *:not([data-pmono]):not([data-pmono] *):not([data-pdisplay]){font-family:var(--paseo-ui-font);}";
 
 export function applyRootUiFont(uiFontStack: string): void {
   if (typeof document === "undefined") return;

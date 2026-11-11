@@ -127,7 +127,7 @@ synthesizes weight. Provenance and licensing note: `packages/app/assets/fonts/an
 
 ## Files changed
 
-`git diff --stat upstream/main`: **141 files, +4,078 / −2,056** (three font binaries
+`git diff --stat upstream/main`: **141 files, +4,148 / −2,056** (three font binaries
 excluded from the line count).
 
 | Area                      | Files | Change                                                                                                              |

@@ -81,13 +81,11 @@ none` on tree rows, touch web only, coarse-pointer guard.
     locale's key set against English and refuses strings identical to it. So
     upstream text keeps using `t()`, fork surfaces use this module, and
     translating the fork means translating this one file.
-16. `packages/app/src/components/markdown/fence/visualize/` and
-    `packages/app/src/panels/viz-panel.tsx`. The `visualize` fence: sandboxed
-    stage, per-fence state and prompt bridges, workspace tab, export. Behaviour
-    and protocol in `visualize.md`; the files are `index.tsx` and `segments.ts`
-    (fence and splitting, `viz.test.ts`), `document.ts` (the sandboxed document
-    and its theme vars, `viz.test.ts`), `stage.tsx` / `stage.web.tsx` (WebView
-    and iframe), `bridges.ts` (`bridges.test.ts`), `store.ts` (`store.test.ts`).
+16. `packages/app/src/components/markdown/fence/svg/`. The `svg` fence renders
+    as a drawing (`SvgXml`) with a View source toggle; `segments.ts` splits it
+    out. The `visualize` fence is retired: `fence/visualize/` (stage, store,
+    bridges, document) and `panels/viz-panel.tsx` remain, unreferenced by the
+    renderer, until they are deleted.
 17. `packages/app/src/components/markdown/fence/youtube/`. The player split:
     `urls.ts` (URL extraction and thumbnail, `urls.test.ts`), `mini.tsx`
     (`mini.test.tsx`, the inline poster), `player.tsx` / `player.web.tsx`

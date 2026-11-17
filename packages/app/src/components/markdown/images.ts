@@ -41,25 +41,31 @@ export interface MarkdownImageContext {
 export function useMarkdownSource(
   text: string,
   context: MarkdownImageContext,
-  links: { commandNames?: ReadonlySet<string>; forgeReferencePattern?: string } = {},
+  links: {
+    commandNames?: ReadonlySet<string>;
+    forgeReferencePattern?: string;
+    external?: boolean;
+  } = {},
 ) {
   const occurrenceKey = useId();
-  const { commandNames, forgeReferencePattern } = links;
+  const { commandNames, forgeReferencePattern, external } = links;
   // Fork media: raw <svg> hoists to data-URI images, bare remote image
   // URLs become image markdown, bare local paths become images or file
-  // links — all before mdast prep so they ride stock pipelines.
+  // links — all before mdast prep so they ride stock pipelines. External
+  // Markdown skips them: it only gets its author's explicit https images.
   const prepared = useMemo(
     () =>
       prepareMarkdownSource(
-        linkifyLocalPaths(hoistBareRemoteImages(hoistRawSvgToImages(text))),
+        external ? text : linkifyLocalPaths(hoistBareRemoteImages(hoistRawSvgToImages(text))),
         context.workspaceRoot,
         {
           supportsSvg: isWeb,
           commandNames,
           forgeReferencePattern,
+          external,
         },
       ),
-    [text, context.workspaceRoot, commandNames, forgeReferencePattern],
+    [text, context.workspaceRoot, commandNames, forgeReferencePattern, external],
   );
   const sources = [...new Set(prepared.images.map((image) => image.source))];
   const acquisitions = sources.map((source) => {

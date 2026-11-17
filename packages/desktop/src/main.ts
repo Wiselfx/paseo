@@ -89,6 +89,7 @@ import {
   type DesktopWindowOwner,
   type OwnedDesktopWindow,
 } from "./window/desktop-window-owner.js";
+import { installYouTubeEmbedReferer } from "./features/youtube-embed-referer.js";
 import { getDesktopSettingsStore } from "./settings/desktop-settings-electron.js";
 import { clampWindowStateToWorkAreas, createWindowStateStore } from "./settings/window-state.js";
 import {
@@ -928,6 +929,7 @@ async function bootstrap(): Promise<void> {
   }
 
   await app.whenReady();
+  installYouTubeEmbedReferer(session.defaultSession);
 
   const appDistDir = getAppDistDir();
   protocol.handle(APP_SCHEME, (request) => {

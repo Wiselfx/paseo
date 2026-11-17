@@ -5,7 +5,7 @@ import { WebView } from "react-native-webview";
 import { Play } from "lucide-react-native";
 import type { Theme } from "@/styles/theme";
 import { openExternalUrl } from "@/utils/open-external-url";
-import { youtubeEmbedUrl, youtubeWatchUrl } from "./urls";
+import { youtubeEmbedUrl, YOUTUBE_EMBED_REFERER, youtubeWatchUrl } from "./urls";
 
 const styles = StyleSheet.create((theme: Theme) => ({
   card: { gap: 6 },
@@ -52,7 +52,10 @@ function YouTubeInlinePlayerBase({ videoId, theme }: { videoId: string; theme: T
 /** The embed surface, sized by its parent box. */
 export function YouTubePlayerScreen({ videoId }: { videoId: string }) {
   const embedUrl = useMemo(() => youtubeEmbedUrl(videoId), [videoId]);
-  const source = useMemo(() => ({ uri: embedUrl }), [embedUrl]);
+  const source = useMemo(
+    () => ({ uri: embedUrl, headers: { Referer: YOUTUBE_EMBED_REFERER } }),
+    [embedUrl],
+  );
   return (
     <WebView
       source={source}

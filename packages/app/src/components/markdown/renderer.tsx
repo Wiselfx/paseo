@@ -8,6 +8,7 @@ import {
 import { useStableEvent } from "@/hooks/use-stable-event";
 import { matchCommandLink, useAgentCommandHints, type CommandHints } from "@/agent-commands";
 import { useForgeShorthand } from "@/git/forge-shorthand";
+import { pluginOverviewUrl } from "@getpaseo/protocol/plugin-overview";
 import { openExternalUrl } from "@/utils/open-external-url";
 import { AttachmentLightbox, type ImageLightboxSource } from "@/components/attachment-lightbox";
 import type { Theme } from "@/styles/theme";
@@ -21,6 +22,7 @@ import { splitStreamingMarkdown } from "./streaming";
 import { useMarkdownSource, type MarkdownImageContext } from "./images";
 
 import { MermaidFence, MermaidStreamingContext } from "./fence/mermaid";
+import { splitMermaidFences } from "./fence/mermaid/segments";
 import { YouTubeFence, YouTubeMiniPlayer } from "./fence/youtube";
 import { AssistantLinkCard } from "./link-card";
 import { VisualizeFence } from "./fence/visualize";
@@ -28,6 +30,8 @@ import { splitHostedSegments, type HostedSegment } from "./hosted-segments";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
 const MD4C_FLAGS = { latexMath: false, hardSoftBreaks: true, admonitions: true };
+// A README is written for its forge, where the lines of a paragraph join into one.
+const EXTERNAL_MD4C_FLAGS = { ...MD4C_FLAGS, hardSoftBreaks: false };
 
 // Reading the breakpoint here makes Unistyles restyle the text when the layout crosses it.
 const markdownStyle =
@@ -58,6 +62,17 @@ export interface MarkdownRendererProps extends MarkdownImageContext {
   workspaceId?: string;
   onLinkPress?: (url: string) => unknown;
   agentCommands?: boolean;
+  /**
+   * Author-controlled Markdown from outside this host, such as a plugin README: only its https
+   * links and images work, nothing is read as a file, forge reference or command, and the lines of
+   * a paragraph join as they do on its forge.
+   */
+  external?: boolean;
+}
+
+function splitSegments(markdown: string, external: boolean): HostedSegment[] {
+  if (!external) return splitHostedSegments(markdown, isWeb ? "web" : "native");
+  return isWeb ? [{ kind: "markdown", id: "0", source: markdown }] : splitMermaidFences(markdown);
 }
 
 /** All Markdown surfaces share the same engine and source adaptation. */
@@ -94,12 +109,14 @@ const MarkdownPart = memo(function MarkdownPart({
   workspaceId,
   onLinkPress,
   agentCommands: _agentCommands,
+  external = false,
   commandHints = null,
   ...imageContext
 }: MarkdownRendererProps & { commandHints?: CommandHints | null }) {
   const environment = useAssistantFileLinkEnvironment();
   const actions = useAssistantFileLinkActions();
-  const forgeShorthand = useForgeShorthand();
+  const workspaceForgeShorthand = useForgeShorthand();
+  const forgeShorthand = external ? null : workspaceForgeShorthand;
   const client =
     imageContext.client ??
     (environment.client?.readFile
@@ -113,10 +130,20 @@ const MarkdownPart = memo(function MarkdownPart({
       ...imageContext,
       client,
     },
-    { commandNames: commandHints?.names, forgeReferencePattern: forgeShorthand?.pattern },
+    {
+      commandNames: commandHints?.names,
+      forgeReferencePattern: forgeShorthand?.pattern,
+      external,
+    },
   );
   const [image, setImage] = useState<ImageLightboxSource | null>(null);
   const pressLink = useStableEvent(({ url, sourceType }: LinkPressEvent) => {
+    if (external) {
+      // The parser still autolinks bare http, www and email text; only https links open.
+      const safe = pluginOverviewUrl(url);
+      if (safe) void openExternalUrl(safe);
+      return;
+    }
     const command = commandHints && matchCommandLink(url, sourceType, commandHints.names);
     if (command) {
       commandHints.insert(command);
@@ -136,10 +163,8 @@ const MarkdownPart = memo(function MarkdownPart({
   });
   const closeImage = useStableEvent(() => setImage(null));
   // Fork media: fence kinds the app hosts outside the library, in document order.
-  const segments = useMemo(
-    () => splitHostedSegments(markdown, isWeb ? "web" : "native"),
-    [markdown],
-  );
+  // External Markdown never reaches the fork-hosted fences (YouTube, cards, viz).
+  const segments = useMemo(() => splitSegments(markdown, external), [markdown, external]);
   const pressCardLink = useStableEvent((url: string) => pressLink({ url, sourceType: "text" }));
   const renderSegment = (segment: HostedSegment) => {
     const key = `${segment.kind}:${segment.id}`;
@@ -170,7 +195,7 @@ const MarkdownPart = memo(function MarkdownPart({
             uniProps={pickMarkdownStyle(compact, muted)}
             flavor="github"
             selectable={selectable}
-            md4cFlags={MD4C_FLAGS}
+            md4cFlags={external ? EXTERNAL_MD4C_FLAGS : MD4C_FLAGS}
             linkRecognition={linkRecognition}
             enableTaskListItemToggle={false}
             enableLinkPreview={false}

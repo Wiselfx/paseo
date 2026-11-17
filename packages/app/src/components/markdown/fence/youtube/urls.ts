@@ -55,3 +55,6 @@ export function youtubeEmbedUrl(videoId: string): string {
 export function youtubeWatchUrl(videoId: string): string {
   return `https://www.youtube.com/watch?v=${videoId}`;
 }
+
+/** The native WebView sends no Referer, which YouTube rejects as error 153. */
+export const YOUTUBE_EMBED_REFERER = "https://paseo.sh/";

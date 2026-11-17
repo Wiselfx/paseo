@@ -14,8 +14,8 @@ const DOCUMENT = [
   "dQw4w9WgXcQ",
   "```",
   "",
-  "```visualize",
-  '{"markdown":"# Report"}',
+  "```svg",
+  '<svg viewBox="0 0 4 3"></svg>',
   "```",
   "",
   "https://example.com/article",
@@ -33,7 +33,7 @@ describe("hosted fence segments", () => {
       "markdown",
       "youtube",
       "markdown",
-      "viz",
+      "svg",
       "markdown",
       "card",
       "markdown",
@@ -54,7 +54,7 @@ describe("hosted fence segments", () => {
 
   it("returns plain prose as one library segment", () => {
     expect(splitHostedSegments("Just words.", "native")).toEqual([
-      { kind: "markdown", id: "v0", source: "Just words." },
+      { kind: "markdown", id: "s0", source: "Just words." },
     ]);
   });
 });

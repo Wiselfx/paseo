@@ -1,5 +1,4 @@
 import { describe, expect, it, vi } from "vitest";
-import { splitVisualizeFences } from "./segments";
 import {
   buildVizDocument,
   isVizHeightMessage,
@@ -10,24 +9,6 @@ import {
 } from "./document";
 import { sendVizPrompt, vizStateKey, VIZ_STATE_CAP_BYTES } from "./bridges";
 import { useSessionStore } from "@/stores/session-store";
-
-describe("splitVisualizeFences", () => {
-  it("extracts visualize fences", () => {
-    const segments = splitVisualizeFences("before\n```visualize\n<div>hi</div>\n```\nafter");
-    expect(segments.map((s) => s.kind)).toEqual(["markdown", "viz", "markdown"]);
-    expect(segments[1].source).toBe("<div>hi</div>");
-  });
-
-  it("ignores other fence languages", () => {
-    expect(splitVisualizeFences("```mermaid\ngraph\n```")).toHaveLength(1);
-  });
-
-  it("paints unclosed fences partial (streaming), settles on complete", () => {
-    const segments = splitVisualizeFences("```visualize\n<div>hi");
-    expect(segments).toHaveLength(1);
-    expect(segments[0].kind).toBe("viz");
-  });
-});
 
 describe("buildVizDocument", () => {
   it("defines bridges before fence content", () => {

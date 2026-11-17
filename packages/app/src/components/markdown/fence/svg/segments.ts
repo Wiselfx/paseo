@@ -1,24 +1,23 @@
 import { fromMarkdown } from "mdast-util-from-markdown";
 import type { RootContent } from "mdast";
 
-export interface VizSegment {
-  kind: "markdown" | "viz";
+export interface SvgSegment {
+  kind: "markdown" | "svg";
   id: string;
   source: string;
 }
 
 /**
- * ```visualize fences leave the engine and host the interactive stage
- * between library segments (same pattern as mermaid/youtube). Explicit
- * fence only: no bare-URL detection. Unclosed fences (streaming) stay
- * markdown until complete.
+ * ```svg fences leave the engine and render as the drawing they describe, with
+ * a toggle back to the code. Raw `<svg>` in prose still hoists to an image
+ * (`utils/markdown-raw-svg.ts`).
  */
-export function splitVisualizeFences(markdown: string): VizSegment[] {
-  if (!/```visualize/i.test(markdown)) return [{ kind: "markdown", id: "0", source: markdown }];
-  const segments: VizSegment[] = [];
+export function splitSvgFences(markdown: string): SvgSegment[] {
+  if (!/```svg/i.test(markdown)) return [{ kind: "markdown", id: "0", source: markdown }];
+  const segments: SvgSegment[] = [];
   let cursor = 0;
   function visit(node: RootContent): void {
-    if (node.type === "code" && node.lang?.toLowerCase() === "visualize" && node.position) {
+    if (node.type === "code" && node.lang?.toLowerCase() === "svg" && node.position) {
       const start = node.position.start.offset!;
       const end = node.position.end.offset!;
       if (start > cursor)
@@ -27,12 +26,11 @@ export function splitVisualizeFences(markdown: string): VizSegment[] {
           id: String(segments.length),
           source: markdown.slice(cursor, start),
         });
-      segments.push({ kind: "viz", id: String(segments.length), source: node.value });
+      segments.push({ kind: "svg", id: String(segments.length), source: node.value });
       cursor = end;
     } else if ("children" in node) node.children.forEach(visit);
   }
-  const tree = fromMarkdown(markdown);
-  tree.children.forEach(visit);
+  fromMarkdown(markdown).children.forEach(visit);
   if (cursor < markdown.length || segments.length === 0)
     segments.push({
       kind: "markdown",

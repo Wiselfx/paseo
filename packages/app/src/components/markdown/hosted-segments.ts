@@ -1,5 +1,5 @@
 import { splitMermaidFences } from "./fence/mermaid/segments";
-import { splitVisualizeFences } from "./fence/visualize/segments";
+import { splitSvgFences } from "./fence/svg/segments";
 import { splitYouTubeFences } from "./fence/youtube/segments";
 import { splitLinkCards } from "./link-card-segments";
 
@@ -25,7 +25,7 @@ const HOSTED_SEGMENT_STAGES: readonly SegmentStage[] = [
   { prefix: "m", split: splitMermaidFences, nativeOnly: true },
   { prefix: "y", split: splitYouTubeFences },
   { prefix: "c", split: splitLinkCards },
-  { prefix: "v", split: splitVisualizeFences },
+  { prefix: "s", split: splitSvgFences },
 ];
 
 const WEB_HOSTED_SEGMENT_STAGES = HOSTED_SEGMENT_STAGES.filter((stage) => !stage.nativeOnly);

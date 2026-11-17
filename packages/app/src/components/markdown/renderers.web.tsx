@@ -13,7 +13,7 @@ import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import type { Theme } from "@/styles/theme";
 import { MermaidFence } from "./fence/mermaid";
 import { YouTubeFence } from "./fence/youtube";
-import { VisualizeFence } from "./fence/visualize";
+import { SvgFence } from "./fence/svg";
 import { markdownLinkSource } from "./source";
 
 const ThemedCodeBlock = withUnistyles(HighlightedCodeBlock);
@@ -26,11 +26,11 @@ const codeStyle = (theme: Theme) => ({
   textStyle: { backgroundColor: theme.colors.surface2, padding: 12, borderRadius: 8 },
 });
 function WebCodeBlock({ code, language }: CodeBlockRendererProps) {
-  // Fork: youtube and visualize fences; upstream dispatches mermaid only.
+  // Fork: youtube and svg fences; upstream dispatches mermaid only.
   const lang = language?.toLowerCase();
   if (lang === "mermaid") return <MermaidFence code={code} />;
   if (lang === "youtube") return <YouTubeFence code={code} />;
-  if (lang === "visualize") return <VisualizeFence code={code} />;
+  if (lang === "svg") return <SvgFence code={code} />;
   return <ThemedCodeBlock code={code} language={language} uniProps={codeStyle} />;
 }
 

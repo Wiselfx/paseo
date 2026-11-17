@@ -25,7 +25,7 @@ import { MermaidFence, MermaidStreamingContext } from "./fence/mermaid";
 import { splitMermaidFences } from "./fence/mermaid/segments";
 import { YouTubeFence, YouTubeMiniPlayer } from "./fence/youtube";
 import { AssistantLinkCard } from "./link-card";
-import { VisualizeFence } from "./fence/visualize";
+import { SvgFence } from "./fence/svg";
 import { splitHostedSegments, type HostedSegment } from "./hosted-segments";
 
 const ThemedMarkdown = withUnistyles(EnrichedMarkdownText);
@@ -105,8 +105,6 @@ const MarkdownPart = memo(function MarkdownPart({
   muted = false,
   selectable = true,
   streaming = false,
-  agentId,
-  workspaceId,
   onLinkPress,
   agentCommands: _agentCommands,
   external = false,
@@ -163,7 +161,7 @@ const MarkdownPart = memo(function MarkdownPart({
   });
   const closeImage = useStableEvent(() => setImage(null));
   // Fork media: fence kinds the app hosts outside the library, in document order.
-  // External Markdown never reaches the fork-hosted fences (YouTube, cards, viz).
+  // External Markdown never reaches the fork-hosted fences (YouTube, cards, SVG).
   const segments = useMemo(() => splitSegments(markdown, external), [markdown, external]);
   const pressCardLink = useStableEvent((url: string) => pressLink({ url, sourceType: "text" }));
   const renderSegment = (segment: HostedSegment) => {
@@ -177,16 +175,8 @@ const MarkdownPart = memo(function MarkdownPart({
         return <YouTubeMiniPlayer key={key} code={segment.source} />;
       case "card":
         return <AssistantLinkCard key={key} url={segment.source} onPress={pressCardLink} />;
-      case "viz":
-        return (
-          <VisualizeFence
-            key={key}
-            code={segment.source}
-            serverId={imageContext.serverId}
-            agentId={agentId}
-            workspaceId={workspaceId}
-          />
-        );
+      case "svg":
+        return <SvgFence key={key} code={segment.source} />;
       default:
         return (
           <ThemedMarkdown

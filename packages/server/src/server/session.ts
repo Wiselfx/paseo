@@ -24,7 +24,7 @@ import { CreationService, type CreatedAgent } from "./creation/index.js";
 import type { CreationSnapshot, AgentCreateRequest } from "@getpaseo/protocol/messages";
 import type { MessageReceipts } from "./message-receipts/index.js";
 import {
-  isHeartbeatBackgroundWorkItem,
+  isDaemonBackgroundWorkItem,
   type AgentBackgroundWorkItem,
 } from "./agent/background-work/index.js";
 import equal from "fast-deep-equal";
@@ -1407,6 +1407,8 @@ export class Session {
             type: "browser.host.register.request" as const,
             requestId: uuidv4(),
             hostKind: host.data.hostKind,
+            label: host.data.label,
+            instanceId: host.data.instanceId,
             supportedCommands: host.data.supportedCommands,
           };
           void this.delivery
@@ -2295,7 +2297,7 @@ export class Session {
       return items;
     }
     return items.map((item) => {
-      if (!isHeartbeatBackgroundWorkItem(item)) return item;
+      if (!isDaemonBackgroundWorkItem(item)) return item;
       const { canStop: _canStop, stopToken: _stopToken, ...visible } = item;
       return visible;
     });
@@ -2571,6 +2573,8 @@ export class Session {
       unregister = this.browserToolsBroker.registerClient({
         id: owner.id,
         hostKind: request.hostKind,
+        label: request.label,
+        instanceId: request.instanceId,
         supportedCommands: request.supportedCommands,
         sendBrowserAutomationRequest: (message) => owner.emit(message),
       });

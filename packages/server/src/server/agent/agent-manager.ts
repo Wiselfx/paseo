@@ -334,6 +334,8 @@ export type AgentAttentionCallback = (params: {
   agentId: string;
   provider: AgentProvider;
   reason: "finished" | "error" | "permission";
+  /** When the agent's current unread attention started; null when the agent is read. */
+  attentionTimestamp: Date | null;
 }) => void;
 
 export type AgentArchivedCallback = (agentId: string) => Promise<void> | void;
@@ -608,9 +610,11 @@ function attachManagedTurnIdentity(
       return turnId ? { event: { ...event, turnId }, turnId } : { event, turnId };
     }
     case "timeline": {
-      // Live provider items belong to the foreground turn that owns their dispatch.
-      // Provider history deliberately keeps absent IDs because it has no daemon turn identity.
-      const turnId = agent.activeForegroundTurnId ?? agent.activeTurnId ?? undefined;
+      // A notice with no open run is a display turn of its own.
+      const turnId =
+        agent.activeForegroundTurnId ??
+        agent.activeTurnId ??
+        (event.item.type === "notification" ? randomUUID() : undefined);
       return turnId ? { event: { ...event, turnId }, turnId } : { event, turnId };
     }
     default:
@@ -1476,7 +1480,7 @@ export class AgentManager {
     await session.stopBackgroundWork(providerItemId);
   }
 
-  getAgentBackgroundWorkSummary(agentId: string): { count: number } | undefined {
+  getAgentBackgroundWorkSummary(agentId: string) {
     return this.backgroundWork.summary(agentId);
   }
 
@@ -4825,6 +4829,10 @@ export class AgentManager {
       this.publishBackgroundWork(agent.id, items);
       return;
     }
+    // Resolve notice membership before selecting the foreground run's waiters.
+    if (event.type === "timeline" && event.item.type === "notification") {
+      event = attachManagedTurnIdentity(agent, event, false).event;
+    }
     const turnId = getAgentStreamEventTurnId(event);
     const matchingWaiters = this.runs.getMatchingWaiters(agent, turnId);
     this.logger.trace(
@@ -5590,7 +5598,11 @@ export class AgentManager {
       this.openActiveTurn(agent, eventTurnId, new Date());
     }
     agent.lastError = undefined;
-    agent.attention = { requiresAttention: false };
+    // Nobody read the agent, so an unread finish stays unread. Clearing it would make every
+    // turn the agent starts on its own, such as a reaction to background output, notify again.
+    if (agent.attention.requiresAttention && agent.attention.attentionReason === "error") {
+      agent.attention = { requiresAttention: false };
+    }
     agent.lifecycle = "running";
     this.emitState(agent);
   }
@@ -5866,11 +5878,16 @@ export class AgentManager {
       return;
     }
 
+    const finished = previousStatus === "running" && currentStatus === "idle";
     if (agent.attention.requiresAttention) {
+      // The unread finish stays the same; the notifier knows whether the user was told about it.
+      if (finished && agent.attention.attentionReason === "finished") {
+        this.broadcastAgentAttention(agent, "finished");
+      }
       return;
     }
 
-    if (previousStatus === "running" && currentStatus === "idle") {
+    if (finished) {
       agent.attention = {
         requiresAttention: true,
         attentionReason: "finished",
@@ -6007,6 +6024,9 @@ export class AgentManager {
       agentId: agent.id,
       provider: agent.provider,
       reason,
+      attentionTimestamp: agent.attention.requiresAttention
+        ? agent.attention.attentionTimestamp
+        : null,
     });
   }
 

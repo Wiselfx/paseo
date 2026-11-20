@@ -27,7 +27,7 @@ Paseo 为以下每个 Agent 都提供了集成。
 
 Paseo 可以运行任何使用 [Agent Client Protocol](https://agentclientprotocol.com)（ACP）的 Agent。应用内目录列出了以下 Agent。
 
-要添加其中一个，请打开 **设置 → Hosts → 你的主机 → Providers**，在目录里找到该 Agent 并选择 **添加**。通过 `npx` 或 `uvx` 启动的条目只需要 daemon 主机上有该工具。其他条目请先安装该 Agent 的 CLI。每个条目都附有安装说明的链接。
+要添加其中一个，请打开 **设置 → Hosts → 你的主机 → Providers**，选择 **+ Provider**，找到该 Agent 并选择 **添加**。通过 `npx` 或 `uvx` 启动的条目只需要 daemon 主机上有该工具。其他条目请先安装该 Agent 的 CLI。如果缺少 CLI，该 provider 的页面会显示 **未安装**，**安装** 会打开它的安装说明。
 
 - [Agoragentic](https://agoragentic.com)：拥有 174 种以上 AI 能力的 Agent 市场。
 - [Amp](https://github.com/tao12345666333/amp-acp)：前沿的编程 Agent。
@@ -49,7 +49,7 @@ Paseo 可以运行任何使用 [Agent Client Protocol](https://agentclientprotoc
 - [Gajae Code](https://gajae-code.com)：订阅制编程 Agent，采用先规划再修改的工作流。
 - [Gemini CLI](https://geminicli.com)：Google 官方的 Gemini CLI。
 - [GLM Agent](https://github.com/stefandevo/glm-acp-agent)：智谱 AI 的 GLM 编程 Agent。
-- [goose](https://block.github.io/goose/)：Block 的本地开源 AI Agent。
+- [goose](https://block.github.io/goose/)：Block 的本地开源 AI Agent。如果 goose 支持发现模型清单，Paseo 会列出 goose 中所有已配置 Provider 的模型。
 - [Grok](https://docs.x.ai/build/overview)：xAI 的 Grok Build Agent 编程 CLI。
 - [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/features/acp)：Nous Research 的自我改进型 Agent。
 - [Junie](https://junie.jetbrains.com/docs/junie-cli-acp.html)：JetBrains 的编程 Agent。

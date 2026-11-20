@@ -363,9 +363,61 @@ Provider 选项是一个记录，即 `session.open` 中的 `ProviderSessionConfi
 
 Paseo 刷新 Agent 的方式是关闭它当前的 Provider 会话，再用当前的配置和持久化值打开它。Provider 在 `session.open` 期间重新读取外部状态。
 
-使用 `@getpaseo/plugin/server/acp` 中的 `runAcpProvider()` 适配一个基于命令的 ACP。只针对厂商在发现、配置、通知或工具调用方面的差异添加转换器钩子。
+使用 `@getpaseo/plugin/server/acp` 中的 `runAcpProvider()` 适配一个基于命令的 ACP。使用转换器钩子处理厂商特有的行为。参见[适配 ACP Agent](/docs/plugins/providers#adapt-an-acp-agent)。
+
+在 `discover` 和 `configure` 中，调用 `context.request(method, params)` 发送 ACP 扩展请求。
+Promise 返回 JSON 值，或以 Agent 的 JSON-RPC 错误拒绝。
+
+使用 `config(state, context)` 返回 Paseo 显示的配置快照。
+Paseo 在会话就绪、收到配置通知或提交配置更改时调用此同步钩子。
+使用 `configure` 向 Agent 发送更改。
 
 `ProviderRegistration.icon` 是相对于插件目录的文件路径，例如 `icon.svg`。它必须解析到该目录内一个遵循 [SVG 图标规则](#svg-rules)的普通文件。Paseo 在插件启动时读取并校验该文件；这个字符串从不是内联 SVG 或 URL。
+
+#### Provider 安装 {#provider-installation}
+
+**需要 Paseo 0.17**。较旧的版本会忽略 `installation`。`ProviderRegistration.installation` 填充 Provider 设置中的 **安装** 部分。每个成员都是可选的。`inspect` 和 `installUrl` 都没有声明时，Paseo 会隐藏这个部分。完整示例见[报告安装与更新](/docs/plugins/providers#report-installation-and-updates)。类型从 `@getpaseo/plugin/server/provider` 导入。
+
+```ts
+interface ProviderInstallation {
+  installUrl?: string;
+  updateUrl?: string;
+  inspect?(context: ProviderInstallationContext): Promise<ProviderInspection>;
+  checkForUpdates?(context: ProviderUpdateCheckContext): Promise<ProviderUpdateCheck>;
+  update?(context: ProviderUpdateContext): Promise<ProviderUpdateResult>;
+}
+```
+
+| 成员              | 调用时机                                          | 期限  | 结果保留时间                                    |
+| ----------------- | ------------------------------------------------- | ----- | ----------------------------------------------- |
+| `inspect`         | 打开 Provider 设置时                              | 20 秒 | 30 秒                                           |
+| `checkForUpdates` | `inspect` 回答 `installed` 之后，或没有 `inspect` | 25 秒 | `current` 或 `available` 为一小时，其他为 30 秒 |
+| `update`          | 用户选择 **更新** 时，每个 Provider 同一时间一个  | 无    | `succeeded` 之后 Paseo 重新读取两个结果         |
+
+Provider 设置中的 **刷新** 会跳过保留的结果，并清除失败的更新。Paseo 从不在会话开始前或按计划调用这些成员。超过期限或抛出异常会变成显示该消息的错误。
+
+`installUrl` 和 `updateUrl` 是 Paseo 在浏览器中打开的 `http` 或 `https` 页面。其中任何一个是其他类型的 URL 时，插件无法启动。
+
+上下文：
+
+| 字段               | 类型                                      | 含义                                                                                                                      |
+| ------------------ | ----------------------------------------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `launch`           | `ProviderInstallationLaunch \| undefined` | 会话将使用的启动配置，带有 `resolved`。注册没有声明 `command` 时不存在。                                                  |
+| `signal`           | `AbortSignal`                             | 当 Paseo 停止等待或 daemon 停止时中止。                                                                                   |
+| `installedVersion` | `string \| undefined`                     | 仅用于 `checkForUpdates`。`inspect` 报告的 `version`，按原样传入。`inspect` 没有报告版本或你没有声明 `inspect` 时不存在。 |
+| `report`           | `(event: ProviderUpdateReport) => void`   | 仅用于 `update`。按顺序向用户显示 `{ type: "stdout" \| "stderr" \| "message", text }`。                                   |
+
+`ProviderInstallationLaunch` 是 `{ command, args, env, resolved }`。`resolved: true` 时，`command` 是可执行文件的路径。`resolved: false` 时，Paseo 没有找到可执行文件，`command` 是配置中写的名称。
+
+结果：
+
+| 类型                   | 取值                                                                                                                                   |
+| ---------------------- | -------------------------------------------------------------------------------------------------------------------------------------- |
+| `ProviderInspection`   | `{ status: "installed", version?: string }` 或 `{ status: "not_installed" }`                                                           |
+| `ProviderUpdateCheck`  | `{ status: "current" }`、`{ status: "available", versions?: string[], message?: string }` 或 `{ status: "unknown", message?: string }` |
+| `ProviderUpdateResult` | `{ status: "succeeded", message?: string }` 或 `{ status: "failed", message: string }`                                                 |
+
+Paseo 按原样显示 `version`、`versions` 和 `message`，不解析或排序它们。只要 `inspect` 报告的 `version` 不变，Paseo 会在最长一小时内复用 `current` 或 `available` 的结果。它保留 `report` 输出的最后 65,536 个字符。不符合这些结构的结果是错误。只要 `inspect` 报告 CLI 已安装且你声明了 `update`，就会出现 **更新**，与 `checkForUpdates` 的回答以及是否声明它无关；没有 `update` 时，Paseo 在同样条件下提供 `updateUrl`。
 
 ### 用量来源 {#usage-sources}
 

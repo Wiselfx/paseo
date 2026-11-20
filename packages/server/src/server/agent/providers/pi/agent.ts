@@ -20,6 +20,7 @@ import {
   type AgentPermissionRequest,
   type AgentPermissionResponse,
   type AgentProviderNotice,
+  type AgentClientInstallation,
   type AgentPersistenceHandle,
   type AgentPromptInput,
   type AgentProvider,
@@ -44,6 +45,13 @@ import {
   type ProviderRefreshContext,
 } from "../../agent-sdk-types.js";
 import { importSessionFromPersistence } from "../../provider-session-import.js";
+import { createCliInstallation } from "../cli-installation.js";
+import {
+  compareWithLatestRelease,
+  fetchReleaseField,
+  type LatestReleaseLookup,
+} from "../release-check.js";
+import { updatedForNewAgents } from "../update-command.js";
 import { runProviderRefreshActivity } from "../../provider-refresh-deadline.js";
 import { runProviderTurn } from "../provider-runner.js";
 import {
@@ -201,7 +209,14 @@ export interface PiRpcAgentClientOptions {
   runtimeSettings?: ProviderRuntimeSettings;
   runtime?: PiRuntime;
   usagePollScheduler?: PiUsagePollScheduler;
+  lookupLatestRelease?: LatestReleaseLookup;
 }
+
+const PI_INSTALL_URL = "https://pi.dev/docs/latest/quickstart";
+
+/** The release `pi update` installs, from the endpoint Pi's own version check reads. */
+const lookupLatestPiRelease: LatestReleaseLookup = ({ signal }) =>
+  fetchReleaseField({ url: "https://pi.dev/api/latest-version", field: "version", signal });
 
 interface PiPromptPayload {
   text: string;
@@ -2648,6 +2663,7 @@ export class PiRpcAgentSession implements AgentSession {
 export class PiRpcAgentClient implements AgentClient {
   readonly provider: AgentProvider;
   readonly capabilities: AgentCapabilityFlags;
+  readonly installation: AgentClientInstallation;
 
   private readonly logger: Logger;
   private readonly runtimeSettings?: ProviderRuntimeSettings;
@@ -2661,6 +2677,21 @@ export class PiRpcAgentClient implements AgentClient {
     this.runtimeSettings = options.runtimeSettings;
     this.runtime = options.runtime;
     this.usagePollScheduler = options.usagePollScheduler;
+    const lookup = options.lookupLatestRelease ?? lookupLatestPiRelease;
+    this.installation = createCliInstallation({
+      name: "Pi",
+      defaultBinary: PI_BINARY_COMMAND,
+      runtimeSettings: options.runtimeSettings,
+      installUrl: PI_INSTALL_URL,
+      updateUrl: PI_INSTALL_URL,
+      checkForUpdates: async ({ cli, installedVersion, signal }) =>
+        compareWithLatestRelease({
+          installed: installedVersion,
+          latest: await lookup({ executablePath: cli.command, signal }),
+        }),
+      // `--self` updates Pi itself and leaves installed Pi packages alone.
+      update: { args: ["update", "--self"], successMessage: updatedForNewAgents("Pi") },
+    });
   }
 
   async createSession(

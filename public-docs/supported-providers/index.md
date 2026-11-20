@@ -29,7 +29,7 @@ Paseo ships an integration for each of these agents.
 
 Paseo runs any agent that speaks the [Agent Client Protocol](https://agentclientprotocol.com) (ACP). The in-app catalog lists the agents below.
 
-To add one, open **Settings → Hosts → your host → Providers**, find the agent in the catalog, and choose **Add**. Entries that launch through `npx` or `uvx` need only that tool on your daemon host. For the other entries, install the CLI of the agent first. Each entry links to its install instructions.
+To add one, open **Settings → Hosts → your host → Providers**, select **+ Provider**, find the agent, and choose **Add**. Entries that launch through `npx` or `uvx` need only that tool on your daemon host. For the other entries, install the CLI of the agent first. If the CLI is missing, the page of the provider says **Not installed**, and **Install** opens its install instructions.
 
 - [Agoragentic](https://agoragentic.com), agent marketplace with 174+ AI capabilities.
 - [Amp](https://github.com/tao12345666333/amp-acp), frontier coding agent.
@@ -51,7 +51,7 @@ To add one, open **Settings → Hosts → your host → Providers**, find the ag
 - [Gajae Code](https://gajae-code.com), subscription-based coding agent with plan-before-mutation workflows.
 - [Gemini CLI](https://geminicli.com), Google's official Gemini CLI.
 - [GLM Agent](https://github.com/stefandevo/glm-acp-agent), Zhipu AI's GLM coding agent.
-- [goose](https://block.github.io/goose/), Block's local open-source AI agent.
+- [goose](https://block.github.io/goose/), Block's local open-source AI agent. Paseo lists models from all providers configured in goose when goose supports model inventory discovery.
 - [Grok](https://docs.x.ai/build/overview), xAI's Grok Build agentic coding CLI.
 - [Hermes Agent](https://hermes-agent.nousresearch.com/docs/user-guide/features/acp), Nous Research's self-improving agent.
 - [Junie](https://junie.jetbrains.com/docs/junie-cli-acp.html), JetBrains' coding agent.

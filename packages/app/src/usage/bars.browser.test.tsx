@@ -32,6 +32,7 @@ it("translates mounted usage rows when the language changes", async () => {
       <>
         <UsageWindowBar
           window={window}
+          forecastAt={null}
           displayAs="used"
           pinnable={false}
           pinned={false}
@@ -50,4 +51,69 @@ it("translates mounted usage rows when the language changes", async () => {
   });
   expect(container.textContent).toContain("セッション70% 使用済み");
   expect(container.textContent).toContain("クレジット");
+});
+
+const narrowReadingMs = Date.now();
+const narrowForecastAt = new Date(narrowReadingMs).toISOString();
+const narrowWindow: UsageWindow = {
+  id: "weekly",
+  label: "Weekly",
+  usedPct: 0.2,
+  durationSeconds: 604_800,
+  resetsAt: new Date(narrowReadingMs + 165.5 * 3_600_000).toISOString(),
+};
+
+it("shows the forecast as one more datapoint after the reset countdown, in the same line", async () => {
+  act(() =>
+    root.render(
+      <UsageWindowBar
+        window={narrowWindow}
+        forecastAt={narrowForecastAt}
+        displayAs="used"
+        pinnable={false}
+        pinned={false}
+        onTogglePin={ignorePin}
+        pinLabel=""
+        pinTestID=""
+      />,
+    ),
+  );
+
+  const line = Array.from(container.querySelectorAll("*")).find((node) =>
+    node.textContent.startsWith("resets in"),
+  );
+  expect(line?.textContent).toMatch(/^resets in .+\s· .+\s· ~\d+% left at reset$/);
+});
+
+it("wraps the forecast below the countdown in a narrow French card instead of overlapping it", async () => {
+  await i18n.changeLanguage("fr");
+  container.style.width = "272px";
+  act(() =>
+    root.render(
+      <UsageWindowBar
+        window={narrowWindow}
+        forecastAt={narrowForecastAt}
+        displayAs="used"
+        pinnable={false}
+        pinned={false}
+        onTogglePin={ignorePin}
+        pinLabel=""
+        pinTestID=""
+      />,
+    ),
+  );
+
+  function textBounds(prefix: string) {
+    const element = Array.from(container.querySelectorAll("*")).find(
+      (node) => node.childElementCount === 0 && node.textContent.startsWith(prefix),
+    );
+    expect(element).toBeDefined();
+    const range = document.createRange();
+    range.selectNodeContents(element!);
+    return range.getBoundingClientRect();
+  }
+
+  const countdown = textBounds("se réinitialise");
+  const forecast = textBounds("~");
+  expect(forecast.left >= countdown.right || forecast.top >= countdown.bottom).toBe(true);
 });

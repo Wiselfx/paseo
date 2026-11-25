@@ -1,6 +1,6 @@
 import { DiffSession } from "./diff/index.js";
 import { type WorkspaceRuntimeStore } from "./workspace-runtime-store/index.js";
-import type { AgentMessageDelivery } from "./agent/agent-messages/index.js";
+import type { AgentMessageBehavior, AgentMessageDelivery } from "./agent/agent-messages/index.js";
 import { AgentDirectory, type BackgroundVisibility } from "./agent/directory.js";
 import { ConnectedHostSession } from "./connected-hosts/index.js";
 import type { ConnectedHosts } from "./connected-hosts/index.js";
@@ -21,7 +21,11 @@ import type {
 import { relative } from "node:path";
 import { isAbsolute } from "node:path";
 import { CreationService, type CreatedAgent } from "./creation/index.js";
-import type { CreationSnapshot, AgentCreateRequest } from "@getpaseo/protocol/messages";
+import type {
+  AgentActiveTurnBehavior,
+  CreationSnapshot,
+  AgentCreateRequest,
+} from "@getpaseo/protocol/messages";
 import type { MessageReceipts } from "./message-receipts/index.js";
 import {
   isDaemonBackgroundWorkItem,
@@ -506,6 +510,7 @@ export interface SessionOptions {
   getTransportBufferedAmount?: (source?: object) => number | null;
   getConnectedHostBufferedAmount?: () => number | null;
   onLifecycleIntent?: (intent: SessionLifecycleIntent) => void;
+  publishWorkspaceArchiveUpdates?: (workspaceIds: Iterable<string>) => Promise<void>;
   onWorkspaceRecovered?: (workspace: PersistedWorkspaceRecord) => Promise<void>;
   publishScriptStatusUpdate?: (message: ScriptStatusUpdateMessage) => void;
   logger: pino.Logger;
@@ -803,6 +808,7 @@ export class Session {
     | null;
   private readonly getTransportBufferedAmount: (source?: object) => number | null;
   private readonly onLifecycleIntent: ((intent: SessionLifecycleIntent) => void) | null;
+  private readonly onWorkspaceArchiveUpdate: SessionOptions["publishWorkspaceArchiveUpdates"];
   private readonly onWorkspaceRecovered:
     | ((workspace: PersistedWorkspaceRecord) => Promise<void>)
     | null;
@@ -978,6 +984,7 @@ export class Session {
       : null;
     this.getTransportBufferedAmount = getTransportBufferedAmount ?? (() => 0);
     this.onLifecycleIntent = onLifecycleIntent ?? null;
+    this.onWorkspaceArchiveUpdate = options.publishWorkspaceArchiveUpdates;
     this.onWorkspaceRecovered = onWorkspaceRecovered ?? null;
     this.pushNotifications = pushNotifications;
     this.paseoHome = paseoHome;
@@ -1294,6 +1301,8 @@ export class Session {
       worktreeManagers: this.pluginRuntime,
       workspaceArchiveOperations: this.workspaceArchiveOperations,
       getWorkspace: (workspaceId) => this.workspaceRegistry.get(workspaceId),
+      assertWorkspaceAutomationAllowed: (workspaceId) =>
+        assertWorkspaceAutomationAllowedForWorkspace(this.workspaceRegistry, workspaceId),
       isCheckoutUntrusted: (checkoutPath) =>
         isCheckoutUntrusted(this.workspaceRegistry, checkoutPath),
       agentManager: this.agentManager,
@@ -1308,8 +1317,7 @@ export class Session {
       archiveWorkspaceRecord: (workspaceId) => this.archiveWorkspaceRecord(workspaceId),
       emit: (message) => this.emit(message),
       emitAgentRemove: (agentId) => this.agentUpdates.removeAgent(agentId),
-      emitWorkspaceUpdatesForWorkspaceIds: (workspaceIds) =>
-        this.emitWorkspaceUpdatesForWorkspaceIds(workspaceIds),
+      emitWorkspaceUpdatesForWorkspaceIds: this.publishWorkspaceArchiveUpdates,
       markWorkspaceArchiving: (workspaceIds, archivingAt) =>
         this.markWorkspaceArchiving(workspaceIds, archivingAt),
       clearWorkspaceArchiving: (workspaceIds) => this.clearWorkspaceArchiving(workspaceIds),
@@ -1361,6 +1369,7 @@ export class Session {
       getGlobalServicePorts: () => this.daemonConfigStore.readServicePorts(),
     });
     this.workspaceDirectory = new WorkspaceDirectory({
+      getArchivingAt: (workspaceId) => this.workspaceArchiveOperations.getArchivingAt(workspaceId),
       logger: this.sessionLogger,
       projectRegistry: this.projectRegistry,
       workspaceRegistry: this.workspaceRegistry,
@@ -1684,16 +1693,11 @@ export class Session {
     });
   }
 
-  markWorkspaceArchivingForExternalMutation(
+  private readonly publishWorkspaceArchiveUpdates = (
     workspaceIds: Iterable<string>,
-    archivingAt: string,
-  ): void {
-    this.markWorkspaceArchiving(workspaceIds, archivingAt);
-  }
-
-  clearWorkspaceArchivingForExternalMutation(workspaceIds: Iterable<string>): void {
-    this.clearWorkspaceArchiving(workspaceIds);
-  }
+  ): Promise<void> =>
+    this.onWorkspaceArchiveUpdate?.(workspaceIds) ??
+    this.emitWorkspaceUpdatesForWorkspaceIds(workspaceIds);
 
   async emitWorkspaceUpdatesForExternalWorkspaceIds(workspaceIds: Iterable<string>): Promise<void> {
     await this.emitWorkspaceUpdatesForWorkspaceIds(workspaceIds);
@@ -1724,6 +1728,14 @@ export class Session {
   ): Promise<void> {
     try {
       await this.syncWorkspaceGitObserverForWorkspace(workspace);
+      if (workspace.kind !== "directory" && this.wantsEvent("checkout_status_update")) {
+        // Recovery can refresh Git before this session starts observing again.
+        // Publish the current status to replace any read made while archived.
+        const snapshot = await this.workspaceGitService.getSnapshot(workspace.cwd, {
+          includeForge: false,
+        });
+        this.checkoutSession.emitStatusUpdate(workspace.cwd, snapshot, { force: true });
+      }
       await this.emitWorkspaceUpdateForWorkspaceId(workspace.workspaceId);
     } catch (error) {
       this.sessionLogger.warn(
@@ -4217,13 +4229,12 @@ export class Session {
         .filter((workspace) => !workspace.archivedAt)
         .map((workspace) => workspace.workspaceId);
 
-      if (activeWorkspaceIds.length > 0) {
-        this.markWorkspaceArchiving(activeWorkspaceIds, new Date().toISOString());
-        await this.emitWorkspaceUpdatesForWorkspaceIds(activeWorkspaceIds);
-      }
-
       const removedWorkspaceIds: string[] = [];
+      this.markWorkspaceArchiving(activeWorkspaceIds, new Date().toISOString());
       try {
+        if (activeWorkspaceIds.length > 0) {
+          await this.publishWorkspaceArchiveUpdates(activeWorkspaceIds);
+        }
         for (const workspaceId of activeWorkspaceIds) {
           const archivedAt = new Date().toISOString();
           await archiveWorkspaceContents(
@@ -4251,19 +4262,18 @@ export class Session {
             "Failed to clean up removed project icon",
           );
         });
+
+        const updateIds =
+          removedWorkspaceIds.length > 0
+            ? removedWorkspaceIds
+            : [projectWorkspaces[0]?.workspaceId ?? projectId];
+        await this.emitWorkspaceUpdatesForWorkspaceIds(updateIds, { removedProjectId: projectId });
       } finally {
+        this.clearWorkspaceArchiving(activeWorkspaceIds);
         if (activeWorkspaceIds.length > 0) {
-          this.clearWorkspaceArchiving(activeWorkspaceIds);
+          await this.publishWorkspaceArchiveUpdates(activeWorkspaceIds);
         }
       }
-
-      const updateIds =
-        removedWorkspaceIds.length > 0
-          ? removedWorkspaceIds
-          : [projectWorkspaces[0]?.workspaceId ?? projectId];
-      await this.emitWorkspaceUpdatesForWorkspaceIds(updateIds, {
-        removedProjectId: projectId,
-      });
 
       this.emit({
         type: "project.remove.response",
@@ -4606,6 +4616,7 @@ export class Session {
 
     try {
       await sendPromptToAgent({
+        agentMessages: this.agentMessages,
         agentManager: this.agentManager,
         agentStorage: this.agentStorage,
         agentId,
@@ -5835,13 +5846,14 @@ export class Session {
         archiveWorkspaceRecord: (workspaceId, archivedAt) =>
           this.archiveWorkspaceRecord(workspaceId, archivedAt),
         emit: (message) => this.emit(message),
-        emitWorkspaceUpdatesForWorkspaceIds: (workspaceIds) =>
-          this.emitWorkspaceUpdatesForWorkspaceIds(workspaceIds),
+        emitWorkspaceUpdatesForWorkspaceIds: this.publishWorkspaceArchiveUpdates,
         markWorkspaceArchiving: (workspaceIds, archivingAt) =>
           this.markWorkspaceArchiving(workspaceIds, archivingAt),
         clearWorkspaceArchiving: (workspaceIds) => this.clearWorkspaceArchiving(workspaceIds),
         killTerminalsForWorkspace: (workspaceId) =>
           this.terminalController.killTerminalsForWorkspace(workspaceId),
+        assertWorkspaceAutomationAllowed: (workspaceId) =>
+          assertWorkspaceAutomationAllowedForWorkspace(this.workspaceRegistry, workspaceId),
         isCheckoutUntrusted: (checkoutPath) =>
           isCheckoutUntrusted(this.workspaceRegistry, checkoutPath),
         sessionLogger: this.sessionLogger,
@@ -6403,11 +6415,11 @@ export class Session {
   }
 
   markWorkspaceArchiving(workspaceIds: Iterable<string>, archivingAt: string): void {
-    this.workspaceDirectory.markArchiving(workspaceIds, archivingAt);
+    this.workspaceArchiveOperations.markArchiving(workspaceIds, archivingAt);
   }
 
   clearWorkspaceArchiving(workspaceIds: Iterable<string>): void {
-    this.workspaceDirectory.clearArchiving(workspaceIds);
+    this.workspaceArchiveOperations.clearArchiving(workspaceIds);
   }
 
   private async buildWorkspaceDescriptorMap(options: {
@@ -6549,16 +6561,19 @@ export class Session {
     };
   }
 
-  private async withWorkspaceCheckout<T>(workspaceId: string, run: () => Promise<T>): Promise<T> {
+  private async withWorkspaceCheckout<T>(
+    workspaceId: string,
+    run: (checkoutPath: string | null) => Promise<T>,
+  ): Promise<T> {
     const workspace = await this.workspaceRegistry.get(workspaceId);
     if (!workspace) {
-      return run();
+      return run(null);
     }
     const checkoutPath = await resolveWorkspaceBackingPath(workspace, {
       paseoHome: this.paseoHome,
       paseoWorktreesBaseRoot: this.worktreesRoot,
     });
-    return this.workspaceArchiveOperations.withCheckout(checkoutPath, run);
+    return this.workspaceArchiveOperations.withCheckout(checkoutPath, () => run(checkoutPath));
   }
 
   private async withCheckoutForDirectory<T>(cwd: string, run: () => Promise<T>): Promise<T> {
@@ -8201,7 +8216,15 @@ export class Session {
       {
         getWorkspace: (workspaceId) => this.workspaceRegistry.get(workspaceId),
         clearAutomationBlock: (workspaceId) =>
-          clearWorkspaceAutomationBlock(this.workspaceRegistry, workspaceId),
+          this.withWorkspaceCheckout(workspaceId, async (checkoutPath) => {
+            const current = await this.workspaceRegistry.get(workspaceId);
+            if (!current || current.archivedAt) {
+              throw new Error(`Workspace not found: ${workspaceId}`);
+            }
+            return clearWorkspaceAutomationBlock(this.workspaceRegistry, workspaceId, {
+              checkoutPath,
+            });
+          }),
         startWorkspaceSetup: (workspaceId, operation) =>
           this.workspaceSetupRuntime.start(workspaceId, operation),
         paseoHome: this.paseoHome,
@@ -8253,8 +8276,7 @@ export class Session {
               listActiveWorkspaces: () => this.listActiveWorkspaceRefs(),
               archiveWorkspaceRecord: (workspaceId, archivedAt) =>
                 this.archiveWorkspaceRecord(workspaceId, archivedAt),
-              emitWorkspaceUpdatesForWorkspaceIds: (workspaceIds) =>
-                this.emitWorkspaceUpdatesForWorkspaceIds(workspaceIds),
+              emitWorkspaceUpdatesForWorkspaceIds: this.publishWorkspaceArchiveUpdates,
               markWorkspaceArchiving: (workspaceIds, archivingAt) =>
                 this.markWorkspaceArchiving(workspaceIds, archivingAt),
               clearWorkspaceArchiving: (workspaceIds) => this.clearWorkspaceArchiving(workspaceIds),
@@ -8670,6 +8692,7 @@ export class Session {
                 seqStart: entry.seqStart,
                 seqEnd: entry.seqEnd,
                 sourceSeqRanges: entry.sourceSeqRanges,
+                turnMetrics: entry.turnMetrics,
                 turnId: undefined as string | undefined,
                 collapsed: (
                   source
@@ -9115,6 +9138,18 @@ export class Session {
     }
   }
 
+  /** An agent sender's message waits for the running turn to end unless it asks otherwise. */
+  private agentSenderBehavior(
+    requested: AgentActiveTurnBehavior | undefined,
+  ): AgentMessageBehavior {
+    // COMPAT(agentActiveTurnBehaviors): added in v0.17.2, remove after 2027-05-22 once client
+    // floor >= v0.17.2. Older CLIs and connected hosts send steer for every default agent send,
+    // meaning wait for the turn to end, so only their interrupt stays an interrupt.
+    if (!this.supports(CLIENT_CAPS.agentActiveTurnBehaviors))
+      return requested === "interrupt" ? "interrupt" : "queue";
+    return requested ?? "queue";
+  }
+
   private async handleSendAgentMessageRequest(
     msg: Extract<SessionInboundMessage, { type: "send_agent_message_request" }>,
   ): Promise<void> {
@@ -9149,7 +9184,11 @@ export class Session {
       const admitted = new Promise<void>((acceptAdmission) => {
         queued = acceptAdmission;
       });
+      const requested = msg.activeTurnBehavior;
+      if (!msg.sourceAgentId && requested === "queue")
+        throw new Error('activeTurnBehavior "queue" needs an agent sender');
       let deliveryStatus: "queued" | undefined;
+      let queuedReceipt: { activeTurnBehavior: AgentMessageBehavior; guidance: string } | undefined;
       const send = async (beforeDispatch: () => Promise<void>) => {
         if (msg.sourceAgentId) {
           await beforeDispatch();
@@ -9165,22 +9204,24 @@ export class Session {
                 ? (this.agentManager.getAgent(msg.sourceAgentId)?.config.title ?? undefined)
                 : undefined,
             },
-            activeTurnBehavior: msg.activeTurnBehavior ?? "steer",
+            activeTurnBehavior: this.agentSenderBehavior(requested),
             sessionMode: msg.sessionMode,
             clearPendingPermissions: false,
           });
           deliveryStatus = "queued";
+          queuedReceipt = receipt;
           queued();
           await receipt.dispatched;
           return;
         }
         const result = await sendPromptToAgent({
+          agentMessages: this.agentMessages,
           agentManager: this.agentManager,
           agentStorage: this.agentStorage,
           agentId,
           prompt,
           messageId: msg.messageId,
-          activeTurnBehavior: msg.activeTurnBehavior ?? "interrupt",
+          activeTurnBehavior: requested === "steer" ? "steer" : "interrupt",
           sessionMode: msg.sessionMode,
           clearPendingPermissions: true,
           beforeDispatch,
@@ -9227,6 +9268,12 @@ export class Session {
           agentId,
           accepted: true,
           ...(deliveryStatus ? { deliveryStatus } : {}),
+          ...(queuedReceipt
+            ? {
+                activeTurnBehavior: queuedReceipt.activeTurnBehavior,
+                guidance: queuedReceipt.guidance,
+              }
+            : {}),
           error: null,
         },
       });

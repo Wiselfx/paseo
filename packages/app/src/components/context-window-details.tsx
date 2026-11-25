@@ -1,6 +1,7 @@
 import { Text, View } from "react-native";
 import { StyleSheet } from "react-native-unistyles";
 import { useTranslation } from "react-i18next";
+import type { AgentMetric } from "@getpaseo/protocol/agent-types";
 import { useShallow } from "zustand/shallow";
 import { useSessionStore } from "@/stores/session-store";
 import { AgentUsage } from "@/usage";
@@ -13,6 +14,7 @@ import {
 } from "./context-window-cache";
 import { forkText } from "./fork-strings";
 import { formatTokenCount } from "./context-window-meter.utils";
+import { MetricsList } from "./metrics-list";
 
 /**
  * Fork: name the window each rate belongs to. Pi shows the last turn's in its
@@ -44,6 +46,8 @@ interface ContextWindowDetailsProps {
     maxTokens: number;
   } | null;
   sessionCost: string | null;
+  /** What the provider reports about the session. A reported cost replaces `sessionCost`. */
+  sessionMetrics: AgentMetric[];
   /** The hover card and tooltip title themselves; the sheet's header carries the title instead. */
   showTitle: boolean;
   /** Whether the usage cards have a Refresh button; without one they show their freshness. */
@@ -51,18 +55,22 @@ interface ContextWindowDetailsProps {
 }
 
 /**
- * What the context window meter opens: how full the window is, then the usage of the agent's
- * account. The desktop hover card, the native wide tooltip, and the compact sheet all render it.
+ * What the context window meter opens: how full the window is, what the provider reports about the
+ * session, then the usage of the agent's account. The desktop hover card, the native wide tooltip, and the compact sheet all render it.
  */
 export function ContextWindowDetails({
   serverId,
   agentId,
   context,
   sessionCost,
+  sessionMetrics,
   showTitle,
   refreshable,
 }: ContextWindowDetailsProps) {
   const { t } = useTranslation();
+  const providerReportsCost = sessionMetrics.some(
+    (metric) => metric.label.toLowerCase() === "cost",
+  );
   const lastUsage = useSessionStore(
     useShallow((state) => state.sessions[serverId]?.agents.get(agentId)?.lastUsage ?? null),
   );
@@ -97,7 +105,7 @@ export function ContextWindowDetails({
         ) : (
           <Text style={styles.detail}>{t("contextWindow.noData")}</Text>
         )}
-        {sessionCost ? (
+        {sessionCost && !providerReportsCost ? (
           <Text style={styles.detail}>{t("contextWindow.sessionCost", { cost: sessionCost })}</Text>
         ) : null}
         {/* Fork: the provider's own prompt-cache counters, displayed as reported. */}
@@ -118,6 +126,7 @@ export function ContextWindowDetails({
         ) : null}
         {cacheModelLine ? <Text style={styles.detail}>{cacheModelLine}</Text> : null}
       </View>
+      {sessionMetrics.length > 0 ? <MetricsList metrics={sessionMetrics} /> : null}
       <AgentUsage serverId={serverId} agentId={agentId} refreshable={refreshable} />
     </>
   );

@@ -207,6 +207,11 @@ export function createPluginWorker(options: {
     }
     if (provider.status !== undefined && typeof provider.status !== "function")
       throw new Error(`Invalid status callback for plugin provider ${id}`);
+    if (
+      provider.docsUrl !== undefined &&
+      (typeof provider.docsUrl !== "string" || !isHttpUrl(provider.docsUrl))
+    )
+      throw new Error(`Plugin provider ${id} docsUrl must be an http(s) URL`);
     validateProviderInstallation(id, provider.installation);
     if (
       provider.command !== undefined &&
@@ -226,7 +231,10 @@ export function createPluginWorker(options: {
       typeof source.fetch !== "function" ||
       typeof source.discover !== "function" ||
       !source.input ||
-      typeof source.input.parseAsync !== "function"
+      typeof source.input.parseAsync !== "function" ||
+      (source.providers !== undefined &&
+        (!Array.isArray(source.providers) ||
+          source.providers.some((provider) => typeof provider !== "string" || !provider.trim())))
     ) {
       throw new Error(`Invalid usage source: ${source.id}`);
     }
@@ -270,6 +278,7 @@ export function createPluginWorker(options: {
       label: provider.label,
       description: provider.description,
       iconPath: provider.icon,
+      docsUrl: provider.docsUrl,
       requiresConfiguration: provider.requiresConfiguration,
       hasCatalogCacheKey: provider.getCatalogCacheKey !== undefined,
       hasStatus: provider.status !== undefined,
@@ -457,6 +466,9 @@ export function createPluginWorker(options: {
       // The runtime re-attaches a session when the daemon drops this socket.
       reconnect: { enabled: true },
       transportFactory,
+      // The channel is a pipe to the daemon (or an in-process queue for built-in plugins); its
+      // loss is reported directly, so a 10 s ping would only wake both sides.
+      livenessHeartbeat: false,
     });
     paseo = createPaseoApi(daemonClient);
     await daemonClient.connect();
@@ -486,6 +498,7 @@ export function createPluginWorker(options: {
           id: source.id,
           label: source.label,
           provider: source.provider,
+          providers: source.providers ? [...source.providers] : undefined,
           icon: source.icon
             ? await readPluginProviderIcon(message.pluginDirectory, source.icon)
             : undefined,
@@ -903,6 +916,7 @@ export function createPluginWorker(options: {
 
 if (process.argv[1] === fileURLToPath(import.meta.url)) {
   let worker: ReturnType<typeof createPluginWorker> | null = null;
+  let closedByShutdown = false;
   const handlers = new Set<(message: PluginProcessRequest) => void>();
   const channel: PluginWorkerChannel = {
     send(message, callback) {
@@ -916,9 +930,17 @@ if (process.argv[1] === fileURLToPath(import.meta.url)) {
       };
     },
     disconnect() {
+      closedByShutdown = true;
       process.disconnect();
     },
   };
+  // The daemon worker owns this process through the IPC channel. When the channel closes without
+  // this process closing it (the worker crashed or was killed), nothing can reach the plugin any
+  // more, so exit instead of running on as an orphan. A normal shutdown closes the channel itself
+  // and lets work still in flight finish.
+  process.once("disconnect", () => {
+    if (!closedByShutdown) process.exit(0);
+  });
   process.on("message", (raw) => {
     const parsed = PluginProcessRequestSchema.safeParse(raw);
     if (!worker && parsed.success && parsed.data.type === "initialize") {

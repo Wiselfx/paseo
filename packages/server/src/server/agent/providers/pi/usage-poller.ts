@@ -7,7 +7,8 @@ export interface PiUsagePollScheduler {
 
 interface PiUsagePollerOptions {
   readStats(): Promise<PiSessionStats>;
-  onUsage(usage: AgentUsage, turnId?: string): void;
+  /** Called when usage changes, with the stats it was read from. */
+  onUsage(usage: AgentUsage, turnId: string | undefined, stats: PiSessionStats): void;
   onPollError(error: unknown): void;
   /**
    * Fork: adds figures the session statistics do not carry (prompt-cache waste,
@@ -82,6 +83,7 @@ export class PiUsagePoller {
   private generation = 0;
   private cancelScheduledPoll: (() => void) | null = null;
   private lastUsage: AgentUsage | null = null;
+  private lastStats: PiSessionStats | null = null;
 
   constructor(private readonly options: PiUsagePollerOptions) {
     this.scheduler = options.scheduler ?? createScheduler();
@@ -107,16 +109,16 @@ export class PiUsagePoller {
     }
     this.active = false;
     const completionGeneration = this.invalidatePendingWork();
-    let usage: AgentUsage | undefined;
+    let stats: PiSessionStats;
     try {
-      usage = toAgentUsage(await this.options.readStats());
+      stats = await this.options.readStats();
     } catch {
       return;
     }
     if (this.closed || this.generation !== completionGeneration) {
       return;
     }
-    this.publishUsage(usage, turnId);
+    this.publishUsage(stats, turnId);
   }
 
   close(): void {
@@ -140,9 +142,9 @@ export class PiUsagePoller {
   }
 
   private async poll(generation: number): Promise<void> {
-    let usage: AgentUsage | undefined;
+    let stats: PiSessionStats;
     try {
-      usage = toAgentUsage(await this.options.readStats());
+      stats = await this.options.readStats();
     } catch (error) {
       try {
         if (this.active && !this.closed && this.generation === generation) {
@@ -157,7 +159,7 @@ export class PiUsagePoller {
     }
     try {
       if (this.active && !this.closed && this.generation === generation) {
-        this.publishUsage(usage);
+        this.publishUsage(stats);
       }
     } finally {
       if (this.active && !this.closed && this.generation === generation) {
@@ -174,10 +176,11 @@ export class PiUsagePoller {
     return usage;
   }
 
-  private publishUsage(usage: AgentUsage | undefined, turnId?: string): void {
-    const changedUsage = this.takeChangedUsage(usage);
+  private publishUsage(stats: PiSessionStats, turnId?: string): void {
+    const changedUsage = this.takeChangedUsage(toAgentUsage(stats));
     if (changedUsage) {
-      this.options.onUsage(this.decorate(changedUsage), turnId);
+      this.lastStats = stats;
+      this.options.onUsage(this.decorate(changedUsage), turnId, stats);
     }
   }
 
@@ -189,7 +192,10 @@ export class PiUsagePoller {
     if (this.closed || !this.lastUsage) {
       return;
     }
-    this.options.onUsage(this.decorate({ ...this.lastUsage }), turnId);
+    if (!this.lastStats) {
+      return;
+    }
+    this.options.onUsage(this.decorate({ ...this.lastUsage }), turnId, this.lastStats);
   }
 
   private decorate(usage: AgentUsage): AgentUsage {

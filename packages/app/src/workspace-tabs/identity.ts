@@ -89,6 +89,9 @@ export function normalizeWorkspaceDraftTabSetup(
   if (!provider || !cwd) {
     return undefined;
   }
+  const systemPrompt = trimOptionalString(
+    typeof record.systemPrompt === "string" ? record.systemPrompt : null,
+  );
   return {
     provider,
     cwd,
@@ -98,6 +101,7 @@ export function normalizeWorkspaceDraftTabSetup(
       typeof record.thinkingOptionId === "string" ? record.thinkingOptionId : null,
     ),
     providerOptions: isPlainRecord(record.providerOptions) ? { ...record.providerOptions } : {},
+    ...(systemPrompt ? { systemPrompt } : {}),
   };
 }
 
@@ -179,6 +183,7 @@ function workspaceDraftTabSetupsEqual(
     left.modeId === right.modeId &&
     left.model === right.model &&
     left.thinkingOptionId === right.thinkingOptionId &&
+    (left.systemPrompt ?? null) === (right.systemPrompt ?? null) &&
     recordsShallowEqual(left.providerOptions, right.providerOptions)
   );
 }

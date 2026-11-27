@@ -81,24 +81,6 @@ function coerceEventPoint(event: unknown): { pageX: number; pageY: number } | nu
   if (typeof clientX === "number" && typeof clientY === "number") {
     return { pageX: clientX, pageY: clientY };
   }
-  // Fork: DOM TouchEvent (touch web, e.g. iOS Safari long-press): coordinates live
-  // on the touch object, not the event itself. Without this the menu silently
-  // never opens on touch devices.
-  const changedTouches = Reflect.get(source, "changedTouches");
-  if (
-    typeof changedTouches === "object" &&
-    changedTouches !== null &&
-    typeof Reflect.get(changedTouches, "length") === "number"
-  ) {
-    const touch = changedTouches[0];
-    if (typeof touch === "object" && touch !== null) {
-      const touchX = Reflect.get(touch, "pageX");
-      const touchY = Reflect.get(touch, "pageY");
-      if (typeof touchX === "number" && typeof touchY === "number") {
-        return { pageX: touchX, pageY: touchY };
-      }
-    }
-  }
   return null;
 }
 
@@ -145,17 +127,15 @@ export function ContextMenuTrigger({
   const openAtEvent = useCallback(
     (event: unknown) => {
       if (!shouldEnableOnThisPlatform || disabled) return;
-      // Anchor is best-effort: compact layouts present a bottom sheet that
-      // needs no anchor, so open anyway when the point is unavailable.
       const point = coerceEventPoint(event);
-      if (point) {
-        ctx.setAnchorRect({
-          x: point.pageX,
-          y: point.pageY,
-          width: 0,
-          height: 0,
-        });
-      }
+      if (!point) return;
+
+      ctx.setAnchorRect({
+        x: point.pageX,
+        y: point.pageY,
+        width: 0,
+        height: 0,
+      });
       ctx.setOpen(true);
     },
     [ctx, disabled, shouldEnableOnThisPlatform],
@@ -170,15 +150,17 @@ export function ContextMenuTrigger({
   );
 
   const propsOnLongPress = props.onLongPress;
-  const handleLongPress = useCallback(
+  const handleNativeLongPress = useCallback(
     (event: GestureResponderEvent) => {
-      // Touch web (e.g. iOS Safari) has no right-click: long-press is the
-      // only menu gesture, so it opens the menu on every platform.
       openAtEvent(event);
       propsOnLongPress?.(event);
     },
     [propsOnLongPress, openAtEvent],
   );
+  // The web menu opens on right-click, not long press. Any onLongPress makes react-native-web cancel
+  // the click that ends a held press, and only a later press-in clears that, which Ctrl+click never
+  // gets. So on web, pass the caller's onLongPress through and nothing else.
+  const handleLongPress = isWeb ? propsOnLongPress : handleNativeLongPress;
 
   const handleContextMenu = useCallback(
     (event: unknown) => {

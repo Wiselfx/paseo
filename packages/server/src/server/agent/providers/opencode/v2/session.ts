@@ -10,6 +10,7 @@ import { waitForLocationReady, awaitPaseoPlugin } from "./readiness.js";
 
 import type { SessionInfo, SessionMessageInfo } from "@opencode/client";
 
+import { randomUUID } from "node:crypto";
 import { setTimeout as delay } from "node:timers/promises";
 import type { Logger } from "pino";
 import type {
@@ -21,9 +22,11 @@ import type {
   AgentSession,
   AgentSessionConfig,
   AgentStreamEvent,
+  AgentUsageSession,
   SteerActiveTurnOptions,
   SteerResult,
 } from "../../../agent-sdk-types.js";
+import { createProviderEnv } from "../../../provider-launch-config.js";
 
 import { toDiagnosticErrorMessage } from "../../diagnostic-utils.js";
 
@@ -57,6 +60,8 @@ export interface OpenCodeV2SessionOptions {
   requiresPaseoPlugin: boolean;
   /** The complete shell environment for this session and its descendants. */
   environment?: Record<string, string>;
+  /** Effective provider environment for usage discovery. */
+  harnessEnvironment?: Record<string, string>;
   /** MCP servers Paseo hosts for this session; the session closes them. */
   mcp?: SessionMcp;
   unbind?: () => void;
@@ -102,6 +107,8 @@ export class OpenCodeV2Session implements AgentSession {
   private readonly requiresPaseoPlugin: boolean;
   // OpenCode replaces the whole local shell environment, rather than overlaying it.
   private readonly environment: Record<string, string> | undefined;
+  private readonly harnessEnvironment: Record<string, string>;
+  private readonly usageSessionKey = randomUUID();
   private readonly mcp: SessionMcp | undefined;
   private readonly unbind: (() => void) | undefined;
   private readonly acquire: (() => Promise<V2Connection>) | undefined;
@@ -117,6 +124,8 @@ export class OpenCodeV2Session implements AgentSession {
     this.persist = options.persist;
     this.requiresPaseoPlugin = options.requiresPaseoPlugin;
     this.environment = options.environment;
+    this.harnessEnvironment =
+      options.harnessEnvironment ?? options.environment ?? createProviderEnv();
     this.mcp = options.mcp;
     this.unbind = options.unbind;
     this.acquire = options.acquire;
@@ -201,6 +210,18 @@ export class OpenCodeV2Session implements AgentSession {
   }
   get controls() {
     return controls;
+  }
+  usageSession(): AgentUsageSession | null {
+    if (this.closed) return null;
+    const model = this.info.model
+      ? `${this.info.model.providerID}/${this.info.model.id}`
+      : this.config.model;
+    return {
+      provider: "opencode",
+      model,
+      env: this.harnessEnvironment,
+      sessionKey: this.usageSessionKey,
+    };
   }
   private get client() {
     return this.connection.client;
@@ -461,13 +482,15 @@ export class OpenCodeV2Session implements AgentSession {
     await this.reconnectIfExited();
     const model = this.info.model;
     if (!model) throw new Error("Select an OpenCode model before changing its variant");
-    await this.client.session.switchModel({
-      sessionID: this.id,
-      model: { id: model.id, providerID: model.providerID, ...(variant ? { variant } : {}) },
-    });
-    this.config.thinkingOptionId = variant ?? undefined;
+    const nextModel = modelRef(`${model.providerID}/${model.id}`, variant);
+    await this.client.session.switchModel({ sessionID: this.id, model: nextModel });
+    this.config.thinkingOptionId = nextModel.variant;
     this.info = await this.client.session.get({ sessionID: this.id });
-    this.emit({ type: "thinking_option_changed", provider: "opencode", thinkingOptionId: variant });
+    this.emit({
+      type: "thinking_option_changed",
+      provider: "opencode",
+      thinkingOptionId: nextModel.variant ?? null,
+    });
   }
   /** The agent manager sends one apply at a time, so a failed one restores exactly what it changed. */
   async applyOptions(options: ProviderOptions): Promise<void> {
@@ -751,12 +774,14 @@ export class OpenCodeV2Session implements AgentSession {
     if (this.closed || this.exited || this.reconnecting || this.turns.id || this.dirty)
       return false;
     const request = { signal: AbortSignal.timeout(10_000) };
-    // Active executions are server-wide. Releasing the last lease must not stop an
-    // autonomous execution merely because it belongs to another session or location.
-    if (Object.keys(await this.client.session.active(request)).length > 0) return false;
+    const active = await this.client.session.active(request);
+    // Releasing the last lease of a server stops it, so it must not stop an autonomous
+    // execution merely because it belongs to another session or location.
+    if (this.connection.releaseStopsServer() && Object.keys(active).length > 0) return false;
     const family = new Map([[this.info.id, this.info]]);
     const directories = new Set<string>();
     for (const info of family.values()) {
+      if (active[info.id]) return false;
       if ((await this.client.session.inbox.list({ sessionID: info.id }, request)).length)
         return false;
       directories.add(info.location.directory);

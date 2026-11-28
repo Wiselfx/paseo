@@ -155,7 +155,13 @@ export interface PiRpcSlashCommand {
 }
 
 export type PiRpcCommand =
-  | { id?: string; type: "prompt"; message: string; images?: PiImageContent[] }
+  | {
+      id?: string;
+      type: "prompt";
+      message: string;
+      images?: PiImageContent[];
+      streamingBehavior?: "steer" | "followUp";
+    }
   | { id?: string; type: "steer"; message: string; images?: PiImageContent[] }
   | { id?: string; type: "clear_queue" }
   | { id?: string; type: "compact"; customInstructions?: string }
@@ -179,20 +185,20 @@ export interface PiRpcResponse {
 }
 
 export type PiAssistantMessageEvent =
-  | { type: "text_delta"; delta?: string }
-  | { type: "thinking_delta"; delta?: string }
-  | { type: "toolcall_delta"; delta?: string }
+  | { type: "text_delta"; contentIndex?: number; delta?: string }
+  | { type: "thinking_delta"; contentIndex?: number; delta?: string }
+  | { type: "toolcall_delta"; contentIndex?: number; delta?: string }
   | {
       type:
-        | "start"
         | "text_start"
         | "text_end"
         | "thinking_start"
         | "thinking_end"
         | "toolcall_start"
-        | "toolcall_end"
-        | "done";
-    };
+        | "toolcall_end";
+      contentIndex?: number;
+    }
+  | { type: "start" | "done" | "error" };
 
 export type PiAgentSessionEvent =
   | { type: "thinking_level_changed"; level: PiThinkingLevel }

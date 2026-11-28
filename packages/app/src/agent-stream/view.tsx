@@ -744,6 +744,7 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
           <AssistantFileLinkResolverProvider
             client={client}
             serverId={resolvedServerId}
+            workspaceId={context.workspaceId}
             workspaceRoot={workspaceRoot}
             onOpenWorkspaceFile={handleInlinePathPress}
             toast={toast}
@@ -828,7 +829,6 @@ const AgentStreamViewComponent = forwardRef<AgentStreamViewHandle, AgentStreamVi
               cwd={context.cwd}
               serverId={resolvedServerId}
               metadata={data.metadata}
-              agentMessage={data.agentMessage}
               isLastInSequence={isLastInSequence}
               onOpenFilePath={handleToolCallOpenFile}
               standalone={options.standalone}

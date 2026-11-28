@@ -1,12 +1,13 @@
 import { describe, expect, it } from "vitest";
 
 import {
-  buildAgentMessageDisplay,
+  legacyAgentNotificationToolCall,
   buildPaseoToolDisplay,
   getPaseoToolTargetAgentId,
   MAX_SUMMARY_CHARS,
   PASEO_TOOL_NAMES,
 } from "./index.js";
+import { buildToolCallDisplayModel } from "../tool-call-display.js";
 
 function display(toolName: string, input: unknown, targetAgentTitle?: string) {
   return buildPaseoToolDisplay({
@@ -30,6 +31,13 @@ describe("Paseo tool display", () => {
     ["update_agent", { agentId: "agt_1", name: "Renamed" }, "Update agent", "Renamed"],
     ["create_workspace", { path: "/tmp/repo/feature-x" }, "Create workspace", "feature-x"],
     ["create_workspace", { title: "Docs", branchName: "docs" }, "Create workspace", "Docs"],
+    ["update_workspace", { title: "Payments" }, "Update workspace", "Payments"],
+    [
+      "update_workspace",
+      { workspaceId: "wks_1", metadata: { issues: ["#42"] } },
+      "Update workspace",
+      "wks_1",
+    ],
     ["start_workspace_script", { scriptName: "web" }, "Start script", "web"],
     ["send_terminal_keys", { terminalId: "t1", keys: "npm test" }, "Send keys", "npm test"],
     ["create_schedule", { prompt: "Check CI", cron: "0 9 * * 1" }, "Create schedule", "0 9 * * 1"],
@@ -108,34 +116,38 @@ describe("Paseo tool display", () => {
   });
 });
 
-describe("agent message display", () => {
+describe("legacy agent notifications", () => {
   it.each([
-    ["message", "Message received"],
-    ["finished", "Agent finished"],
-    ["errored", "Agent errored"],
-    ["permission-required", "Agent needs permission"],
-    ["closed", "Agent closed"],
-  ] as const)("labels %s noun-first with the sender as context", (event, label) => {
-    const result = buildAgentMessageDisplay({
-      event,
-      sender: { id: "srv::agt_1", title: "QA messenger" },
-      text: "Done.",
-    });
-    expect(result.displayName).toBe(label);
-    expect(result.summary).toBe("QA messenger");
-    expect(result.detail).toEqual({ type: "plain_text", text: "From agent: srv::agt_1\n\nDone." });
-  });
+    ["finished", "agent_finished", "Agent finished"],
+    ["errored", "agent_errored", "Agent errored"],
+    ["permission-required", "agent_needs_permission", "Agent needs permission"],
+    ["closed", "agent_closed", "Agent closed"],
+  ] as const)(
+    "reads a %s notification as the plain tool call daemons now send",
+    (event, name, label) => {
+      const call = legacyAgentNotificationToolCall({
+        event,
+        sender: { id: "srv::agt_1", title: "QA messenger" },
+        text: "Done.",
+      });
+      expect(call).toEqual({
+        name,
+        detail: { type: "plain_text", label: "QA messenger", text: "Done.", icon: "bot" },
+      });
+      expect(buildToolCallDisplayModel({ ...call!, status: "completed", error: null })).toEqual({
+        displayName: label,
+        summary: "QA messenger",
+      });
+    },
+  );
 
-  it("falls back to the sender ID and truncates a long title", () => {
+  it("names the sender ID without a title and leaves peer messages alone", () => {
     expect(
-      buildAgentMessageDisplay({ event: "finished", sender: { id: "srv::agt_1" }, text: "" })
-        .summary,
-    ).toBe("srv::agt_1");
-    const summary = buildAgentMessageDisplay({
-      event: "finished",
-      sender: { id: "a", title: "t".repeat(500) },
-      text: "",
-    }).summary;
-    expect(summary).toHaveLength(MAX_SUMMARY_CHARS);
+      legacyAgentNotificationToolCall({ event: "closed", sender: { id: "srv::agt_1" }, text: "" })
+        ?.detail,
+    ).toMatchObject({ label: "srv::agt_1" });
+    expect(
+      legacyAgentNotificationToolCall({ event: "message", sender: { id: "a" }, text: "Hi" }),
+    ).toBeNull();
   });
 });

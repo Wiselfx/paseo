@@ -512,7 +512,20 @@ export const ar: TranslationResources = {
       copyBranchName: "نسخ اسم الفرع",
       copied: "تم النسخ",
     },
+    linkActions: {
+      openInPaseo: "فتح في Paseo",
+      openInDefaultBrowser: "فتح في المتصفح الافتراضي",
+      copyLink: "نسخ الرابط",
+      linkCopiedLabel: "الرابط",
+    },
     fileActions: {
+      revealInFiles: "إظهار في الملفات",
+      openInDefaultApp: "فتح بالتطبيق الافتراضي",
+      pathCopiedLabel: "المسار",
+      relativePathCopiedLabel: "المسار النسبي",
+      openInDefaultAppFailed: "تعذر فتح الملف بالتطبيق الافتراضي",
+      outsideWorkspace: "هذا الملف خارج مساحة العمل",
+      notFoundInFiles: "لم يُعثر على الملف في الملفات",
       openFile: "افتح الملف",
       openIn: "فتح في {{target}}",
       openToSide: "فتح إلى الجانب",
@@ -545,6 +558,12 @@ export const ar: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "البحث في الملفات",
+        clear: "مسح البحث",
+        loading: "جارٍ البحث في الملفات...",
+        empty: "لا توجد ملفات مطابقة",
+      },
       sort: {
         name: "اسم",
         modified: "معدل",
@@ -755,7 +774,6 @@ export const ar: TranslationResources = {
         agentIdCopiedLabel: "AgentID",
         terminalIdCopiedLabel: "معرف المحطة",
         resumeCommandCopiedLabel: "أمر الاستئناف",
-        filePathCopiedLabel: "File path",
         resumeIdUnavailable: "السيرة الذاتية ID غير متوفرة",
         resumeCommandUnavailable: "أمر الاستئناف غير متوفر",
         reloadingAgent: "وكيل إعادة التحميل...",
@@ -2568,7 +2586,7 @@ export const ar: TranslationResources = {
     metadataGeneration: {
       title: "إنشاء البيانات الوصفية",
       description:
-        "اختر النموذج الذي يستخدمه Paseo لعناوين مساحات العمل وأسماء الفروع ورسائل الالتزام ومسودات طلبات السحب",
+        "اختر النموذج والتعليمات التي يستخدمها Paseo لعناوين مساحات العمل وأسماء الفروع ورسائل الالتزام ومسودات طلبات السحب",
       selection: "اختيار النموذج",
       automatic: "تلقائي",
       preferred: "يدوي",
@@ -2576,6 +2594,10 @@ export const ar: TranslationResources = {
       preferredHint: "اختر النموذج الذي يستخدمه Paseo",
       model: "النموذج",
       modelHint: "يُستخدم هذا النموذج فقط. إذا فشل، لا يجرّب Paseo نموذجًا آخر",
+      instructions: "التعليمات",
+      instructionsHint: "تُطبَّق على جميع البيانات الوصفية المنشأة على هذا المضيف",
+      instructionsPlaceholder:
+        "مثال: اكتب باللغة العربية. حافظ على أسلوب متسق بين العناوين ورسائل الالتزام. لا تستخدم الشرطات الطويلة.",
       docs: "الوثائق",
       saveError: "تعذر تحديث إنشاء البيانات الوصفية",
     },

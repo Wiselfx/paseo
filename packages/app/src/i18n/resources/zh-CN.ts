@@ -512,7 +512,20 @@ export const zhCN: TranslationResources = {
       copyBranchName: "复制分支名称",
       copied: "已复制",
     },
+    linkActions: {
+      openInPaseo: "在 Paseo 中打开",
+      openInDefaultBrowser: "在默认浏览器中打开",
+      copyLink: "复制链接",
+      linkCopiedLabel: "链接",
+    },
     fileActions: {
+      revealInFiles: "在文件中显示",
+      openInDefaultApp: "用默认应用打开",
+      pathCopiedLabel: "路径",
+      relativePathCopiedLabel: "相对路径",
+      openInDefaultAppFailed: "无法用默认应用打开文件",
+      outsideWorkspace: "此文件位于工作区之外",
+      notFoundInFiles: "在文件中找不到该文件",
       openFile: "打开文件",
       openIn: "在 {{target}} 中打开",
       openToSide: "在侧边打开",
@@ -545,6 +558,12 @@ export const zhCN: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "搜索文件",
+        clear: "清除搜索",
+        loading: "正在搜索文件...",
+        empty: "没有匹配的文件",
+      },
       sort: {
         name: "名称",
         modified: "修改时间",
@@ -755,7 +774,6 @@ export const zhCN: TranslationResources = {
         agentIdCopiedLabel: "Agent ID",
         terminalIdCopiedLabel: "Terminal ID",
         resumeCommandCopiedLabel: "恢复命令",
-        filePathCopiedLabel: "File path",
         resumeIdUnavailable: "恢复 ID 不可用",
         resumeCommandUnavailable: "恢复命令不可用",
         reloadingAgent: "正在重新加载 Agent...",
@@ -2507,7 +2525,7 @@ export const zhCN: TranslationResources = {
     plugins: pluginSettings["zh-CN"],
     metadataGeneration: {
       title: "元数据生成",
-      description: "选择 Paseo 用于工作区标题、分支名称、提交消息和拉取请求草稿的模型",
+      description: "选择 Paseo 用于工作区标题、分支名称、提交消息和拉取请求草稿的模型和指令",
       selection: "模型选择",
       automatic: "自动",
       preferred: "手动",
@@ -2515,6 +2533,10 @@ export const zhCN: TranslationResources = {
       preferredHint: "选择 Paseo 使用的模型",
       model: "模型",
       modelHint: "只使用此模型。如果失败，Paseo 不会尝试其他模型",
+      instructions: "指令",
+      instructionsHint: "应用于此主机上生成的所有元数据",
+      instructionsPlaceholder:
+        "例如：使用简体中文编写。保持标题与提交信息的风格一致。不要使用破折号。",
       docs: "文档",
       saveError: "无法更新元数据生成设置",
     },

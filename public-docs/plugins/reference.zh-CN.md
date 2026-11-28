@@ -512,17 +512,17 @@ type UsageProblem =
 
 内置的会话路由：
 
-| 来源         | 会话                                           | 登录存储                                                                     |
-| ------------ | ---------------------------------------------- | ---------------------------------------------------------------------------- |
-| Claude       | `claude`                                       | `CLAUDE_CONFIG_DIR` 或默认位置；在 macOS 上，该目录对应的钥匙串条目优先      |
-| Claude       | 使用 `anthropic/…` 模型的 `pi`、`omp`          | 该运行环境的 Anthropic 登录存储                                              |
-| Codex        | `codex`                                        | `CODEX_HOME/auth.json` 或默认位置                                            |
-| Codex        | 使用 `openai/…` 模型的 `pi`、`opencode`、`omp` | 该运行环境的 OpenAI 登录存储                                                 |
-| Cursor       | `cursor`                                       | 该会话的 `XDG_CONFIG_HOME`、`APPDATA` 或主目录下 cursor-agent 的 `auth.json` |
-| Muse         | `muse`                                         | 该会话自己的 Muse 启动配置                                                   |
-| 其他内置来源 | 任意                                           | 无会话发现                                                                   |
+| 来源         | 会话                                           | 登录存储                                                                                                                                              |
+| ------------ | ---------------------------------------------- | ----------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude       | `claude`                                       | `CLAUDE_CONFIG_DIR` 或默认位置；在 macOS 上，该目录对应的钥匙串条目优先                                                                               |
+| Claude       | 使用 `anthropic/…` 模型的 `pi`、`omp`          | 该运行环境的 Anthropic 登录存储                                                                                                                       |
+| Codex        | `codex`                                        | `CODEX_HOME/auth.json` 或默认位置                                                                                                                     |
+| Codex        | 使用 `openai/…` 模型的 `pi`、`opencode`、`omp` | 该运行环境的 OpenAI 登录存储                                                                                                                          |
+| Cursor       | `cursor`                                       | 该会话的 `XDG_CONFIG_HOME`、`APPDATA` 或主目录下 cursor-agent 的 `auth.json`；在 macOS 上默认读取钥匙串，除非设置了 `AGENT_CLI_CREDENTIAL_STORE=file` |
+| Muse         | `muse`                                         | 该会话自己的 Muse 启动配置                                                                                                                            |
+| 其他内置来源 | 任意                                           | 无会话发现                                                                                                                                            |
 
-Claude 会排除 Bedrock、Vertex 以及使用其他 `ANTHROPIC_BASE_URL` 的会话。Codex 会排除设置了 `OPENAI_BASE_URL` 的会话。Cursor 会排除通过 `CURSOR_API_KEY` 或 `CURSOR_AUTH_TOKEN` 验证的会话，以及在 macOS 上把登录保存在钥匙串中的会话（除非设置了 `AGENT_CLI_CREDENTIAL_STORE=file`，否则这是默认行为）。
+Claude 会排除 Bedrock、Vertex 以及使用其他 `ANTHROPIC_BASE_URL` 的会话。Codex 会排除设置了 `OPENAI_BASE_URL` 的会话。Cursor 会排除通过 `CURSOR_API_KEY` 或 `CURSOR_AUTH_TOKEN` 验证的会话。
 
 使用稳定的账号键：由 `[A-Za-z0-9._-]` 中的字符组成，长度为 1–128。它标识被计量配额的账号或组织，并且在 token 轮换后保持不变。不要把凭据或原始邮箱地址用作键。对于敏感的稳定身份，请使用 `hashAccountKey()`；当账号元数据不可用时，使用存储位置标识。标签可以为账号命名，但不会成为账号的身份。
 
@@ -660,6 +660,83 @@ export default function contribute(server: PluginServerContext) {
 - **Restore**：可选。在取消归档且 worktree 目录已被删除时运行，接收必须恢复到的原路径 `path`、目标 `target`（`branch`、`commit` 或 `from-base`）以及 `untrusted`。返回 `{ type: "restored", path }`，或返回 `undefined` 回退到 Git。Paseo 会验证检出结果是否为指定的分支、分离 HEAD 的提交，或位于指定基准提交的新分支。清理规则与 Create 相同。当 `restore` 回退到 Git 时，Paseo 会清除该工作区的管理器归属，后续归档也会使用 Git。
 
 完整插件见 [worktrunk 示例](https://github.com/getpaseo/paseo/tree/main/plugin-examples/worktrunk)。
+
+## 隧道 Provider {#tunnel-providers}
+
+**需要 Paseo 0.18**。在服务端入口 `index.server.ts` 中调用 `server.registerTunnelProvider()` 注册隧道 Provider，可将本地 HTTP `host:port` 目标转为公网 HTTPS URL。注册返回一个清理函数，调用后会注销该 Provider 并关闭其所有活动的暴露。
+
+```ts
+import {
+  execCommand,
+  spawnProcess,
+  terminateProcess,
+  type PluginServerContext,
+} from "@getpaseo/plugin/server";
+
+export default function contribute(server: PluginServerContext) {
+  return server.registerTunnelProvider({
+    id: "custom-tunnel",
+    label: "Custom Tunnel",
+    description: "Expose local HTTP targets through a custom tunnel binary.",
+    docsUrl: "https://example.com/docs/custom-tunnel",
+    async status({ signal }) {
+      try {
+        const { stdout } = await execCommand("custom-tunnel", ["--version"], {
+          signal,
+          timeout: 5_000,
+        });
+        return { status: "available", detail: stdout.trim() || undefined };
+      } catch {
+        return {
+          status: "unavailable",
+          reason: "custom-tunnel is not installed or not on PATH.",
+          installUrl: "https://example.com/install",
+          fixHint: "Install custom-tunnel and make sure that it is on PATH.",
+        };
+      }
+    },
+    async open(target, { report, signal }) {
+      report({ type: "connecting" });
+      const child = spawnProcess("custom-tunnel", ["http", `${target.host}:${target.port}`], {
+        stdio: "pipe",
+      });
+      signal.addEventListener(
+        "abort",
+        () => {
+          void terminateProcess(child, "SIGTERM").catch(() => undefined);
+        },
+        { once: true },
+      );
+      let ready = false;
+      child.stderr.on("data", (chunk) => {
+        if (ready || signal.aborted) return;
+        const match = /https:\/\/[a-z0-9.-]+/i.exec(String(chunk));
+        if (!match) return;
+        ready = true;
+        report({ type: "ready", url: match[0], stability: "ephemeral" });
+      });
+      await new Promise<void>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("close", () => resolve());
+      });
+      report({ type: "closed", reason: signal.aborted ? "aborted" : undefined });
+    },
+  });
+}
+```
+
+- `id` 必须匹配 `/^[a-z][a-z0-9._-]*$/`，且在已安装插件和内置插件之间唯一。
+- `status({ paseo, signal })` 检查该 Provider 能否在此主机上打开隧道。返回 `{ status: "available", detail? }` 或 `{ status: "unavailable", reason, installUrl?, fixHint? }`。
+- `open(target, { paseo, signal, report })` 负责一个暴露，直到 `signal` 中止或隧道关闭。`target` 包含 `{ id, host, port, label?, slug? }`。
+- 暴露状态变化时调用 `report(event)`：
+  - `{ type: "connecting", detail? }`
+  - `{ type: "ready", url, stability?: "ephemeral" | "stable", detail? }`
+  - `{ type: "reconnecting", reason? }`
+  - `{ type: "error", message, recoverable?: boolean }`
+  - `{ type: "closed", reason? }`
+- 隧道保持连接期间，`open()` 应保持挂起。`signal` 中止时，停止子进程或移除远程规则，报告 `{ type: "closed" }`，然后返回。如果 `open()` 抛出错误，或在报告 `ready` 之前退出，Paseo 会将该暴露标记为失败并将其完整移除。
+
+完整插件见 [tunnel-provider 示例](https://github.com/getpaseo/paseo/tree/main/plugin-examples/tunnel-provider)。
 
 ## 入口与清理 {#entry-point-and-cleanup}
 
@@ -1629,6 +1706,7 @@ const [state, setState] = useTabState(tab, schema, { view: "preview" });
 | `archivingAt`        | ISO 时间戳或 `null`                                               |
 | `diffStat`           | `{ additions: number; deletions: number } \| null`                |
 | `parentWorkspace`    | `WorkspaceRef \| null`                                            |
+| `metadata`           | `Readonly<Record<string, JsonValue>>`                             |
 
 Agent 快照字段：
 
@@ -1652,6 +1730,7 @@ Agent 快照字段：
 | `attentionReason`   | `"finished" \| "error" \| "permission" \| null`                |
 | `parentAgentId`     | `string \| null`                                               |
 | `labels`            | `Record<string, string>`                                       |
+| `metadata`          | `Readonly<Record<string, JsonValue>>`                          |
 
 `backgroundWork.count` 是 Agent 在回合结束后仍在运行的 shell 和监视器数量，没有时为 `0`。Agent 可能处于 `idle` 且 `attentionReason: "finished"`，同时这些工作仍在运行，因此请按插件的需要组合这些字段：
 

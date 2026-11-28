@@ -1,5 +1,12 @@
 import { Text } from "react-native";
-import { forwardRef, useCallback, useMemo, useState, type ComponentProps } from "react";
+import {
+  forwardRef,
+  useCallback,
+  useMemo,
+  useState,
+  type ComponentProps,
+  type MouseEvent,
+} from "react";
 import type {
   CodeBlockRendererProps,
   LinkRendererProps,
@@ -12,6 +19,8 @@ import { useForgeShorthand } from "@/git/forge-shorthand";
 import { Tooltip, TooltipTrigger, TooltipContent } from "@/components/ui/tooltip";
 import { HighlightedCodeBlock } from "@/components/highlighted-code-block";
 import type { Theme } from "@/styles/theme";
+import { useStableEvent } from "@/hooks/use-stable-event";
+import { useOpenLinkMenu } from "./link-menu";
 import { MermaidFence } from "./fence/mermaid";
 import { YouTubeFence } from "./fence/youtube";
 import { SvgFence } from "./fence/svg";
@@ -67,6 +76,13 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
         : anchorProps,
     [anchorProps, recognized],
   );
+  const openLinkMenu = useOpenLinkMenu();
+  const handleContextMenu = useStableEvent((event: MouseEvent) => {
+    const point = { x: event.pageX, y: event.pageY };
+    if (!openLinkMenu?.({ url: link.url, sourceType: link.sourceType }, point)) return;
+    event.preventDefault();
+    event.stopPropagation();
+  });
   const anchor = (
     <a
       {...copyAnchorProps}
@@ -74,6 +90,7 @@ function WebLink({ link, anchorProps, children }: LinkRendererProps) {
       style={anchorStyle}
       onMouseEnter={handleMouseEnter}
       onMouseLeave={handleMouseLeave}
+      onContextMenu={handleContextMenu}
     >
       {children}
     </a>

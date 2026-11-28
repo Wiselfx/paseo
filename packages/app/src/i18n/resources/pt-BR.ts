@@ -517,7 +517,20 @@ export const ptBR: TranslationResources = {
       copyBranchName: "Copiar nome da branch",
       copied: "Copiado",
     },
+    linkActions: {
+      openInPaseo: "Abrir no Paseo",
+      openInDefaultBrowser: "Abrir no navegador padrão",
+      copyLink: "Copiar link",
+      linkCopiedLabel: "Link",
+    },
     fileActions: {
+      revealInFiles: "Mostrar em Arquivos",
+      openInDefaultApp: "Abrir no app padrão",
+      pathCopiedLabel: "Caminho",
+      relativePathCopiedLabel: "Caminho relativo",
+      openInDefaultAppFailed: "Não foi possível abrir o arquivo no app padrão",
+      outsideWorkspace: "Este arquivo está fora do workspace",
+      notFoundInFiles: "Arquivo não encontrado em Arquivos",
       openFile: "Abrir arquivo",
       openIn: "Abrir no {{target}}",
       openToSide: "Abrir ao lado",
@@ -550,6 +563,12 @@ export const ptBR: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "Buscar arquivos",
+        clear: "Limpar busca",
+        loading: "Buscando arquivos...",
+        empty: "Nenhum arquivo correspondente",
+      },
       sort: {
         name: "Nome",
         modified: "Modificado",
@@ -760,7 +779,6 @@ export const ptBR: TranslationResources = {
         agentIdCopiedLabel: "ID do agente",
         terminalIdCopiedLabel: "ID do terminal",
         resumeCommandCopiedLabel: "comando de retomada",
-        filePathCopiedLabel: "Caminho do arquivo",
         resumeIdUnavailable: "ID de retomada indisponível",
         resumeCommandUnavailable: "Comando de retomada indisponível",
         reloadingAgent: "Recarregando agente...",
@@ -2575,7 +2593,7 @@ export const ptBR: TranslationResources = {
     metadataGeneration: {
       title: "Geração de metadados",
       description:
-        "Escolha o modelo usado pelo Paseo para títulos de espaços de trabalho, nomes de branches, mensagens de commit e rascunhos de pull request",
+        "Escolha o modelo e as instruções usados pelo Paseo para títulos de espaços de trabalho, nomes de branches, mensagens de commit e rascunhos de pull request",
       selection: "Seleção de modelo",
       automatic: "Automática",
       preferred: "Manual",
@@ -2583,6 +2601,10 @@ export const ptBR: TranslationResources = {
       preferredHint: "Escolha o modelo que o Paseo usa",
       model: "Modelo",
       modelHint: "Somente este modelo é usado. Se ele falhar, o Paseo não tenta outro modelo",
+      instructions: "Instruções",
+      instructionsHint: "Aplicadas a todos os metadados gerados neste host",
+      instructionsPlaceholder:
+        "Exemplo: Escreva em português. Mantenha o estilo coerente entre títulos e commits. Não use travessões.",
       docs: "Documentação",
       saveError: "Não foi possível atualizar a geração de metadados",
     },

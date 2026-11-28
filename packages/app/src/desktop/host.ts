@@ -82,6 +82,8 @@ export interface DesktopEditorOpenTargetInput {
 export interface DesktopEditorBridge {
   listTargets?: (input?: { workspacePath?: string }) => Promise<DesktopEditorTargetDescriptor[]>;
   openTarget?: (input: DesktopEditorOpenTargetInput) => Promise<void>;
+  /** Opens a file with the application the operating system associates with it. */
+  openDefaultApp?: (input: { path: string }) => Promise<void>;
 }
 
 export interface DesktopWebUtilsBridge {
@@ -211,6 +213,7 @@ export interface DesktopBrowserBridge {
   executeAutomationCommand?: (
     request: BrowserAutomationExecuteRequest,
   ) => Promise<BrowserAutomationExecuteResponse["payload"]>;
+  acknowledgeFocusGuard?: (input: { token: string; composing: boolean }) => void;
   /** Capture a PNG screenshot of the guest viewport cropped to `rect`. */
   captureElement?: (
     browserId: string,

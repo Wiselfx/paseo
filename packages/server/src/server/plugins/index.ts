@@ -30,14 +30,18 @@ import { BuiltinPluginLoader, type BuiltinPlugin } from "./builtin/index.js";
 import type {
   PluginProviderInstallationMetadata,
   PluginProviderMetadata,
+  PluginTunnelProviderMetadata,
+  PluginUsageSourceMetadata,
 } from "./plugin-process-protocol.js";
+import type { RegisteredTunnelProvider, TunnelManager } from "../tunnels/index.js";
 import { readPluginProviderIcon } from "./provider-icon.js";
 import {
   type AgentUsageLookup,
   type ListUsageReportsOptions,
+  type UsageObservation,
   UsageSourceRegistry,
 } from "./usage-sources/index.js";
-import type { PluginUsageSourceMetadata } from "./plugin-process-protocol.js";
+import type { UsageReportEntry } from "@getpaseo/protocol/messages";
 
 const BUILTIN_PROVIDER_ID_SET: ReadonlySet<string> = new Set(BUILTIN_PROVIDER_IDS);
 
@@ -60,6 +64,9 @@ interface PluginRuntimePort {
   clearLogs(pluginId: string): void;
   getProviderRegistrations?(pluginId: string): readonly PluginProviderMetadata[];
   getUsageSourceRegistrations(pluginId: string): readonly PluginUsageSourceMetadata[];
+  getTunnelProviderRegistrations?(pluginId: string): readonly PluginTunnelProviderMetadata[];
+  getTunnelProviderStatus?: PluginRuntime["getTunnelProviderStatus"];
+  openTunnel?: PluginRuntime["openTunnel"];
   fetchUsage: PluginRuntime["fetchUsage"];
   discoverUsage: PluginRuntime["discoverUsage"];
   connectProvider: PluginRuntime["connectProvider"];
@@ -79,6 +86,7 @@ interface PluginRuntimePort {
 
 interface PluginServiceDependencies {
   usageAgents?: AgentUsageLookup;
+  tunnelManager?: TunnelManager;
   settingsDirectory?: string;
   runtime?: PluginRuntimePort;
   managedSources?: ManagedPluginSources;
@@ -110,6 +118,8 @@ export class PluginService {
   private readonly providers = new Map<string, ProviderRegistration>();
   private readonly usageSources: UsageSourceRegistry;
   private readonly usageSourceIdsByPlugin = new Map<string, string[]>();
+  private readonly tunnelManager: TunnelManager | null;
+  private readonly tunnelProviderIdsByPlugin = new Map<string, string[]>();
   private readonly providerIdsByPlugin = new Map<string, readonly string[]>();
   private readonly providerListeners = new Set<() => void>();
   private lifecycle = Promise.resolve();
@@ -134,12 +144,21 @@ export class PluginService {
       this.logger,
       dependencies.usageAgents,
     );
+    this.tunnelManager = dependencies.tunnelManager ?? null;
     this.runtime =
       dependencies.runtime ??
       new PluginRuntime(logger, daemonVersion, {
         settingsDirectory: dependencies.settingsDirectory,
         onSettingsChanged: (pluginId, settingsId) => {
           for (const listener of this.settingsListeners) listener(pluginId, settingsId);
+        },
+        onTunnelProvidersChanged: (pluginId) => {
+          void this.syncTunnelProviders(pluginId).catch((error) => {
+            this.logger.warn(
+              { err: error, pluginId },
+              "Failed to synchronize plugin tunnel providers",
+            );
+          });
         },
       });
     this.managedSources = dependencies.managedSources ?? null;
@@ -148,6 +167,7 @@ export class PluginService {
     this.runtime.subscribe((pluginId, error) => {
       this.removeProviderRegistrations(pluginId);
       this.removeUsageSources(pluginId);
+      void this.removeTunnelProviders(pluginId);
       if (error) this.errors.set(pluginId, error);
       this.notify(pluginId);
     });
@@ -262,6 +282,17 @@ export class PluginService {
     return this.usageSources.listLegacyUsage();
   }
 
+  subscribeUsageReports(listener: (entry: UsageReportEntry) => void): () => void {
+    return this.usageSources.subscribe(listener);
+  }
+
+  /** Merges usage an agent observed into its account's report; see UsageSourceRegistry. */
+  observeUsage(agentId: string, observation: UsageObservation): void {
+    void this.usageSources.observeUsage(agentId, observation).catch((error) => {
+      this.logger.warn({ err: error, agentId }, "Failed to apply observed usage");
+    });
+  }
+
   subscribeProviderRegistrations(listener: () => void): () => void {
     this.providerListeners.add(listener);
     return () => this.providerListeners.delete(listener);
@@ -277,6 +308,7 @@ export class PluginService {
         await this.runtime.startBuiltinPlugin?.(plugin);
         await this.publishProviderRegistrations(plugin.id, plugin.directory);
         this.publishUsageSources(plugin.id);
+        this.publishTunnelProviders(plugin.id);
       } catch (error) {
         this.logger.error({ err: error, pluginId: plugin.id }, "Failed to start built-in plugin");
       }
@@ -678,10 +710,12 @@ export class PluginService {
     try {
       await this.publishProviderRegistrations(pluginId, sourcePath);
       this.publishUsageSources(pluginId);
+      this.publishTunnelProviders(pluginId);
     } catch (error) {
       try {
         this.removeProviderRegistrations(pluginId);
         this.removeUsageSources(pluginId);
+        await this.removeTunnelProviders(pluginId);
       } finally {
         await this.runtime.stopPluginById(pluginId);
       }
@@ -689,9 +723,10 @@ export class PluginService {
     }
   }
 
-  private stopPlugin(pluginId: string): Promise<boolean> {
+  private async stopPlugin(pluginId: string): Promise<boolean> {
     this.removeProviderRegistrations(pluginId);
     this.removeUsageSources(pluginId);
+    await this.removeTunnelProviders(pluginId);
     return this.runtime.stopPluginById(pluginId);
   }
 
@@ -707,7 +742,78 @@ export class PluginService {
       this.removeProviderRegistrations(pluginId);
     }
     for (const pluginId of this.usageSourceIdsByPlugin.keys()) this.removeUsageSources(pluginId);
+    await Promise.all(
+      [...this.tunnelProviderIdsByPlugin.keys()].map((pluginId) =>
+        this.removeTunnelProviders(pluginId),
+      ),
+    );
     await this.runtime.stopAll();
+  }
+
+  private buildTunnelProviders(pluginId: string): RegisteredTunnelProvider[] {
+    const metadata = this.runtime.getTunnelProviderRegistrations?.(pluginId) ?? [];
+    return metadata.map((provider) => {
+      const entry: RegisteredTunnelProvider = {
+        id: provider.id,
+        pluginId,
+        label: provider.label,
+        description: provider.description,
+        docsUrl: provider.docsUrl,
+        status: (options) => {
+          if (!this.runtime.getTunnelProviderStatus) {
+            throw new Error("Plugin runtime cannot query tunnel provider status");
+          }
+          return this.runtime.getTunnelProviderStatus(pluginId, provider.id, options);
+        },
+        open: (exposureId, target, callbacks) => {
+          if (!this.runtime.openTunnel) {
+            throw new Error("Plugin runtime cannot open tunnels");
+          }
+          return this.runtime.openTunnel(pluginId, provider.id, exposureId, target, callbacks);
+        },
+      };
+      return entry;
+    });
+  }
+
+  private publishTunnelProviders(pluginId: string): void {
+    if (!this.tunnelManager) return;
+    const providers = this.buildTunnelProviders(pluginId);
+    const registered: string[] = [];
+    try {
+      for (const provider of providers) {
+        this.tunnelManager.registerProvider(provider);
+        registered.push(provider.id);
+      }
+    } catch (error) {
+      for (const id of registered) {
+        void this.tunnelManager.unregisterProvider(id);
+      }
+      throw error;
+    }
+    if (registered.length > 0) {
+      this.tunnelProviderIdsByPlugin.set(pluginId, registered);
+    }
+  }
+
+  private async syncTunnelProviders(pluginId: string): Promise<void> {
+    if (!this.tunnelManager) return;
+    const providers = this.buildTunnelProviders(pluginId);
+    await this.tunnelManager.syncPluginProviders(pluginId, providers);
+    if (providers.length > 0) {
+      this.tunnelProviderIdsByPlugin.set(
+        pluginId,
+        providers.map((provider) => provider.id),
+      );
+    } else {
+      this.tunnelProviderIdsByPlugin.delete(pluginId);
+    }
+  }
+
+  private async removeTunnelProviders(pluginId: string): Promise<void> {
+    this.tunnelProviderIdsByPlugin.delete(pluginId);
+    if (!this.tunnelManager) return;
+    await this.tunnelManager.unregisterPlugin(pluginId);
   }
 
   private publishUsageSources(pluginId: string): void {
@@ -715,8 +821,11 @@ export class PluginService {
     const registered: string[] = [];
     try {
       for (const source of metadata) {
+        const isBuiltinProviderSource =
+          source.provider !== undefined && BUILTIN_PROVIDER_ID_SET.has(source.provider);
         if (
           source.provider &&
+          !isBuiltinProviderSource &&
           !this.runtime
             .getProviderRegistrations?.(pluginId)
             .some((provider) => provider.id === source.provider)

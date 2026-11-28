@@ -2881,7 +2881,7 @@ describe("create_agent MCP tool", () => {
     }
   });
 
-  it("lists active workspace descriptors", async () => {
+  it("lists active workspace descriptors including metadata", async () => {
     const { agentManager, agentStorage } = createTestDeps();
     const workspace = createPersistedWorkspaceRecord({
       workspaceId: "ws-feature",
@@ -2889,6 +2889,10 @@ describe("create_agent MCP tool", () => {
       cwd: "/tmp/paseo/worktrees/repo/feature",
       kind: "worktree",
       displayName: "feature",
+      metadata: {
+        issues: ["https://github.com/getpaseo/paseo/issues/42"],
+        body: "Track issue context",
+      },
       createdAt: "2026-07-17T00:00:00.000Z",
       updatedAt: "2026-07-17T00:00:00.000Z",
     });
@@ -2900,6 +2904,7 @@ describe("create_agent MCP tool", () => {
         get: vi.fn(async () => workspace),
         listActive: vi.fn(async () => [workspace]),
         upsert: vi.fn(async () => undefined),
+        update: vi.fn(async () => workspace),
       },
       logger,
     });
@@ -2908,8 +2913,129 @@ describe("create_agent MCP tool", () => {
     const response = await tool.handler({});
 
     expect(response.structuredContent.workspaces).toEqual([
-      expect.objectContaining({ workspaceId: "ws-feature", isolation: "worktree" }),
+      expect.objectContaining({
+        workspaceId: "ws-feature",
+        isolation: "worktree",
+        metadata: {
+          issues: ["https://github.com/getpaseo/paseo/issues/42"],
+          body: "Track issue context",
+        },
+      }),
     ]);
+  });
+
+  it("passes initial metadata through create_workspace for local and worktree isolation", async () => {
+    const { agentManager, agentStorage } = createTestDeps();
+    const directoryCalls: Array<{
+      cwd: string;
+      context?: {
+        background?: boolean;
+        callerWorkspaceId?: string;
+        metadata?: Record<string, unknown>;
+      };
+    }> = [];
+    const worktreeInputs: CreatePaseoWorktreeInput[] = [];
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      createDirectoryWorkspace: async (cwd, title, _projectId, context) => {
+        directoryCalls.push({ cwd, context });
+        return createPersistedWorkspaceRecord({
+          workspaceId: "ws-local-meta",
+          projectId: "project-1",
+          cwd,
+          kind: "directory",
+          displayName: "local",
+          title: title ?? null,
+          metadata: context?.metadata,
+          createdAt: "2026-07-17T00:00:00.000Z",
+          updatedAt: "2026-07-17T00:00:00.000Z",
+        });
+      },
+      createPaseoWorktree: async (input) => {
+        worktreeInputs.push(input);
+        return {
+          worktree: { branchName: "feat/meta", worktreePath: TARGET_CWD },
+          intent: { kind: "branch-off", branchName: "feat/meta", baseBranch: "main" },
+          workspace: createPersistedWorkspaceRecord({
+            workspaceId: "ws-worktree-meta",
+            projectId: "project-1",
+            cwd: TARGET_CWD,
+            kind: "worktree",
+            displayName: "feat/meta",
+            title: input.title ?? null,
+            metadata: input.metadata,
+            createdAt: "2026-07-17T00:00:00.000Z",
+            updatedAt: "2026-07-17T00:00:00.000Z",
+          }),
+          repoRoot: REPO_CWD,
+          created: true,
+        };
+      },
+      logger,
+    });
+
+    const localCreated = await invokeToolWithParsedInput(
+      registeredTool(server, "create_workspace"),
+      {
+        isolation: "local",
+        path: process.cwd(),
+        title: "Issue triage",
+        metadata: {
+          issues: ["https://github.com/getpaseo/paseo/issues/10"],
+          body: "Initial notes",
+          cleared: null,
+        },
+      },
+    );
+    expect(directoryCalls).toEqual([
+      {
+        cwd: process.cwd(),
+        context: expect.objectContaining({
+          metadata: {
+            issues: ["https://github.com/getpaseo/paseo/issues/10"],
+            body: "Initial notes",
+          },
+        }),
+      },
+    ]);
+    expect(localCreated.structuredContent).toMatchObject({
+      workspaceId: "ws-local-meta",
+      title: "Issue triage",
+      metadata: {
+        issues: ["https://github.com/getpaseo/paseo/issues/10"],
+        body: "Initial notes",
+      },
+    });
+
+    const worktreeCreated = await invokeToolWithParsedInput(
+      registeredTool(server, "create_workspace"),
+      {
+        isolation: "worktree",
+        path: REPO_CWD,
+        branchName: "feat/meta",
+        metadata: {
+          issues: ["https://github.com/getpaseo/paseo/issues/11"],
+          notes: "Worktree notes",
+        },
+      },
+    );
+    expect(worktreeInputs).toEqual([
+      expect.objectContaining({
+        metadata: {
+          issues: ["https://github.com/getpaseo/paseo/issues/11"],
+          notes: "Worktree notes",
+        },
+      }),
+    ]);
+    expect(worktreeCreated.structuredContent).toMatchObject({
+      workspaceId: "ws-worktree-meta",
+      metadata: {
+        issues: ["https://github.com/getpaseo/paseo/issues/11"],
+        notes: "Worktree notes",
+      },
+    });
   });
 
   it("creates an background local workspace and leaves it out of list_workspaces", async () => {
@@ -4804,13 +4930,15 @@ describe("send_agent_prompt MCP tool", () => {
 
       const pending = invokeToolWithParsedInput(tool, {
         agentId: child.id,
-        prompt: "Follow up",
+        prompt: "/review the diff",
       });
       await vi.waitFor(() => expect(childSession.prompts).toHaveLength(1));
+      // The provider reads the sender's command at character 0; the marker trails it.
+      expect(String(childSession.prompts[0])).toMatch(/^\/review the diff\n\n<paseo-message /);
       expect(parseAgentMessage(childSession.prompts[0])).toEqual({
         id: expect.any(String),
         source: { kind: "agent-message", agentId: parent.id },
-        text: "Follow up",
+        text: "/review the diff",
       });
       acknowledgeTurnStart();
       const response = await pending;
@@ -5284,12 +5412,12 @@ describe("message order for one recipient", () => {
   });
 });
 
-describe("finish notifications for a child that ends its turn while still working", () => {
+describe("finish notifications for a child that ends its turn with work pending", () => {
   const logger = createTestLogger();
   const existingCwd = process.cwd();
 
   async function setup() {
-    const workdir = await mkdtemp(join(tmpdir(), "mcp-still-working-"));
+    const workdir = await mkdtemp(join(tmpdir(), "mcp-pending-work-"));
     const storage = new AgentStorage(join(workdir, "agents"), logger);
     const parentClient = new HeldTurnAgentClient("claude", false);
     const childClient = new HeldTurnAgentClient("codex", true);
@@ -5324,25 +5452,30 @@ describe("finish notifications for a child that ends its turn while still workin
       return { id, session };
     }
     const parentPrompts = () => parentClient.sessions[0]?.prompts ?? [];
-    return { workdir, storage, agentManager, parent, server, createChild, parentPrompts };
+    return {
+      workdir,
+      storage,
+      agentManager,
+      parent,
+      server,
+      createChild,
+      parentPrompts,
+    };
   }
 
-  it("tells the parent the child is still working, then reports its autonomous final reply", async () => {
-    const { workdir, storage, agentManager, server, createChild, parentPrompts } = await setup();
+  it("reports the turn end now with its background task, and again when the task wakes the child", async () => {
+    const context = await setup();
+    const { workdir, storage, agentManager, server, createChild, parentPrompts } = context;
     try {
       const child = await createChild(server, "Builder");
       child.session.pendingWakeup = true;
       child.session.publishBackgroundWork([{ id: "build", description: "npm run build" }]);
       child.session.finishTurn("WAITING for the build");
-
+      // The task can run for as long as the child lives, so the parent hears this turn now.
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(1));
-      expect(parentPrompts()[0]).toContain(
-        `Agent ${child.id} (Builder) ended its turn but is still working: background work that will wake it.`,
-      );
+      expect(parentPrompts()[0]).toContain(`Agent ${child.id} (Builder) finished.`);
       expect(parentPrompts()[0]).toContain("WAITING for the build");
-      expect(parseAgentMessage(parentPrompts()[0]!)).toMatchObject({
-        source: { kind: "agent-notification", agentId: child.id, event: "message" },
-      });
+      expect(parentPrompts()[0]).toContain("It still has background work that will wake it.");
 
       // Claude publishes the empty roster before the turn its task notification starts.
       child.session.publishBackgroundWork([]);
@@ -5354,6 +5487,7 @@ describe("finish notifications for a child that ends its turn while still workin
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(2));
       expect(parentPrompts()[1]).toContain(`Agent ${child.id} (Builder) finished.`);
       expect(parentPrompts()[1]).toContain("FINAL: done");
+      expect(parentPrompts()[1]).not.toContain("It still has");
       expect(parseAgentMessage(parentPrompts()[1]!)).toMatchObject({
         source: { kind: "agent-notification", agentId: child.id, event: "finished" },
       });
@@ -5369,21 +5503,31 @@ describe("finish notifications for a child that ends its turn while still workin
     }
   });
 
-  it("reports finished when the child's background work drains without another turn", async () => {
-    const { workdir, storage, agentManager, server, createChild, parentPrompts } = await setup();
+  it("sends the final finish when the background task stops without another turn", async () => {
+    const context = await setup();
+    const { workdir, storage, agentManager, server, createChild, parentPrompts } = context;
     try {
       const child = await createChild(server, "Builder");
       child.session.pendingWakeup = true;
       child.session.publishBackgroundWork([{ id: "server", description: "dev server" }]);
       child.session.finishTurn("Started the dev server");
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(1));
-      expect(parentPrompts()[0]).toContain("ended its turn but is still working");
+      expect(parentPrompts()[0]).toContain(`Agent ${child.id} (Builder) finished.`);
+      expect(parentPrompts()[0]).toContain("Started the dev server");
 
       child.session.pendingWakeup = false;
       child.session.publishBackgroundWork([]);
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(2));
       expect(parentPrompts()[1]).toContain(`Agent ${child.id} (Builder) finished.`);
       expect(parentPrompts()[1]).toContain("Started the dev server");
+      expect(parentPrompts()[1]).not.toContain("It still has");
+
+      // The subscription ended there: a later turn reports nothing.
+      child.session.startAutonomousTurn();
+      child.session.finishTurn("Unrelated later work");
+      await vi.waitFor(() => expect(agentManager.getAgent(child.id)?.lifecycle).toBe("idle"));
+      await new Promise((resolve) => setTimeout(resolve, 100));
+      expect(parentPrompts()).toHaveLength(2);
     } finally {
       await removeAgentStateDir(agentManager, storage, workdir);
     }
@@ -5411,8 +5555,9 @@ describe("finish notifications for a child that ends its turn while still workin
     }
   });
 
-  it("follows a helper that waits on its own child until the helper's final reply", async () => {
-    const { workdir, storage, agentManager, server, createChild, parentPrompts } = await setup();
+  it("reports a helper's turn end while it waits on its own child, then its final reply", async () => {
+    const context = await setup();
+    const { workdir, storage, agentManager, server, createChild, parentPrompts } = context;
     try {
       const helper = await createChild(server, "Helper");
       const helperServer = await createAgentMcpServer(
@@ -5429,11 +5574,9 @@ describe("finish notifications for a child that ends its turn while still workin
       );
       const sub = await createChild(helperServer, "Sub helper");
       helper.session.finishTurn("Waiting for my helper");
-
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(1));
-      expect(parentPrompts()[0]).toContain(
-        `Agent ${helper.id} (Helper) ended its turn but is still working: agents it is waiting on.`,
-      );
+      expect(parentPrompts()[0]).toContain(`Agent ${helper.id} (Helper) finished.`);
+      expect(parentPrompts()[0]).toContain("It still has agents it is waiting on.");
 
       sub.session.finishTurn("SUB RESULT");
       // The sub helper's finish starts the helper's next turn.
@@ -5445,18 +5588,21 @@ describe("finish notifications for a child that ends its turn while still workin
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(2));
       expect(parentPrompts()[1]).toContain(`Agent ${helper.id} (Helper) finished.`);
       expect(parentPrompts()[1]).toContain("HELPER FINAL");
+      expect(parentPrompts()[1]).not.toContain("It still has");
     } finally {
       await removeAgentStateDir(agentManager, storage, workdir);
     }
   });
 
   it("a permission request after waking up reaches the parent, and the settled turn still reports", async () => {
-    const { workdir, storage, agentManager, server, createChild, parentPrompts } = await setup();
+    const context = await setup();
+    const { workdir, storage, agentManager, server, createChild, parentPrompts } = context;
     try {
       const child = await createChild(server, "Planner");
       child.session.pendingWakeup = true;
       child.session.finishTurn("Waiting for research");
       await vi.waitFor(() => expect(parentPrompts()).toHaveLength(1));
+      expect(parentPrompts()[0]).toContain("Waiting for research");
 
       child.session.startAutonomousTurn();
       child.session.pendingWakeup = false;
@@ -5962,6 +6108,216 @@ describe("rename_workspace MCP tool", () => {
       }),
     ).rejects.toThrow("Workspace wks_archived is archived");
     expect(upsertedWorkspaces).toEqual([]);
+    expect(emittedWorkspaceIds).toEqual([]);
+  });
+});
+
+describe("update_workspace MCP tool", () => {
+  const logger = createTestLogger();
+
+  function createWorkspaceRegistryStub(initial: PersistedWorkspaceRecord[]) {
+    const records = new Map(initial.map((record) => [record.workspaceId, record]));
+    const updatedRecords: PersistedWorkspaceRecord[] = [];
+    return {
+      records,
+      updatedRecords,
+      registry: {
+        get: async (workspaceId: string) => records.get(workspaceId) ?? null,
+        listActive: async () => Array.from(records.values()).filter((r) => !r.archivedAt),
+        upsert: async (record: PersistedWorkspaceRecord) => {
+          records.set(record.workspaceId, record);
+        },
+        update: async (
+          workspaceId: string,
+          updater: (record: PersistedWorkspaceRecord) => PersistedWorkspaceRecord,
+        ) => {
+          const existing = records.get(workspaceId);
+          if (!existing) return null;
+          const next = updater(existing);
+          records.set(workspaceId, next);
+          updatedRecords.push(next);
+          return next;
+        },
+      },
+    };
+  }
+
+  it("patches metadata on the caller workspace when workspaceId is omitted", async () => {
+    const { agentManager, agentStorage, spies } = createTestDeps();
+    const workspace = createPersistedWorkspaceRecord({
+      workspaceId: "wks_caller",
+      projectId: "proj_parent",
+      cwd: REPO_CWD,
+      kind: "local_checkout",
+      displayName: "main",
+      metadata: { existing: "keep", obsolete: true },
+      createdAt: "2026-07-03T09:00:00.000Z",
+      updatedAt: "2026-07-03T09:00:00.000Z",
+    });
+    const stub = createWorkspaceRegistryStub([workspace]);
+    const emittedWorkspaceIds: string[][] = [];
+    spies.agentManager.getAgent.mockReturnValue(
+      createManagedAgent({
+        id: "caller-agent",
+        cwd: REPO_CWD,
+        workspaceId: workspace.workspaceId,
+      }),
+    );
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      workspaceRegistry: stub.registry,
+      emitWorkspaceUpdatesForWorkspaceIds: async (workspaceIds) => {
+        emittedWorkspaceIds.push(Array.from(workspaceIds));
+      },
+      callerAgentId: "caller-agent",
+      logger,
+    });
+    const tool = registeredTool(server, "update_workspace");
+
+    const response = await invokeToolWithParsedInput(tool, {
+      metadata: {
+        issues: [
+          "https://github.com/getpaseo/paseo/issues/101",
+          "https://github.com/getpaseo/paseo/issues/102",
+        ],
+        body: "Investigation notes",
+        obsolete: null,
+      },
+    });
+
+    expect(response.structuredContent).toEqual({
+      workspaceId: "wks_caller",
+      projectId: "proj_parent",
+      cwd: REPO_CWD,
+      isolation: "local",
+      kind: "local_checkout",
+      title: null,
+      background: false,
+      parentWorkspaceId: null,
+      metadata: {
+        existing: "keep",
+        issues: [
+          "https://github.com/getpaseo/paseo/issues/101",
+          "https://github.com/getpaseo/paseo/issues/102",
+        ],
+        body: "Investigation notes",
+      },
+    });
+    expect(emittedWorkspaceIds).toEqual([["wks_caller"]]);
+  });
+
+  it("updates both title (including clearing with null) and metadata on an explicit workspace", async () => {
+    const { agentManager, agentStorage } = createTestDeps();
+    const workspace = createPersistedWorkspaceRecord({
+      workspaceId: "wks_explicit",
+      projectId: "proj_other",
+      cwd: TARGET_CWD,
+      kind: "worktree",
+      displayName: "feat/x",
+      title: "Old title",
+      metadata: { summary: "old" },
+      createdAt: "2026-07-03T09:00:00.000Z",
+      updatedAt: "2026-07-03T09:00:00.000Z",
+    });
+    const stub = createWorkspaceRegistryStub([workspace]);
+    const emittedWorkspaceIds: string[][] = [];
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      workspaceRegistry: stub.registry,
+      emitWorkspaceUpdatesForWorkspaceIds: async (workspaceIds) => {
+        emittedWorkspaceIds.push(Array.from(workspaceIds));
+      },
+      logger,
+    });
+    const tool = registeredTool(server, "update_workspace");
+
+    const updated = await invokeToolWithParsedInput(tool, {
+      workspaceId: "wks_explicit",
+      title: "  New title  ",
+      metadata: { summary: "updated", custom: { nested: [1, 2] } },
+    });
+    expect(updated.structuredContent).toMatchObject({
+      workspaceId: "wks_explicit",
+      title: "New title",
+      metadata: { summary: "updated", custom: { nested: [1, 2] } },
+    });
+
+    const cleared = await invokeToolWithParsedInput(tool, {
+      workspaceId: "wks_explicit",
+      title: null,
+      metadata: { summary: null },
+    });
+    expect(cleared.structuredContent).toMatchObject({
+      workspaceId: "wks_explicit",
+      title: null,
+      metadata: { custom: { nested: [1, 2] } },
+    });
+    expect(emittedWorkspaceIds).toEqual([["wks_explicit"], ["wks_explicit"]]);
+  });
+
+  it("rejects missing workspaceId outside an agent session, empty updates, unknown IDs, archived workspaces, and non-JSON metadata", async () => {
+    const { agentManager, agentStorage } = createTestDeps();
+    const archived = createPersistedWorkspaceRecord({
+      workspaceId: "wks_archived",
+      projectId: "proj_1",
+      cwd: REPO_CWD,
+      kind: "local_checkout",
+      displayName: "archived",
+      archivedAt: "2026-07-03T10:00:00.000Z",
+      createdAt: "2026-07-03T09:00:00.000Z",
+      updatedAt: "2026-07-03T09:00:00.000Z",
+    });
+    const active = createPersistedWorkspaceRecord({
+      workspaceId: "wks_active",
+      projectId: "proj_1",
+      cwd: REPO_CWD,
+      kind: "local_checkout",
+      displayName: "active",
+      createdAt: "2026-07-03T09:00:00.000Z",
+      updatedAt: "2026-07-03T09:00:00.000Z",
+    });
+    const stub = createWorkspaceRegistryStub([archived, active]);
+    const emittedWorkspaceIds: string[][] = [];
+    const server = await createAgentMcpServer({
+      agentManager,
+      agentStorage,
+      providerSnapshotManager: createOpenCodeManager().manager,
+      workspaceRegistry: stub.registry,
+      emitWorkspaceUpdatesForWorkspaceIds: async (workspaceIds) => {
+        emittedWorkspaceIds.push(Array.from(workspaceIds));
+      },
+      logger,
+    });
+    const tool = registeredTool(server, "update_workspace");
+
+    await expect(invokeToolWithParsedInput(tool, { metadata: { body: "orphan" } })).rejects.toThrow(
+      "workspaceId is required outside an agent-scoped session",
+    );
+
+    await expect(invokeToolWithParsedInput(tool, { workspaceId: "wks_active" })).rejects.toThrow(
+      "Specify at least one field to update: title or metadata",
+    );
+
+    await expect(
+      invokeToolWithParsedInput(tool, { workspaceId: "wks_missing", metadata: { body: "x" } }),
+    ).rejects.toThrow("Workspace wks_missing not found");
+
+    await expect(
+      invokeToolWithParsedInput(tool, { workspaceId: "wks_archived", metadata: { body: "x" } }),
+    ).rejects.toThrow("Workspace wks_archived is archived");
+
+    await expect(
+      invokeToolWithParsedInput(tool, {
+        workspaceId: "wks_active",
+        metadata: { bad: Number.NaN },
+      }),
+    ).rejects.toThrow(/metadata/i);
+
+    expect(stub.updatedRecords).toEqual([]);
     expect(emittedWorkspaceIds).toEqual([]);
   });
 });

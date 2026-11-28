@@ -22,6 +22,7 @@ import {
   existsSync,
   mkdtempSync,
   mkdirSync,
+  readFileSync,
   realpathSync,
   rmSync,
   statSync,
@@ -1216,6 +1217,47 @@ describe.skipIf(isPlatform("win32"))("terminal title", () => {
     },
   );
 
+  it("derives COLORFGBG from defaultColors unless already set in env", () => {
+    const defaultEnv = buildTerminalEnvironment({
+      shell: "/bin/sh",
+      env: {},
+      baseEnv: { PATH: "/usr/bin:/bin", COLORFGBG: "9;9" },
+      paseoCliBinDir: null,
+      paseoHookCliPath: null,
+    });
+    expect(defaultEnv.COLORFGBG).toBe("15;0");
+
+    const lightEnv = buildTerminalEnvironment({
+      shell: "/bin/sh",
+      env: {},
+      baseEnv: { PATH: "/usr/bin:/bin", COLORFGBG: "15;0" },
+      defaultColors: { foreground: "#1a1a1e", background: "#ffffff" },
+      paseoCliBinDir: null,
+      paseoHookCliPath: null,
+    });
+    expect(lightEnv.COLORFGBG).toBe("0;15");
+
+    const darkEnv = buildTerminalEnvironment({
+      shell: "/bin/sh",
+      env: {},
+      baseEnv: { PATH: "/usr/bin:/bin", COLORFGBG: "0;15" },
+      defaultColors: { foreground: "#fafafa", background: "#181b1a" },
+      paseoCliBinDir: null,
+      paseoHookCliPath: null,
+    });
+    expect(darkEnv.COLORFGBG).toBe("15;0");
+
+    const explicitEnv = buildTerminalEnvironment({
+      shell: "/bin/sh",
+      env: { COLORFGBG: "7;0" },
+      baseEnv: { PATH: "/usr/bin:/bin" },
+      defaultColors: { foreground: "#1a1a1e", background: "#ffffff" },
+      paseoCliBinDir: null,
+      paseoHookCliPath: null,
+    });
+    expect(explicitEnv.COLORFGBG).toBe("7;0");
+  });
+
   it.skipIf(!hasZsh)("emits zsh shell integration command completion", async () => {
     const homeDir = mkdtempSync(join(tmpdir(), "terminal-zsh-command-finished-home-"));
     temporaryDirs.push(homeDir);
@@ -1536,6 +1578,47 @@ describe("terminal activity interruption", () => {
     session.send({ type: "input", data });
 
     expect(session.getActivity()).toMatchObject({ state: "working" });
+  });
+});
+
+describe("killAndWait", () => {
+  function isAlive(pid: number): boolean {
+    try {
+      process.kill(pid, 0);
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  // The worker's shutdown and "Restart and close terminals" end every terminal with
+  // killAndWait and then exit, so the program must be gone when it resolves.
+  it("ends a program that survives the soft kill before it resolves", async () => {
+    const dir = mkdtempSync(join(tmpdir(), "terminal-kill-and-wait-"));
+    temporaryDirs.push(dir);
+    const pidFile = join(dir, "program.pid");
+    const session = trackSession(
+      await createTerminal({
+        workspaceId: "ws-test",
+        cwd: dir,
+        name: "Stubborn",
+        command: process.execPath,
+        args: [
+          "-e",
+          `process.on("SIGHUP", () => {});
+           require("node:fs").writeFileSync(${JSON.stringify(pidFile)}, String(process.pid));
+           setInterval(() => {}, 1e9);`,
+        ],
+      }),
+    );
+    const deadline = Date.now() + 10_000;
+    while (!existsSync(pidFile) && Date.now() < deadline) await delay(50);
+    const pid = Number(readFileSync(pidFile, "utf8"));
+    expect(isAlive(pid)).toBe(true);
+
+    await session.killAndWait({ gracefulTimeoutMs: 0 });
+
+    expect(isAlive(pid)).toBe(false);
   });
 });
 

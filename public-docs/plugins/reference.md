@@ -601,6 +601,7 @@ interface UsageSourceRegistration {
   label: string;
   icon?: string;
   provider?: string;
+  providers?: readonly string[];
   input: ZodType;
   discover(scope: UsageScope): Promise<UsageAccount[]>;
   fetch(input: unknown): Promise<UsageReport>;
@@ -631,6 +632,18 @@ Resolve the session account from that session's launch environment. Return `[]` 
 Never scan default stores from session discovery or scan agents from global discovery. Discovery is a query, with no agent
 lifecycle hooks. Closed agents have no session scope until resumed.
 
+The host's Usage list also runs session discovery once for each enabled provider that configures a
+config-directory or credential-store locator env var, so a custom provider's login appears before any
+of its agents run. The daemon dispatches that scope **only** to usage sources whose declared
+`providers` list explicitly includes that provider's base ID (or its own ID when it extends none),
+with no `model` and with `env` filtered to this explicit allowlist of non-secret locator variables:
+`HOME`, `USERPROFILE`, `USER`, `APPDATA`, `XDG_CONFIG_HOME`, `XDG_DATA_HOME`, `XDG_STATE_HOME`,
+`CLAUDE_CONFIG_DIR`, `CLAUDE_SECURESTORAGE_CONFIG_DIR`, `CODEX_HOME`, `OPENCODE_CONFIG_DIR`,
+`OPENCODE_DB`, `PI_CODING_AGENT_DIR`, `PI_CONFIG_DIR`, `PI_PROFILE`, `OMP_PROFILE`,
+`KIMI_CODE_HOME`, and `AGENT_CLI_CREDENTIAL_STORE`. Auth tokens, API keys, and arbitrary env entries
+are stripped. The daemon sets the `harness` of each login found this way to the provider's label, so
+a failed login names its provider. A login that global discovery found first keeps its `harness`.
+
 Inputs name credential stores; never put credentials in inputs or reports. Paseo validates each
 input against your schema before calling `fetch()`. The same key in any scope is the same report;
 fetches share a five-minute cache only when their ordered login inputs match. Each login fetch
@@ -638,20 +651,19 @@ has a 20-second deadline.
 
 Built-in session routes:
 
-| Source                 | Session                                       | Login store                                                                                    |
-| ---------------------- | --------------------------------------------- | ---------------------------------------------------------------------------------------------- |
-| Claude                 | `claude`                                      | `CLAUDE_CONFIG_DIR`, or the default; on macOS, the directory's Keychain entry takes precedence |
-| Claude                 | `pi`, `omp` with `anthropic/…` model          | That harness's Anthropic login store                                                           |
-| Codex                  | `codex`                                       | `CODEX_HOME/auth.json`, or the default                                                         |
-| Codex                  | `pi`, `opencode`, `omp` with `openai/…` model | That harness's OpenAI login store                                                              |
-| Cursor                 | `cursor`                                      | cursor-agent's `auth.json` for that session's `XDG_CONFIG_HOME`, `APPDATA`, or home directory  |
-| Muse                   | `muse`                                        | That session's own Muse launch/config                                                          |
-| Other built-in sources | Any                                           | No session discovery                                                                           |
+| Source                 | Session                                       | Login store                                                                                                                                                    |
+| ---------------------- | --------------------------------------------- | -------------------------------------------------------------------------------------------------------------------------------------------------------------- |
+| Claude                 | `claude`                                      | `CLAUDE_CONFIG_DIR`, or the default; on macOS, the directory's Keychain entry takes precedence                                                                 |
+| Claude                 | `pi`, `omp` with `anthropic/…` model          | That harness's Anthropic login store                                                                                                                           |
+| Codex                  | `codex`                                       | `CODEX_HOME/auth.json`, or the default                                                                                                                         |
+| Codex                  | `pi`, `opencode`, `omp` with `openai/…` model | That harness's OpenAI login store                                                                                                                              |
+| Cursor                 | `cursor`                                      | cursor-agent's `auth.json` for that session's `XDG_CONFIG_HOME`, `APPDATA`, or home directory; on macOS, the Keychain unless `AGENT_CLI_CREDENTIAL_STORE=file` |
+| Muse                   | `muse`                                        | That session's own Muse launch/config                                                                                                                          |
+| Other built-in sources | Any                                           | No session discovery                                                                                                                                           |
 
 Claude excludes Bedrock, Vertex, and foreign `ANTHROPIC_BASE_URL` sessions. Codex excludes sessions
 with `OPENAI_BASE_URL` set. Cursor excludes sessions that authenticate with `CURSOR_API_KEY` or
-`CURSOR_AUTH_TOKEN`, and macOS sessions that keep the login in the Keychain, the default unless
-`AGENT_CLI_CREDENTIAL_STORE=file`.
+`CURSOR_AUTH_TOKEN`.
 
 Use a stable account key: 1–128 characters from `[A-Za-z0-9._-]`. It identifies the account or
 organization whose quota is metered and survives token rotation. Never use a credential or raw
@@ -863,6 +875,90 @@ export default function contribute(server: PluginServerContext) {
   so subsequent archives also use Git.
 
 See the complete [worktrunk example](https://github.com/getpaseo/paseo/tree/main/plugin-examples/worktrunk).
+
+## Tunnel providers {#tunnel-providers}
+
+**Requires Paseo 0.18.** Register a tunnel provider from `index.server.ts` with
+`server.registerTunnelProvider()` to turn a local HTTP `host:port` target into a public HTTPS URL.
+The registration returns a cleanup function that unregisters the provider and closes its active
+exposures.
+
+```ts
+import {
+  execCommand,
+  spawnProcess,
+  terminateProcess,
+  type PluginServerContext,
+} from "@getpaseo/plugin/server";
+
+export default function contribute(server: PluginServerContext) {
+  return server.registerTunnelProvider({
+    id: "custom-tunnel",
+    label: "Custom Tunnel",
+    description: "Expose local HTTP targets through a custom tunnel binary.",
+    docsUrl: "https://example.com/docs/custom-tunnel",
+    async status({ signal }) {
+      try {
+        const { stdout } = await execCommand("custom-tunnel", ["--version"], {
+          signal,
+          timeout: 5_000,
+        });
+        return { status: "available", detail: stdout.trim() || undefined };
+      } catch {
+        return {
+          status: "unavailable",
+          reason: "custom-tunnel is not installed or not on PATH.",
+          installUrl: "https://example.com/install",
+          fixHint: "Install custom-tunnel and make sure that it is on PATH.",
+        };
+      }
+    },
+    async open(target, { report, signal }) {
+      report({ type: "connecting" });
+      const child = spawnProcess("custom-tunnel", ["http", `${target.host}:${target.port}`], {
+        stdio: "pipe",
+      });
+      signal.addEventListener(
+        "abort",
+        () => {
+          void terminateProcess(child, "SIGTERM").catch(() => undefined);
+        },
+        { once: true },
+      );
+      let ready = false;
+      child.stderr.on("data", (chunk) => {
+        if (ready || signal.aborted) return;
+        const match = /https:\/\/[a-z0-9.-]+/i.exec(String(chunk));
+        if (!match) return;
+        ready = true;
+        report({ type: "ready", url: match[0], stability: "ephemeral" });
+      });
+      await new Promise<void>((resolve, reject) => {
+        child.once("error", reject);
+        child.once("close", () => resolve());
+      });
+      report({ type: "closed", reason: signal.aborted ? "aborted" : undefined });
+    },
+  });
+}
+```
+
+- `id` must match `/^[a-z][a-z0-9._-]*$/` and must be unique across installed and built-in plugins.
+- `status({ paseo, signal })` checks whether the provider can open tunnels on this host. Return
+  `{ status: "available", detail? }` or `{ status: "unavailable", reason, installUrl?, fixHint? }`.
+- `open(target, { paseo, signal, report })` owns one exposure until `signal` aborts or the tunnel
+  closes. `target` carries `{ id, host, port, label?, slug? }`.
+- Call `report(event)` as the exposure changes state:
+  - `{ type: "connecting", detail? }`
+  - `{ type: "ready", url, stability?: "ephemeral" | "stable", detail? }`
+  - `{ type: "reconnecting", reason? }`
+  - `{ type: "error", message, recoverable?: boolean }`
+  - `{ type: "closed", reason? }`
+- Keep `open()` pending while the tunnel stays up. When `signal` aborts, stop child processes or
+  remote rules, report `{ type: "closed" }`, and resolve. If `open()` throws or exits before
+  reporting `ready`, Paseo fails the exposure and removes it cleanly.
+
+See the complete [tunnel-provider example](https://github.com/getpaseo/paseo/tree/main/plugin-examples/tunnel-provider).
 
 ## Entry point and cleanup
 
@@ -1568,6 +1664,14 @@ return `undefined` until recognizable if the first text is insufficient to ident
 Each replacement may set an optional plugin-local `id`; otherwise Paseo uses its index within that
 source item's output.
 
+A tool-call item can carry provider-specific values in `item.metadata`, typed as
+`Record<string, unknown>`. Check that a key exists and has the type you expect before you use it.
+
+OMP sets `item.metadata.intent`, a short string that says why the agent made the call. It is absent
+when OMP records no intent. OMP 19 and later do not record it for Paseo agents unless you turn on
+OMP's `tools.intentTracing` setting or set `PI_INTENT_TRACING`. Paseo's built-in timeline does not
+display it.
+
 Renderers receive `agentId`, `item`, `timestamp`, `theme`, `host`, and `layout`. Paseo validates
 `item.data` with the registered schema before rendering. Keep transformers synchronous and
 deterministic. Paseo memoizes results by source-item reference and derives replacement identity from
@@ -1972,6 +2076,7 @@ Workspace snapshot fields:
 | `archivingAt`        | ISO timestamp or `null`                                           |
 | `diffStat`           | `{ additions: number; deletions: number } \| null`                |
 | `parentWorkspace`    | `WorkspaceRef \| null`                                            |
+| `metadata`           | `Readonly<Record<string, JsonValue>>`                             |
 
 Agent snapshot fields:
 
@@ -1995,6 +2100,7 @@ Agent snapshot fields:
 | `attentionReason`   | `"finished" \| "error" \| "permission" \| null`                |
 | `parentAgentId`     | `string \| null`                                               |
 | `labels`            | `Record<string, string>`                                       |
+| `metadata`          | `Readonly<Record<string, JsonValue>>`                          |
 
 `backgroundWork.count` is the number of shells and monitors the agent left running after its turn,
 and `0` when none are live. An agent can be `idle` with `attentionReason: "finished"` while that

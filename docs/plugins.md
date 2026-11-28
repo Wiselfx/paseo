@@ -103,6 +103,13 @@ The `worktree-include` built-in copies gitignored files selected by
 [`.worktreeinclude`](../public-docs/worktrees.md#copy-local-files-with-worktreeinclude)
 before setup and agents, through `worktree.create.after`.
 
+The `cloudflared-tunnel` and `tailscale-funnel` built-ins register tunnel providers through
+`server.registerTunnelProvider()`. Both start without installed binaries or credentials and report
+availability through `status()`. `cloudflared-tunnel` runs quick tunnels only, with `--url` set to
+the exposure target. Named Cloudflare tunnels are not supported: the Cloudflare dashboard sets
+their routing, so their URL does not serve the exposure target. `tailscale-funnel` runs `tailscale funnel` in the foreground: with
+`--bg`, tailscaled keeps the Funnel public after a crash with no owner.
+
 Desktop packaging ships the entire built-in plugin directory as an external resource,
 including declarations. The external esbuild compiler cannot read Electron's `app.asar`
 filesystem, and packaging dependencies excludes `.d.ts` files needed for import validation.
@@ -971,6 +978,10 @@ folding keeps every card visible, and the turn footer hangs under the last card,
 reply text once, forks at its message, and shows its duration and stats. Read the reply with
 `getAssistantReply` (`packages/app/src/types/stream.ts`) instead of checking `kind ===
 "assistant_message"`.
+
+A provider-only fact about a tool call goes in the item's `metadata`, which transformers already
+receive. Do not add a shared tool-call field for it. OMP's intent string is
+[`metadata.intent`](../public-docs/plugins/reference.md#timeline-items).
 
 Transformers run synchronously and must be deterministic. When several transformers match, the
 first one that returns a result owns that source item. Plugin and registration ordering is stable.

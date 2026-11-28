@@ -10,6 +10,8 @@ import {
   type Client,
   type AgentCapabilities,
   type ContentBlock,
+  type CreateElicitationRequest,
+  type CreateElicitationResponse,
   type NewSessionResponse,
   type RequestPermissionRequest,
   type RequestPermissionResponse,
@@ -33,6 +35,7 @@ import type {
   AcpVendorUpdate,
   RunAcpProviderOptions,
 } from "../acp.js";
+import { AcpFormElicitation } from "./elicitation.js";
 import { standardToolCallDetail } from "./tool-call-detail.js";
 import {
   PROVIDER_PROTOCOL_VERSION,
@@ -47,6 +50,7 @@ import {
   type ProviderConfigState,
   type ProviderConnectRequest,
   type ProviderConnection,
+  type ProviderError,
   type ProviderEvent,
   type ProviderInput,
   type ProviderLaunch,
@@ -326,9 +330,9 @@ async function dispatch(
     }
     case "session.interrupt": {
       const session = requireSession(state, input.sessionId);
-      const retired = await session.runtime.interrupt();
+      const result = await session.runtime.interrupt();
       state.emit({ type: "request.completed", requestId: input.requestId });
-      if (retired) retireSession(state, input.sessionId);
+      if (result.retired) retireSession(state, input.sessionId, result.error);
       return;
     }
     case "session.permission":
@@ -465,9 +469,9 @@ async function listSessions(
   });
 }
 
-function retireSession(state: AcpConnectionState, sessionId: string): void {
+function retireSession(state: AcpConnectionState, sessionId: string, error?: ProviderError): void {
   if (state.sessions.delete(sessionId)) {
-    state.emit({ type: "session.closed", sessionId });
+    state.emit({ type: "session.closed", sessionId, ...(error ? { error } : {}) });
   }
 }
 
@@ -487,7 +491,7 @@ async function openSession(
     env: input.config.env,
     wrap: input.config.wrap,
     emit: state.emit,
-    onRetired: () => retireSession(state, input.sessionId),
+    onRetired: (error) => retireSession(state, input.sessionId, error),
   });
   try {
     const capabilities = await runtime.open(input, state.capabilities, state.isClosed);
@@ -533,14 +537,26 @@ interface StartRuntimeOptions {
   /** Aborting it during startup closes the runtime and rejects with the abort reason. */
   signal?: AbortSignal;
   emit(event: ProviderEvent): void;
-  onRetired?: () => void;
+  onRetired?: (error?: ProviderError) => void;
 }
 
-interface PendingPermission {
+type InterruptResult = { retired: false } | { retired: true; error?: ProviderError };
+
+interface PendingToolPermission {
+  kind: "tool";
   request: RequestPermissionRequest;
   turnId: string | undefined;
   resolve(response: RequestPermissionResponse): void;
 }
+
+interface PendingElicitation {
+  kind: "elicitation";
+  form: AcpFormElicitation;
+  turnId: string | undefined;
+  resolve(response: CreateElicitationResponse): void;
+}
+
+type PendingPermission = PendingToolPermission | PendingElicitation;
 
 type DeferredTurnOutcome =
   | { type: "complete"; terminalizeTools: boolean }
@@ -558,6 +574,7 @@ interface ActivePrompt {
   turnId: string;
   settled: Promise<void>;
   cancelling: boolean;
+  retired: boolean;
   wirePromptsInFlight: number;
   wirePromptLane: Promise<void>;
   lastPromptResponseWireSeq: number | null;
@@ -567,6 +584,8 @@ interface ActivePrompt {
 }
 
 const DEFAULT_DEFERRED_SETTLE_DELAY_MS = 500;
+const DEFAULT_INTERRUPT_GRACE_MS = 10_000;
+const DEFAULT_INTERRUPT_KILL_GRACE_MS = 2_000;
 const SESSION_SCAN_LIMIT = 500;
 // COMPAT(acpAutoAccept): added in v0.17.4, remove after 2027-05-23. The generic ACP adapter saves
 // its Auto Accept toggle as this setting on agents that later moved to a bundled ACP provider.
@@ -593,6 +612,7 @@ class AcpRuntime {
   private readonly vendorToolCalls = new Map<string, ToolCallTimelineItem>();
   private readonly pendingCompactions = new Set<string>();
   private readonly permissions = new Map<string, PendingPermission>();
+  private elicitationSequence = 0;
   private readonly transformers: readonly AcpTransformer[];
   private configOptions: SessionConfigOption[] = [];
   private modes: NewSessionResponse["modes"] = null;
@@ -618,8 +638,9 @@ class AcpRuntime {
   private lastPartialWireAt = 0;
   private closing = false;
   private closePromise: Promise<void> | null = null;
-  private deferredRetirement: Promise<boolean> | null = null;
-  private deferredFinalized = false;
+  private activeInterrupt: Promise<InterruptResult> | null = null;
+  private activeRetirement: Promise<InterruptResult> | null = null;
+  private retirementFinalized = false;
   private processFailed = false;
   private processFailureMessage: string | null = null;
   private configTransaction = false;
@@ -686,7 +707,7 @@ class AcpRuntime {
         runtime.call(
           runtime.connection.initialize({
             protocolVersion: PROTOCOL_VERSION,
-            clientCapabilities: {},
+            clientCapabilities: { elicitation: { form: {} } },
             clientInfo: options.clientInfo ?? DEFAULT_CLIENT_INFO,
           }),
         ),
@@ -722,6 +743,7 @@ class AcpRuntime {
     this.transformers = options.options.transformers ?? [];
     const client: Client = {
       requestPermission: (request) => this.requestPermission(request),
+      createElicitation: (request) => this.createElicitation(request),
       sessionUpdate: (notification) => {
         const wireSeq = this.sessionUpdateWireSeqs.shift() ?? ++this.incomingWireSeq;
         return this.enqueueNotification(() => this.sessionUpdate(notification, wireSeq));
@@ -914,7 +936,7 @@ class AcpRuntime {
   }
 
   async prompt(input: Extract<ProviderInput, { type: "session.prompt" }>): Promise<void> {
-    if (this.closing || this.processFailed || this.deferredRetirement) {
+    if (this.closing || this.processFailed || this.activeRetirement) {
       throw new Error("ACP session is closed");
     }
     if (input.prompt.delivery === "steer") {
@@ -928,15 +950,17 @@ class AcpRuntime {
         // session/cancel so running background tools stay alive into the follow-up turn.
         this.finishDeferredTurn(active, { type: "complete", terminalizeTools: false });
       } else {
-        const retired = await this.interrupt();
-        if (retired) {
+        const result = await this.interrupt();
+        if (result.retired) {
           // Notify caller that the session closed before failing the replacement prompt.
-          this.options.onRetired?.();
-          throw new Error("ACP session retired after stopping deferred background work");
+          this.options.onRetired?.(result.error);
+          throw new Error(
+            result.error?.message ?? "ACP session retired after stopping unresponsive turn",
+          );
         }
       }
       await active.settled;
-      if (this.closing || this.processFailed || this.deferredRetirement) {
+      if (this.closing || this.processFailed || this.activeRetirement) {
         throw new Error("ACP session is closed");
       }
     }
@@ -973,6 +997,7 @@ class AcpRuntime {
       turnId,
       settled: Promise.resolve(),
       cancelling: false,
+      retired: false,
       wirePromptsInFlight: 1,
       wirePromptLane: Promise.resolve(),
       lastPromptResponseWireSeq: null,
@@ -988,6 +1013,7 @@ class AcpRuntime {
       async (response): Promise<void> => {
         await this.drainNotifications();
         activePrompt.wirePromptsInFlight -= 1;
+        if (activePrompt.retired) return undefined;
         if (response.usage) {
           this.lastUsage = {
             ...this.lastUsage,
@@ -1013,6 +1039,7 @@ class AcpRuntime {
       async (error): Promise<void> => {
         await this.drainNotifications();
         activePrompt.wirePromptsInFlight -= 1;
+        if (activePrompt.retired) return undefined;
         this.finishPromptTurn(turnId, "failed", { message: describeError(error) });
         return undefined;
       },
@@ -1024,41 +1051,98 @@ class AcpRuntime {
     });
   }
 
-  async interrupt(): Promise<boolean> {
-    if (this.deferredRetirement) return this.deferredRetirement;
+  async interrupt(): Promise<InterruptResult> {
+    if (this.activeRetirement) return this.activeRetirement;
+    if (this.activeInterrupt) return this.activeInterrupt;
     const active = this.activePrompt;
     const deferredTurnId = active?.deferred ? active.turnId : null;
     if (active && deferredTurnId) {
       const retirement = this.retireDeferredTurn(active, deferredTurnId).catch((error) => {
-        if (this.deferredRetirement === retirement) this.deferredRetirement = null;
+        if (this.activeRetirement === retirement) this.activeRetirement = null;
         throw error;
       });
-      this.deferredRetirement = retirement;
+      this.activeRetirement = retirement;
       return retirement;
     }
-    if (active) active.cancelling = true;
-    try {
+    if (!active) {
       await this.call(this.connection.cancel({ sessionId: this.nativeSessionId }));
-    } finally {
-      // An agent may wait for its outstanding permission replies before ending the prompt.
-      if (active) {
-        this.finishTurnPermissions(active.turnId);
-      }
+      return { retired: false };
     }
-    return false;
+    const interrupting = this.interruptActivePrompt(active).finally(() => {
+      if (this.activeInterrupt === interrupting) this.activeInterrupt = null;
+    });
+    this.activeInterrupt = interrupting;
+    return interrupting;
   }
 
-  private finalizeDeferredTurn(deferredTurnId: string, emitRetired: boolean): void {
-    if (this.deferredFinalized) return;
-    this.deferredFinalized = true;
-    this.finishPromptTurn(deferredTurnId, "canceled", undefined, {
+  private async interruptActivePrompt(active: ActivePrompt): Promise<InterruptResult> {
+    active.cancelling = true;
+    // An agent may wait for its outstanding permission replies before ending the prompt.
+    this.finishTurnPermissions(active.turnId);
+    let cancelWriteSettled = false;
+    const cancelWrite = this.call(this.connection.cancel({ sessionId: this.nativeSessionId }))
+      .catch(() => undefined)
+      .finally(() => {
+        cancelWriteSettled = true;
+      });
+    const graceMs = this.options.options.acpOptions?.interruptGraceMs ?? DEFAULT_INTERRUPT_GRACE_MS;
+    if (await settlesWithin(active.settled, graceMs)) {
+      await settlesWithin(cancelWrite, 50);
+      return { retired: false };
+    }
+    if (this.closing || this.activePrompt !== active) {
+      return { retired: false };
+    }
+    const retirement = this.retireUnresponsivePrompt(active, !cancelWriteSettled).catch((error) => {
+      if (this.activeRetirement === retirement) this.activeRetirement = null;
+      throw error;
+    });
+    this.activeRetirement = retirement;
+    return retirement;
+  }
+
+  private finalizeRetiredTurn(turnId: string, emitRetired: boolean, error?: ProviderError): void {
+    if (this.retirementFinalized) return;
+    this.retirementFinalized = true;
+    if (this.activePrompt?.turnId === turnId) this.activePrompt = null;
+    this.finishPromptTurn(turnId, "canceled", undefined, {
       suppressTrailingToolEcho: true,
     });
-    if (emitRetired) this.options.onRetired?.();
+    if (emitRetired) this.options.onRetired?.(error);
   }
 
-  private async retireDeferredTurn(active: ActivePrompt, deferredTurnId: string): Promise<boolean> {
+  private async retireUnresponsivePrompt(
+    active: ActivePrompt,
+    forceClose: boolean,
+  ): Promise<InterruptResult> {
+    active.retired = true;
+    for (const id of this.liveOpenToolIds) this.canceledToolCallIds.add(id);
+    const killGraceMs =
+      this.options.options.acpOptions?.interruptKillGraceMs ?? DEFAULT_INTERRUPT_KILL_GRACE_MS;
+    const error: ProviderError | undefined = this.agentCapabilities.loadSession
+      ? undefined
+      : {
+          message: `Stopped unresponsive ${this.options.options.id} process after cancel timed out. This provider does not support session resume; start a new agent or reload to continue.`,
+        };
+    try {
+      await this.close({ force: forceClose, timeoutMs: killGraceMs, killGraceMs });
+    } catch (closeError) {
+      void this.whenConnectorClosed()?.then(
+        () => this.finalizeRetiredTurn(active.turnId, true, error),
+        () => undefined,
+      );
+      throw closeError;
+    }
+    this.finalizeRetiredTurn(active.turnId, false, error);
+    return { retired: true, ...(error ? { error } : {}) };
+  }
+
+  private async retireDeferredTurn(
+    active: ActivePrompt,
+    deferredTurnId: string,
+  ): Promise<InterruptResult> {
     active.cancelling = true;
+    active.retired = true;
     // Record open tools owned by Stop before writing session/cancel so any failure
     // update arriving during cancel preserves their canceled state.
     for (const id of this.liveOpenToolIds) this.canceledToolCallIds.add(id);
@@ -1085,13 +1169,13 @@ class AcpRuntime {
       await this.close({ force: cancelTimedOut, timeoutMs: 1_000 });
     } catch (error) {
       void this.whenConnectorClosed()?.then(
-        () => this.finalizeDeferredTurn(deferredTurnId, true),
+        () => this.finalizeRetiredTurn(deferredTurnId, true),
         () => undefined,
       );
       throw error;
     }
-    this.finalizeDeferredTurn(deferredTurnId, false);
-    return true;
+    this.finalizeRetiredTurn(deferredTurnId, false);
+    return { retired: true };
   }
 
   /** Follows `nextCursor` until `limit` sessions, the last page, or the scan cap. */
@@ -1120,6 +1204,10 @@ class AcpRuntime {
     if (!pending) return;
     const active = this.activePrompt;
     if (active?.cancelling && pending.turnId === active.turnId) return;
+    if (pending.kind === "elicitation") {
+      this.resolveElicitation(permissionId, pending, pending.form.respond(response));
+      return;
+    }
     const selected = selectPermissionOption(pending.request.options, response);
     if (response.selectedActionId !== undefined && !selected) {
       throw new Error(
@@ -1135,7 +1223,10 @@ class AcpRuntime {
 
   private finishTurnPermissions(turnId: string): void {
     for (const [permissionId, pending] of this.permissions) {
-      if (pending.turnId === turnId) {
+      if (pending.turnId !== turnId) continue;
+      if (pending.kind === "elicitation") {
+        this.resolveElicitation(permissionId, pending, { action: "cancel" });
+      } else {
         this.resolvePermission(permissionId, pending, { outcome: { outcome: "cancelled" } });
       }
     }
@@ -1143,8 +1234,23 @@ class AcpRuntime {
 
   private resolvePermission(
     permissionId: string,
-    pending: PendingPermission,
+    pending: PendingToolPermission,
     response: RequestPermissionResponse,
+  ): void {
+    this.permissions.delete(permissionId);
+    pending.resolve(response);
+    this.emit({
+      type: "session.permission_resolved",
+      sessionId: this.options.boundarySessionId,
+      permissionId,
+    });
+    if (this.activePrompt?.deferred) this.scheduleDeferredSettle();
+  }
+
+  private resolveElicitation(
+    permissionId: string,
+    pending: PendingElicitation,
+    response: CreateElicitationResponse,
   ): void {
     this.permissions.delete(permissionId);
     pending.resolve(response);
@@ -1219,6 +1325,10 @@ class AcpRuntime {
   }
 
   async closeSession(): Promise<void> {
+    if (this.cancelPendingPermissions()) {
+      // Let the ACP SDK flush the cancel response on the wire before closing the session/stream.
+      await new Promise<void>((resolve) => setImmediate(resolve));
+    }
     if (this.nativeSessionId) {
       await withTimeout(
         this.call(this.connection.closeSession({ sessionId: this.nativeSessionId })),
@@ -1229,7 +1339,7 @@ class AcpRuntime {
     await this.close();
   }
 
-  close(options?: { force?: boolean; timeoutMs?: number }): Promise<void> {
+  close(options?: { force?: boolean; timeoutMs?: number; killGraceMs?: number }): Promise<void> {
     if (this.closePromise) return this.closePromise;
     this.closing = true;
     const promise = this.closeInternal(options).catch((error) => {
@@ -1240,15 +1350,20 @@ class AcpRuntime {
     return promise;
   }
 
-  private async closeInternal(options?: { force?: boolean; timeoutMs?: number }): Promise<void> {
+  private async closeInternal(options?: {
+    force?: boolean;
+    timeoutMs?: number;
+    killGraceMs?: number;
+  }): Promise<void> {
     this.settlePendingWork();
     await this.closeConnector(options);
     const child = this.child;
     if (!child || this.processFailed) return;
     if (child.exitCode !== null || child.signalCode !== null) return;
     const closed = new Promise<void>((resolve) => child.once("close", () => resolve()));
+    const killGraceMs = options?.killGraceMs ?? 1_000;
     await terminateProcess(child, "SIGTERM");
-    if (await settlesWithin(closed, 1_000)) return;
+    if (await settlesWithin(closed, killGraceMs)) return;
     await terminateProcess(child);
     if (!(await settlesWithin(closed, 1_000))) {
       throw new Error(`ACP provider ${this.options.options.id} did not terminate after SIGKILL`);
@@ -1495,7 +1610,12 @@ class AcpRuntime {
     const permissionId = `permission:${request.toolCall.toolCallId}`;
     const { presentation } = this.presentToolCall(request.toolCall);
     return new Promise((resolve) => {
-      this.permissions.set(permissionId, { request, resolve, turnId: this.activePrompt?.turnId });
+      this.permissions.set(permissionId, {
+        kind: "tool",
+        request,
+        resolve,
+        turnId: this.activePrompt?.turnId,
+      });
       if (this.activePrompt?.deferred) this.scheduleDeferredSettle();
       this.emit({
         type: "session.permission",
@@ -1513,6 +1633,54 @@ class AcpRuntime {
             behavior: option.kind.startsWith("allow") ? "allow" : "deny",
           })),
         },
+      });
+    });
+  }
+
+  private async createElicitation(
+    request: CreateElicitationRequest,
+  ): Promise<CreateElicitationResponse> {
+    await this.notificationLane;
+    if (this.closing || this.processFailed || this.activePrompt?.cancelling) {
+      return { action: "cancel" };
+    }
+    // Forms are only answerable during an active turn of this session; declining out-of-turn
+    // or mismatched requests avoids hanging session open, discovery, or idle connections.
+    if (
+      !this.activePrompt ||
+      request.mode !== "form" ||
+      !("sessionId" in request) ||
+      typeof request.sessionId !== "string" ||
+      !this.nativeSessionId ||
+      request.sessionId !== this.nativeSessionId
+    ) {
+      return { action: "decline" };
+    }
+    const toolCallId =
+      "toolCallId" in request && typeof request.toolCallId === "string"
+        ? request.toolCallId
+        : undefined;
+    const toolName = toolCallId ? this.toolCalls.get(toolCallId)?.presentation.name : undefined;
+    const form = AcpFormElicitation.parse(request, { toolName });
+    if (!form) {
+      return { action: "decline" };
+    }
+    const permissionId = toolCallId
+      ? `elicitation:${toolCallId}:${++this.elicitationSequence}`
+      : `elicitation:${++this.elicitationSequence}`;
+    const turnId = this.activePrompt.turnId;
+    return new Promise((resolve) => {
+      this.permissions.set(permissionId, {
+        kind: "elicitation",
+        form,
+        resolve,
+        turnId,
+      });
+      if (this.activePrompt?.deferred) this.scheduleDeferredSettle();
+      this.emit({
+        type: "session.permission",
+        sessionId: this.options.boundarySessionId,
+        request: { id: permissionId, ...form.request },
       });
     });
   }
@@ -1898,11 +2066,21 @@ class AcpRuntime {
     });
   }
 
-  private settlePendingWork(failureMessage?: string): void {
+  private cancelPendingPermissions(): boolean {
+    if (this.permissions.size === 0) return false;
     for (const permission of this.permissions.values()) {
-      permission.resolve({ outcome: { outcome: "cancelled" } });
+      if (permission.kind === "elicitation") {
+        permission.resolve({ action: "cancel" });
+      } else {
+        permission.resolve({ outcome: { outcome: "cancelled" } });
+      }
     }
     this.permissions.clear();
+    return true;
+  }
+
+  private settlePendingWork(failureMessage?: string): void {
+    this.cancelPendingPermissions();
     if (this.activePrompt?.deferred) {
       this.finishDeferredTurn(
         this.activePrompt,
@@ -2001,7 +2179,7 @@ class AcpRuntime {
           this.connection.prompt({ sessionId: this.nativeSessionId, prompt }),
         );
         await this.drainNotifications();
-        if (this.closing || this.deferredRetirement || active.deferred !== deferred) return;
+        if (this.closing || this.activeRetirement || active.deferred !== deferred) return;
         if (response.usage) {
           this.lastUsage = {
             ...this.lastUsage,
@@ -2025,7 +2203,7 @@ class AcpRuntime {
         }
       } catch (error) {
         await this.drainNotifications();
-        if (this.closing || this.deferredRetirement || active.deferred !== deferred) return;
+        if (this.closing || this.activeRetirement || active.deferred !== deferred) return;
         if (this.processFailed) {
           this.finishDeferredTurn(active, {
             type: "fail",
@@ -2060,7 +2238,7 @@ class AcpRuntime {
       active.deferred = { timer: null, resolve };
       this.scheduleDeferredSettle();
     });
-    if (this.closing || this.deferredRetirement) return;
+    if (this.closing || this.activeRetirement) return;
     if (outcome.type === "fail") {
       this.finishPromptTurn(active.turnId, "failed", outcome.error);
       return;
@@ -2647,8 +2825,15 @@ function withTimeout<Value>(
 }
 
 async function settlesWithin(promise: Promise<void>, timeoutMs: number): Promise<boolean> {
-  return Promise.race([
-    promise.then(() => true),
-    new Promise<false>((resolve) => setTimeout(() => resolve(false), timeoutMs)),
-  ]);
+  let timer: ReturnType<typeof setTimeout> | null = null;
+  try {
+    return await Promise.race([
+      promise.then(() => true),
+      new Promise<false>((resolve) => {
+        timer = setTimeout(() => resolve(false), timeoutMs);
+      }),
+    ]);
+  } finally {
+    if (timer !== null) clearTimeout(timer);
+  }
 }

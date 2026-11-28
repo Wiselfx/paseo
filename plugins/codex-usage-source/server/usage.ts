@@ -1,4 +1,12 @@
-import { discoverOmp, piAuthPath, readHarness, readJson, type StoreLookup } from "./stores.js";
+import {
+  discoverOmp,
+  opencodeStorePaths,
+  piAuthPath,
+  readHarness,
+  readJson,
+  readOpencodeOauth,
+  type StoreLookup,
+} from "./stores.js";
 import { homedir } from "node:os";
 import { join } from "node:path";
 import {
@@ -78,7 +86,8 @@ export async function discover(
       env: scope.env,
       home: scope.env.HOME || scope.env.USERPROFILE || homedir(),
     };
-  const candidates = scope.kind === "global" ? globalRoutes(lookup) : sessionRoutes(scope, lookup);
+  const candidates =
+    scope.kind === "global" ? globalRoutes(scope, lookup) : sessionRoutes(scope, lookup);
   const present: UsageAccount[] = [];
   for (const input of candidates) {
     const auth = await readAuth(input, lookup);
@@ -86,34 +95,56 @@ export async function discover(
       present.push({
         ...accountIdentity(auth, input),
         harness: harnessLabel(input),
-        provider: input.route.store,
+        provider: providerId(input.route.store),
         input,
       });
   }
   return present;
 }
 
-function globalRoutes(lookup: StoreLookup): CodexUsageInput[] {
+function globalRoutes(
+  scope: Extract<UsageScope, { kind: "global" }>,
+  lookup: StoreLookup,
+): CodexUsageInput[] {
   const env = lookup.env ?? process.env;
   const home = lookup.home ?? homedir();
-  const paths = [
-    ...(env.CODEX_HOME ? [join(env.CODEX_HOME, "auth.json")] : []),
-    join(home, ".codex", "auth.json"),
-  ];
-  const candidates: CodexUsageInput[] = [...new Set(paths)].map((path) => ({
-    route: { store: "codex", path },
-  }));
+  const codexEnv = scope.launch ? { ...lookup.env, ...scope.launch.env } : env;
+  const codexHome = scope.launch ? codexEnv.HOME || codexEnv.USERPROFILE || home : home;
+  const candidates: CodexUsageInput[] = [];
+  if (!shouldSuppressLocalCodexAuth(codexEnv, scope.launch)) {
+    const paths = [
+      ...(codexEnv.CODEX_HOME ? [join(codexEnv.CODEX_HOME, "auth.json")] : []),
+      join(codexHome, ".codex", "auth.json"),
+    ];
+    for (const path of new Set(paths)) {
+      candidates.push({ route: { store: "codex", path } });
+    }
+  }
+  candidates.push(...opencodeRoutes(env, home, lookup));
   candidates.push(
-    {
-      route: {
-        store: "opencode",
-        path: join(env.XDG_DATA_HOME || join(home, ".local", "share"), "opencode", "auth.json"),
-      },
-    },
     { route: { store: "pi", path: piAuthPath(lookup) } },
     ...discoverOmp(lookup).map((route) => ({ route })),
   );
   return candidates;
+}
+
+/**
+ * OpenCode v2 stores its logins in a database and leaves the v1 credential file
+ * untouched, so a file login can be stale while the database login is current.
+ * The database wins whenever it holds an OpenAI login; the file stays the
+ * source for v1 installations that have no such database.
+ */
+function opencodeRoutes(
+  env: NodeJS.ProcessEnv,
+  home: string,
+  lookup: StoreLookup,
+): CodexUsageInput[] {
+  const { file, database } = opencodeStorePaths(env, home);
+  const logins = readOpencodeOauth(database, lookup);
+  if (!logins.length) return [{ route: { store: "opencode", path: file } }];
+  return logins.map((login) => ({
+    route: { store: "opencode-db", path: database, credentialId: login.id },
+  }));
 }
 
 function sessionRoutes(
@@ -123,7 +154,7 @@ function sessionRoutes(
   const env = scope.env;
   const home = lookup.home ?? homedir();
   if (scope.provider === "codex") {
-    if (env.OPENAI_BASE_URL) return [];
+    if (shouldSuppressLocalCodexAuth(env, scope.launch)) return [];
     return [
       {
         route: { store: "codex", path: join(env.CODEX_HOME || join(home, ".codex"), "auth.json") },
@@ -134,15 +165,45 @@ function sessionRoutes(
   if (scope.provider === "pi") return [{ route: { store: "pi", path: piAuthPath(lookup) } }];
   if (scope.provider === "omp") return discoverOmp(lookup).map((route) => ({ route }));
   if (scope.provider === "opencode")
-    return [
-      {
-        route: {
-          store: "opencode",
-          path: join(env.XDG_DATA_HOME || join(home, ".local", "share"), "opencode", "auth.json"),
-        },
-      },
-    ];
+    return opencodeRoutes(scope.env, lookup.home ?? homedir(), lookup);
   return [];
+}
+
+function hasNonEmpty(value: string | undefined): boolean {
+  return typeof value === "string" && value.trim().length > 0;
+}
+
+function isWrapperLaunch(
+  launch: UsageScope["launch"] | undefined,
+  expectedBinary: string,
+): boolean {
+  if (!launch) return false;
+  if (launch.args.length > 0) return true;
+  const command = launch.command.trim();
+  if (!command) return false;
+  const base = command.replaceAll("\\", "/").split("/").pop()?.toLowerCase() ?? "";
+  const stem = base.replace(/\.(?:exe|cmd|bat|ps1)$/, "");
+  return stem !== expectedBinary;
+}
+
+/**
+ * Suppresses reading default local `~/.codex/auth.json` credentials when the provider or session
+ * authenticates through `CODEX_API_KEY`, `CODEX_ACCESS_TOKEN`, a custom `OPENAI_BASE_URL`, or a
+ * wrapper command. Plain `OPENAI_API_KEY` is intentionally ignored because Codex login does not
+ * select an account from `OPENAI_API_KEY` (custom OpenAI-compatible providers only opt into it
+ * alongside `OPENAI_BASE_URL`), so exporting `OPENAI_API_KEY` in a shell must not hide a ChatGPT
+ * login in `auth.json`. Custom `CODEX_HOME` profiles on the default CLI binary are unaffected.
+ */
+function shouldSuppressLocalCodexAuth(
+  env: NodeJS.ProcessEnv,
+  launch: UsageScope["launch"] | undefined,
+): boolean {
+  if (isWrapperLaunch(launch, "codex")) return true;
+  return (
+    hasNonEmpty(env.CODEX_API_KEY) ||
+    hasNonEmpty(env.CODEX_ACCESS_TOKEN) ||
+    hasNonEmpty(env.OPENAI_BASE_URL)
+  );
 }
 
 export async function readAuth(
@@ -150,6 +211,14 @@ export async function readAuth(
   lookup: StoreLookup = {},
 ): Promise<Auth | null> {
   const route = input.route;
+  if (route.store === "opencode-db") {
+    const login = readOpencodeOauth(route.path, lookup).find(
+      (candidate) => candidate.id === route.credentialId,
+    );
+    return login
+      ? { token: login.access, accountId: login.accountId, expires: login.expires }
+      : null;
+  }
   if (route.store !== "codex") {
     const oauth = await readHarness(route, lookup);
     return oauth
@@ -206,7 +275,7 @@ export async function fetchUsage(
 ): Promise<UsageReport> {
   const auth = await readAuth(input, lookup);
   if (!auth) throw new Error("Codex login store no longer exists");
-  const refreshedBy = input.route.store;
+  const refreshedBy = providerId(input.route.store);
   if (auth.expires !== undefined && auth.expires <= (lookup.now ?? Date.now)())
     return unavailable({
       kind: "expired",
@@ -333,6 +402,17 @@ function accountIdentity(auth: Auth, input: CodexUsageInput): { key: string; lab
 }
 
 function harnessLabel(input: CodexUsageInput): string {
-  const labels = { codex: "Codex", opencode: "OpenCode", pi: "Pi", omp: "OMP" };
+  const labels = {
+    codex: "Codex",
+    opencode: "OpenCode",
+    "opencode-db": "OpenCode",
+    pi: "Pi",
+    omp: "OMP",
+  };
   return labels[input.route.store];
+}
+
+/** The canonical provider and CLI behind each credential store. */
+function providerId(store: CodexUsageInput["route"]["store"]): string {
+  return store === "opencode-db" ? "opencode" : store;
 }

@@ -513,7 +513,20 @@ export const ko: TranslationResources = {
       copyBranchName: "브랜치 이름 복사",
       copied: "복사됨",
     },
+    linkActions: {
+      openInPaseo: "Paseo에서 열기",
+      openInDefaultBrowser: "기본 브라우저에서 열기",
+      copyLink: "링크 복사",
+      linkCopiedLabel: "링크",
+    },
     fileActions: {
+      revealInFiles: "파일에서 보기",
+      openInDefaultApp: "기본 앱으로 열기",
+      pathCopiedLabel: "경로",
+      relativePathCopiedLabel: "상대 경로",
+      openInDefaultAppFailed: "기본 앱으로 파일을 열 수 없습니다",
+      outsideWorkspace: "이 파일은 작업 공간 밖에 있습니다",
+      notFoundInFiles: "파일에서 해당 파일을 찾을 수 없습니다",
       openFile: "파일 열기",
       openIn: "{{target}}에서 열기",
       openToSide: "옆에 열기",
@@ -546,6 +559,12 @@ export const ko: TranslationResources = {
       },
     },
     fileExplorer: {
+      filter: {
+        placeholder: "파일 검색",
+        clear: "검색 지우기",
+        loading: "파일 검색 중...",
+        empty: "일치하는 파일 없음",
+      },
       sort: {
         name: "이름",
         modified: "수정일",
@@ -757,7 +776,6 @@ export const ko: TranslationResources = {
         agentIdCopiedLabel: "에이전트 ID",
         terminalIdCopiedLabel: "터미널 ID",
         resumeCommandCopiedLabel: "재개 명령",
-        filePathCopiedLabel: "파일 경로",
         resumeIdUnavailable: "재개 ID를 사용할 수 없습니다",
         resumeCommandUnavailable: "재개 명령을 사용할 수 없습니다",
         reloadingAgent: "에이전트 다시 로드 중...",
@@ -2544,7 +2562,7 @@ export const ko: TranslationResources = {
     metadataGeneration: {
       title: "메타데이터 생성",
       description:
-        "워크스페이스 제목, 브랜치 이름, 커밋 메시지 및 풀 리퀘스트 초안에 사용할 모델을 선택하세요",
+        "워크스페이스 제목, 브랜치 이름, 커밋 메시지 및 풀 리퀘스트 초안에 사용할 모델과 지침을 선택하세요",
       selection: "모델 선택",
       automatic: "자동",
       preferred: "수동",
@@ -2552,6 +2570,10 @@ export const ko: TranslationResources = {
       preferredHint: "Paseo에서 사용할 모델을 선택하세요",
       model: "모델",
       modelHint: "이 모델만 사용합니다. 실패해도 Paseo는 다른 모델을 시도하지 않습니다",
+      instructions: "지침",
+      instructionsHint: "이 호스트에서 생성되는 모든 메타데이터에 적용됩니다",
+      instructionsPlaceholder:
+        "예: 한국어로 작성하세요. 제목과 커밋 메시지의 문체를 일관되게 유지하세요. 긴 대시(—)는 사용하지 마세요.",
       docs: "문서",
       saveError: "메타데이터 생성을 업데이트할 수 없습니다",
     },

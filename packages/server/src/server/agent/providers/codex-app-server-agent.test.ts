@@ -103,6 +103,9 @@ import { asInternals as castInternals, createStub } from "../../test-utils/class
 import { AgentManager } from "../agent-manager.js";
 import { AgentStorage } from "../agent-storage.js";
 import { buildProviderRegistry } from "../provider-registry.js";
+import { isolatePaseoHome } from "../../../test-utils/isolated-paseo-home.js";
+
+isolatePaseoHome();
 
 interface CollaborationModeRecord {
   name: string;
@@ -1792,6 +1795,89 @@ describe("Codex app-server provider", () => {
     }
   });
 
+  test("injects MCP servers as per-server dotted overrides so alias -c mcp_servers.* entries survive", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = await createProviderWithFakeAppServer(appServer).createSession(
+      createConfig({
+        mcpServers: {
+          paseo: { type: "http", url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1" },
+          "plugin-tool": { type: "stdio", command: "node", args: ["server.js"] },
+        },
+      }),
+    );
+    try {
+      await session.startTurn("hello");
+      const threadStart = appServer.requests().find((req) => req.method === "thread/start");
+      const startConfig = (threadStart?.params as { config?: Record<string, unknown> } | undefined)
+        ?.config;
+      expect(startConfig).toEqual({
+        "mcp_servers.paseo": {
+          url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1",
+        },
+        "mcp_servers.plugin-tool": {
+          command: "node",
+          args: ["server.js"],
+        },
+      });
+      expect(startConfig).not.toHaveProperty("mcp_servers");
+      appServer.completeTurn();
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
+  });
+
+  test("omits mcp_servers from thread/start config when mcpServers is empty", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = await createProviderWithFakeAppServer(appServer).createSession(
+      createConfig({ mcpServers: {} }),
+    );
+    try {
+      await session.startTurn("hello");
+      const threadStart = appServer.requests().find((req) => req.method === "thread/start");
+      expect(
+        (threadStart?.params as { config?: Record<string, unknown> } | undefined)?.config,
+      ).toBeUndefined();
+      appServer.completeTurn();
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
+  });
+
+  test("falls back to whole-table mcp_servers when an injected server name contains a dot", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = await createProviderWithFakeAppServer(appServer).createSession(
+      createConfig({
+        mcpServers: {
+          paseo: { type: "http", url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1" },
+          "my.dotted": { type: "http", url: "http://127.0.0.1:8080/mcp" },
+        },
+      }),
+    );
+    try {
+      await session.startTurn("hello");
+      const threadStart = appServer.requests().find((req) => req.method === "thread/start");
+      const startConfig = (threadStart?.params as { config?: Record<string, unknown> } | undefined)
+        ?.config;
+      expect(startConfig).toEqual({
+        mcp_servers: {
+          paseo: {
+            url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1",
+          },
+          "my.dotted": {
+            url: "http://127.0.0.1:8080/mcp",
+          },
+        },
+      });
+      expect(Object.keys(startConfig ?? {})).toEqual(["mcp_servers"]);
+      appServer.completeTurn();
+      appServer.assertNoErrors();
+    } finally {
+      await session.close();
+    }
+  });
+
   test("preapproves only granted tools on the injected Codex MCP server", async () => {
     const session = createSession({
       modeId: undefined,
@@ -1813,21 +1899,27 @@ describe("Codex app-server provider", () => {
 
     await session.startTurn("finish");
 
-    const turnStart = request.mock.calls.find(([method]) => method === "turn/start")?.[1];
+    const turnStart = request.mock.calls.find(([method]) => method === "turn/start")?.[1] as {
+      sandboxPolicy?: unknown;
+      config?: Record<string, unknown>;
+    };
     expect(turnStart).toMatchObject({
       sandboxPolicy: { type: "readOnly" },
       config: {
         sandbox_mode: "read-only",
-        mcp_servers: {
-          hub: {
-            enabled_tools: ["finish_execution"],
-            default_tools_approval_mode: "prompt",
-            tools: { finish_execution: { approval_mode: "approve" } },
-          },
+        "mcp_servers.hub": {
+          url: "http://127.0.0.1/hub",
+          enabled_tools: ["finish_execution"],
+          default_tools_approval_mode: "prompt",
+          tools: { finish_execution: { approval_mode: "approve" } },
         },
       },
     });
-    expect(turnStart).not.toHaveProperty("config.mcp_servers.hub.tools.reply");
+    expect(turnStart.config).not.toHaveProperty("mcp_servers");
+    expect(
+      (turnStart.config?.["mcp_servers.hub"] as { tools?: Record<string, unknown> } | undefined)
+        ?.tools,
+    ).not.toHaveProperty("reply");
   });
 
   test("passes ephemeral: true to thread/start when constructed as ephemeral", async () => {
@@ -2428,11 +2520,38 @@ describe("Codex app-server provider", () => {
     expect(session.usageSession()).toMatchObject({
       provider: "codex",
       env: { CODEX_HOME: "/fixture/profile" },
+      launch: { command: "codex", args: [], env: { CODEX_HOME: "/fixture/profile" } },
       sessionKey: expect.any(String),
     });
     expect(spawns).toBe(0);
     await session.close();
     expect(session.usageSession()).toBeNull();
+  });
+
+  test("exposes replacement wrapper launch on usageSession", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = new CodexAppServerAgentSession(
+      createConfig({ cwd: "/workspace/project" }),
+      null,
+      createTestLogger(),
+      async () => appServer.child,
+      {
+        environment: { HOME: "/fixture/codex" },
+        runtimeSettings: {
+          command: { mode: "replace", argv: ["/opt/homebrew/bin/teamcodex", "run", "--"] },
+        },
+      },
+    );
+
+    expect(session.usageSession()).toMatchObject({
+      provider: "codex",
+      launch: {
+        command: "/opt/homebrew/bin/teamcodex",
+        args: ["run", "--"],
+        env: { HOME: "/fixture/codex" },
+      },
+    });
+    await session.close();
   });
 
   test("loads archived Codex history without resuming the native thread", async () => {
@@ -2545,6 +2664,80 @@ describe("Codex app-server provider", () => {
       appServer.assertNoErrors();
     },
   );
+
+  test("emits usage_observed on account/rateLimits/updated", async () => {
+    const appServer = createFakeCodexAppServer();
+    const session = new CodexAppServerAgentSession(
+      createConfig({ cwd: "/workspace/project" }),
+      null,
+      createTestLogger(),
+      async () => appServer.child,
+    );
+    const observed: Extract<AgentStreamEvent, { type: "usage_observed" }>[] = [];
+    session.subscribe((event) => {
+      if (event.type === "usage_observed") observed.push(event);
+    });
+
+    await session.connect();
+    appServer.child.stdout.write(
+      `${JSON.stringify({
+        method: "account/rateLimits/updated",
+        params: {
+          rateLimits: {
+            limitId: "codex",
+            limitName: null,
+            planType: "pro",
+            primary: { usedPercent: 31, windowDurationMins: 300, resetsAt: 1795725600 },
+            secondary: { usedPercent: 64, windowDurationMins: 10080, resetsAt: 1795917600 },
+            credits: { hasCredits: true, unlimited: false, balance: "19.5" },
+          },
+        },
+      })}\n`,
+    );
+
+    await expect.poll(() => observed.length).toBe(1);
+    expect(observed[0]).toEqual({
+      type: "usage_observed",
+      provider: "codex",
+      sourceId: "codex",
+      planLabel: "pro",
+      windows: [
+        {
+          id: "five_hour",
+          label: "5-hour",
+          shortLabel: "5h",
+          summary: true,
+          usedPct: 31,
+          remainingPct: 69,
+          durationSeconds: 18_000,
+          resetsAt: "2026-11-26T20:40:00.000Z",
+          tone: "ok",
+        },
+        {
+          id: "weekly",
+          label: "Weekly",
+          shortLabel: "wk",
+          summary: true,
+          usedPct: 64,
+          remainingPct: 36,
+          durationSeconds: 604_800,
+          resetsAt: "2026-11-29T02:00:00.000Z",
+          tone: "ok",
+        },
+      ],
+      balances: [
+        {
+          id: "credits",
+          label: "Credits",
+          remaining: 19.5,
+          unit: "credits",
+          tone: "ok",
+        },
+      ],
+    });
+    appServer.assertNoErrors();
+    await session.close();
+  });
 
   test("unarchives Codex when an active Paseo agent resumes an archived thread", async () => {
     const threadRequests: string[] = [];
@@ -3259,13 +3452,12 @@ describe("Codex app-server provider", () => {
       expect(forkConfigs).toEqual([
         expect.objectContaining({
           ...customCodexConfig,
-          mcp_servers: {
-            paseo: expect.objectContaining({
-              url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1",
-            }),
-          },
+          "mcp_servers.paseo": expect.objectContaining({
+            url: "http://127.0.0.1:6767/mcp/agents?callerAgentId=agent-1",
+          }),
         }),
       ]);
+      expect(forkConfigs[0]).not.toHaveProperty("mcp_servers");
       appServer.assertNoErrors();
       await session.close();
     },

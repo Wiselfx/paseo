@@ -13,6 +13,7 @@ import {
   type WorkspaceTabPresentation,
 } from "@/screens/workspace/workspace-tab-presentation";
 import { useFilePanelOpenWithMenu } from "@/file-panels";
+import { useFileTabMenu } from "@/screens/workspace/use-file-tab-menu";
 import { MobileTabTrailingAccessory } from "@/screens/workspace/workspace-tab-trailing-accessory";
 import {
   buildWorkspaceTabMenuEntries,
@@ -140,7 +141,6 @@ interface MobileWorkspaceTabSwitcherProps {
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;
   onCopyTerminalId: (terminalId: string) => Promise<void> | void;
-  onCopyFilePath: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
@@ -161,13 +161,13 @@ function MobileWorkspaceTabOption({
   onCopyResumeCommand,
   onCopyAgentId,
   onCopyTerminalId,
-  onCopyFilePath,
   onReloadAgent,
   onRenameTab,
   onCloseTab,
   onCloseTabsAbove,
   onCloseTabsBelow,
   onCloseOtherTabs,
+  onDismissSwitcher,
 }: {
   tab: WorkspaceTabDescriptor;
   tabIndex: number;
@@ -180,13 +180,13 @@ function MobileWorkspaceTabOption({
   onCopyResumeCommand: (agentId: string) => Promise<void> | void;
   onCopyAgentId: (agentId: string) => Promise<void> | void;
   onCopyTerminalId: (terminalId: string) => Promise<void> | void;
-  onCopyFilePath: (path: string) => Promise<void> | void;
   onReloadAgent: (agentId: string) => Promise<void> | void;
   onRenameTab: (tab: WorkspaceTabDescriptor) => void;
   onCloseTab: (tabId: string) => Promise<void> | void;
   onCloseTabsAbove: (tabId: string) => Promise<void> | void;
   onCloseTabsBelow: (tabId: string) => Promise<void> | void;
   onCloseOtherTabs: (tabId: string) => Promise<void> | void;
+  onDismissSwitcher: () => void;
 }) {
   const { t } = useTranslation();
   const tabMenuLabels = useMemo<WorkspaceTabMenuLabels>(
@@ -194,7 +194,6 @@ function MobileWorkspaceTabOption({
       copyResumeCommand: t("workspace.tabs.menu.copyResumeCommand"),
       copyAgentId: t("workspace.tabs.menu.copyAgentId"),
       copyTerminalId: t("workspace.tabs.menu.copyTerminalId"),
-      copyFilePath: t("workspace.tabs.menu.copyFilePath"),
       rename: t("workspace.tabs.menu.rename"),
       closeAbove: t("workspace.tabs.menu.closeAbove"),
       closeBelow: t("workspace.tabs.menu.closeBelow"),
@@ -217,7 +216,6 @@ function MobileWorkspaceTabOption({
     onCopyResumeCommand,
     onCopyAgentId,
     onCopyTerminalId,
-    onCopyFilePath,
     onReloadAgent,
     onRenameTab,
     onCloseTab,
@@ -246,6 +244,13 @@ function MobileWorkspaceTabOption({
     { serverId: normalizedServerId, workspaceId: normalizedWorkspaceId, tabId: tab.tabId },
     menuTestIDBase,
   );
+  const fileMenu = useFileTabMenu({
+    serverId: normalizedServerId,
+    workspaceId: normalizedWorkspaceId,
+    tab,
+    testIDBase: menuTestIDBase,
+    onRevealInFiles: onDismissSwitcher,
+  });
   const trailingAccessory = useMemo(
     () => (
       <MobileTabTrailingAccessory
@@ -253,9 +258,10 @@ function MobileWorkspaceTabOption({
         presentationLabel={fallbackLabel}
         menuEntries={menuEntries}
         openWith={openWith}
+        fileMenu={fileMenu}
       />
     ),
-    [menuTestIDBase, fallbackLabel, menuEntries, openWith],
+    [menuTestIDBase, fallbackLabel, menuEntries, openWith, fileMenu],
   );
 
   const renderPresentation = useCallback(
@@ -295,7 +301,6 @@ export const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitch
   onCopyResumeCommand,
   onCopyAgentId,
   onCopyTerminalId,
-  onCopyFilePath,
   onReloadAgent,
   onRenameTab,
   onCloseTab,
@@ -384,6 +389,8 @@ export const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitch
     [createTerminalDisabled, handleNewAgent, handleNewTerminal, t],
   );
 
+  const dismissSwitcher = useCallback(() => setIsOpen(false), []);
+
   const renderTabOption = useCallback(
     ({
       option,
@@ -417,13 +424,13 @@ export const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitch
           onCopyResumeCommand={onCopyResumeCommand}
           onCopyAgentId={onCopyAgentId}
           onCopyTerminalId={onCopyTerminalId}
-          onCopyFilePath={onCopyFilePath}
           onReloadAgent={onReloadAgent}
           onRenameTab={onRenameTab}
           onCloseTab={onCloseTab}
           onCloseTabsAbove={onCloseTabsAbove}
           onCloseTabsBelow={onCloseTabsBelow}
           onCloseOtherTabs={onCloseOtherTabs}
+          onDismissSwitcher={dismissSwitcher}
         />
       );
     },
@@ -436,13 +443,13 @@ export const MobileWorkspaceTabSwitcher = memo(function MobileWorkspaceTabSwitch
       onCopyResumeCommand,
       onCopyAgentId,
       onCopyTerminalId,
-      onCopyFilePath,
       onReloadAgent,
       onRenameTab,
       onCloseTab,
       onCloseTabsAbove,
       onCloseTabsBelow,
       onCloseOtherTabs,
+      dismissSwitcher,
     ],
   );
 
